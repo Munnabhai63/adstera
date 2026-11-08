@@ -21,16 +21,6 @@ from pool import Proxy
 
 logger = logging.getLogger(__name__)
 
-PREVIEW_PATH = Path(__file__).parent / "state" / "live_preview.jpg"
-
-
-async def _save_preview(page: Page) -> None:
-    try:
-        PREVIEW_PATH.parent.mkdir(parents=True, exist_ok=True)
-        await page.screenshot(path=str(PREVIEW_PATH), quality=60, type="jpeg")
-    except Exception:
-        pass
-
 # EU/UK country codes that require CMP handling
 _EU_UK_COUNTRIES = {
     "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR",
@@ -210,7 +200,6 @@ async def run_session(
             logger.warning("Initial navigation failed (%s) — retrying after 2.5s network settle...", nav_err)
             await asyncio.sleep(2.5)
             await page.goto(start_url, **nav_kwargs)
-        await _save_preview(page)
 
         # CMP handling (EU/UK geos)
         cmp_enabled = cfg["cmp"]["enabled"]
@@ -244,7 +233,6 @@ async def run_session(
             if rng.random() < cfg["target"]["scroll_prob"]:
                 await human.scroll_page(pg, rng)
                 scroll_done = True
-                await _save_preview(pg)
 
             # Ad click probability check
             if (
@@ -279,7 +267,6 @@ async def run_session(
 
             if remaining > 0:
                 await human.idle_drift(page, rng, duration_s=0.5)
-                await _save_preview(page)
 
             # Occasional focus blur (tab visibility simulation)
             if rng.random() < 0.08:

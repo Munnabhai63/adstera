@@ -642,19 +642,6 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Live Browser Screen Card -->
-  <div class="card" id="cardPreview">
-    <div class="card-title">
-      <span>🖥️ Live Browser Screen (Real-Time Preview)</span>
-      <span id="previewBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(148,163,184,0.15); color: #94a3b8; font-weight: 600;">⚪ Idle</span>
-    </div>
-    <div style="background: #070a10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 240px; text-align: center;">
-      <img id="livePreviewImg" src="/api/preview.jpg" alt="Live Browser Preview" style="max-width: 100%; max-height: 520px; border-radius: 6px; border: 1px solid #1e293b; display: none;" onload="this.style.display='block'; document.getElementById('previewPlaceholder').style.display='none';" onerror="this.style.display='none'; document.getElementById('previewPlaceholder').style.display='block';">
-      <div id="previewPlaceholder" style="color: var(--muted); font-size: 13px;">
-        <span>▶ Start a live session to see the real-time browser screen here</span>
-      </div>
-    </div>
-  </div>
 
   <!-- Live Console Logs -->
   <div class="card">
@@ -716,29 +703,18 @@ HTML_PAGE = """<!DOCTYPE html>
       const btnStart = document.getElementById('btnStart');
       const btnStop = document.getElementById('btnStop');
 
-      const pBadge = document.getElementById('previewBadge');
       if (data.is_running) {
         badge.className = 'status-badge running';
         text.innerText = 'RUNNING (PID ' + data.pid + ')';
         btnStart.disabled = true;
         btnStop.disabled = false;
         document.getElementById('statPID').innerText = data.pid;
-        if (pBadge) {
-          pBadge.innerText = '🟢 Live Stream Active';
-          pBadge.style.background = 'rgba(34,197,94,0.15)';
-          pBadge.style.color = '#22c55e';
-        }
       } else {
         badge.className = 'status-badge stopped';
         text.innerText = 'STOPPED';
         btnStart.disabled = false;
         btnStop.disabled = true;
         document.getElementById('statPID').innerText = '—';
-        if (pBadge) {
-          pBadge.innerText = '⏸️ Paused (Last Session Frame)';
-          pBadge.style.background = 'rgba(148,163,184,0.15)';
-          pBadge.style.color = '#94a3b8';
-        }
       }
 
       document.getElementById('statSessionsToday').innerText = data.today;
@@ -1017,32 +993,10 @@ HTML_PAGE = """<!DOCTYPE html>
     fetchStatus();
   }
 
-  function refreshPreview() {
-    const img = document.getElementById('livePreviewImg');
-    if (!img) return;
-    const stamp = Date.now();
-    const testImg = new Image();
-    testImg.onload = () => {
-      img.src = '/api/preview.jpg?t=' + stamp;
-      img.style.display = 'block';
-      const ph = document.getElementById('previewPlaceholder');
-      if (ph) ph.style.display = 'none';
-    };
-    testImg.onerror = () => {
-      // Only show placeholder if image was never loaded before
-      if (!img.src || img.style.display === 'none') {
-        const ph = document.getElementById('previewPlaceholder');
-        if (ph) ph.style.display = 'block';
-      }
-    };
-    testImg.src = '/api/preview.jpg?t=' + stamp;
-  }
-
   // Initial load & Polling
   loadConfig();
   fetchStatus();
   setInterval(fetchStatus, 3000);
-  setInterval(refreshPreview, 2500);
 </script>
 
 </body>
@@ -1115,20 +1069,6 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 })
             except Exception as exc:
                 self._send_json({"ok": False, "error": str(exc), "devices": [], "ip_info": {}})
-            return
-
-        if path == "/api/preview.jpg":
-            preview_file = BASE_DIR / "state" / "live_preview.jpg"
-            if preview_file.exists():
-                data = preview_file.read_bytes()
-                self.send_response(200)
-                self.send_header("Content-Type", "image/jpeg")
-                self.send_header("Content-Length", str(len(data)))
-                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
-                self.end_headers()
-                self.wfile.write(data)
-            else:
-                self.send_error(HTTPStatus.NOT_FOUND, "No preview available")
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not Found")
