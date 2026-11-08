@@ -19,7 +19,7 @@ target:
   target_impressions: 1000
   target_clicks: 50
   target_revenue: 10.0
-  cpm_rate: 2.50
+  cpm_rate: 2.5
 session:
   page_depth_min: 1
   page_depth_max: 3
@@ -76,7 +76,7 @@ cmp:
   enabled: true
   accept_prob: 0.88
 browser:
-  headless: true
+  headless: false
   slow_mo_ms: 40
   block_resources:
   - font

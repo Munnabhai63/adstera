@@ -258,35 +258,50 @@ def init_script(fp: Fingerprint) -> str:
   const _chModel = {json.dumps(ch["model"])};
   const _chFullVer = {json.dumps(ch["full_ver"])};
 
-  const _uad = {{
-    brands: _chBrands,
-    mobile: _chMobile,
-    platform: _chPlatform,
-    getHighEntropyValues: function(hints) {{
-      return Promise.resolve({{
-        architecture: _chArch,
-        bitness: _chBitness,
-        brands: _chBrands,
-        fullVersionList: [
-          {{ brand: _chBrands[0].brand, version: _chFullVer }},
-          {{ brand: _chBrands[1].brand, version: _chFullVer }},
-          {{ brand: 'Not?A_Brand', version: '99.0.0.0' }}
-        ],
-        mobile: _chMobile,
-        model: _chModel,
-        platform: _chPlatform,
-        platformVersion: _chPlatformVersion,
-        uaFullVersion: _chFullVer
-      }});
-    }},
-    toJSON: function() {{
-      return {{
-        brands: _chBrands,
-        mobile: _chMobile,
-        platform: _chPlatform
-      }};
-    }}
+  const _UAP = (typeof window !== 'undefined' && window.NavigatorUAData) ? window.NavigatorUAData.prototype : Object.prototype;
+  const _uad = Object.create(_UAP);
+
+  Object.defineProperty(_uad, 'brands',   {{ get: () => _chBrands,   enumerable: true, configurable: true }});
+  Object.defineProperty(_uad, 'mobile',   {{ get: () => _chMobile,   enumerable: true, configurable: true }});
+  Object.defineProperty(_uad, 'platform', {{ get: () => _chPlatform, enumerable: true, configurable: true }});
+
+  const _makeNative = (fn, name) => {{
+    Object.defineProperty(fn, 'name', {{ value: name, configurable: true }});
+    Object.defineProperty(fn, 'toString', {{
+      value: function() {{ return 'function ' + name + '() {{ [native code] }}'; }},
+      configurable: true
+    }});
+    return fn;
   }};
+
+  _uad.getHighEntropyValues = _makeNative(function(hints) {{
+    return Promise.resolve({{
+      architecture: _chArch,
+      bitness: _chBitness,
+      brands: _chBrands,
+      formFactor: _chMobile ? ['mobile'] : ['desktop'],
+      fullVersionList: [
+        {{ brand: _chBrands[0].brand, version: _chFullVer }},
+        {{ brand: _chBrands[1].brand, version: _chFullVer }},
+        {{ brand: 'Not?A_Brand', version: '99.0.0.0' }}
+      ],
+      mobile: _chMobile,
+      model: _chModel,
+      platform: _chPlatform,
+      platformVersion: _chPlatformVersion,
+      uaFullVersion: _chFullVer,
+      wow64: false
+    }});
+  }}, 'getHighEntropyValues');
+
+  _uad.toJSON = _makeNative(function() {{
+    return {{
+      brands: _chBrands,
+      mobile: _chMobile,
+      platform: _chPlatform
+    }};
+  }}, 'toJSON');
+
   Object.defineProperty(navigator, 'userAgentData', {{
     get: () => _uad,
     configurable: true,

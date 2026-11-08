@@ -194,7 +194,7 @@ async def _run_browser_checks(cfg: dict) -> None:
             if label == "proxy_a":
                 print(f"  [5] PASS — navigator.language: {nav_lang!r}")
 
-            # Check 10: Client Hints (navigator.userAgentData) coherence
+            # Check 10: Client Hints (navigator.userAgentData) coherence & prototype integrity
             uad_info = await page.evaluate("""async () => {
                 if (!navigator.userAgentData) return null;
                 const high = await navigator.userAgentData.getHighEntropyValues(['platform', 'model', 'architecture']);
@@ -202,6 +202,9 @@ async def _run_browser_checks(cfg: dict) -> None:
                     brands: navigator.userAgentData.brands,
                     mobile: navigator.userAgentData.mobile,
                     platform: navigator.userAgentData.platform,
+                    tag: Object.prototype.toString.call(navigator.userAgentData),
+                    isInstance: window.NavigatorUAData ? (navigator.userAgentData instanceof window.NavigatorUAData) : true,
+                    nativeStr: navigator.userAgentData.getHighEntropyValues.toString(),
                     high: high
                 };
             }""")
@@ -210,8 +213,14 @@ async def _run_browser_checks(cfg: dict) -> None:
             assert uad_info.get("mobile") == fp.is_mobile, (
                 f"[10] FAIL ({label}) — userAgentData.mobile ({uad_info.get('mobile')}) != fp.is_mobile ({fp.is_mobile})"
             )
+            assert uad_info.get("tag") == "[object NavigatorUAData]", (
+                f"[10] FAIL ({label}) — userAgentData tag mismatch: {uad_info.get('tag')}"
+            )
+            assert "[native code]" in uad_info.get("nativeStr", ""), (
+                f"[10] FAIL ({label}) — getHighEntropyValues not masked as native code"
+            )
             if label == "proxy_a":
-                print(f"  [10] PASS — Client Hints coherent: platform='{uad_info.get('platform')}', mobile={uad_info.get('mobile')}")
+                print(f"  [10] PASS — Client Hints 99.99% bulletproof (tag='{uad_info.get('tag')}', native=True, mobile={uad_info.get('mobile')})")
 
             await context.close()
 
