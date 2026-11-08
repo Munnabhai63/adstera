@@ -76,7 +76,6 @@ browser:
   block_resources:
   - font
   - media
-
 network:
-  mode: proxy
+  mode: mobile_tether
   airplane_mode_wait: 4
