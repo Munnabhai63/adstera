@@ -283,6 +283,51 @@ class MobileTetherPool:
         return 1
 
 
+def fetch_proxies_from_api(api_url: str, timeout: float = 12.0) -> list[str]:
+    """
+    Fetch proxies from a remote provider API endpoint (JSON array or raw text lines).
+    Supports Bright Data, Smartproxy, Oxylabs, Webshare, ProxyScrape, etc.
+    """
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            resp = client.get(api_url)
+            resp.raise_for_status()
+
+            # Case 1: JSON response (list of proxy strings or list of dicts)
+            try:
+                data = resp.json()
+                if isinstance(data, list):
+                    lines = []
+                    for item in data:
+                        if isinstance(item, str):
+                            lines.append(item.strip())
+                        elif isinstance(item, dict):
+                            h = item.get("ip") or item.get("host")
+                            p = item.get("port")
+                            u = item.get("user") or item.get("username")
+                            pw = item.get("password") or item.get("pass")
+                            if h and p and u and pw:
+                                lines.append(f"{h}:{p}:{u}:{pw}")
+                            elif h and p:
+                                lines.append(f"{h}:{p}")
+                    if lines:
+                        return lines
+                elif isinstance(data, dict):
+                    for k in ("proxies", "data", "results", "proxy_list"):
+                        if k in data and isinstance(data[k], list):
+                            return [str(x).strip() for x in data[k] if str(x).strip()]
+            except Exception:
+                pass
+
+            # Case 2: Plaintext newline-separated list
+            text = resp.text.strip()
+            lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+            return lines
+    except Exception as exc:
+        logger.error("Failed to fetch proxies from API %s: %s", api_url, exc)
+        raise
+
+
 class ProxyPool:
     def __init__(self, proxies: list[Proxy], cfg: dict):
         self._proxies = proxies
@@ -312,6 +357,26 @@ class ProxyPool:
         proxies = [p for p in proxies if not p.geo.is_datacenter]
         logger.info("%d proxies after datacenter filter", len(proxies))
 
+        return cls(proxies, cfg)
+
+    @classmethod
+    async def from_api(cls, api_url: str, cfg: dict) -> "ProxyPool":
+        loop = asyncio.get_running_loop()
+        lines = await loop.run_in_executor(None, fetch_proxies_from_api, api_url)
+        raw = [_parse_proxy_line(ln) for ln in lines]
+        proxies = [p for p in raw if p is not None]
+        logger.info("Loaded %d proxies from API %s", len(proxies), api_url)
+
+        sem = asyncio.Semaphore(5)
+
+        async def enrich(p: Proxy) -> None:
+            async with sem:
+                p.geo = await _lookup_geo(p)
+
+        await asyncio.gather(*[enrich(p) for p in proxies])
+
+        proxies = [p for p in proxies if not p.geo.is_datacenter]
+        logger.info("%d proxies after datacenter filter from API", len(proxies))
         return cls(proxies, cfg)
 
     @property

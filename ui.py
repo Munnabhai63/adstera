@@ -408,6 +408,15 @@ HTML_PAGE = """<!DOCTYPE html>
 
       <!-- Mode 1: Proxy Pool -->
       <div id="sectionProxy" style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-group" style="background: #0d131f; border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 2px;">
+          <label style="color: #60a5fa; font-weight: 700;">📥 Auto-Fetch from Proxy API URL (Optional)</label>
+          <div style="display: flex; gap: 8px; margin-top: 6px;">
+            <input type="text" id="proxyApiUrl" placeholder="https://api.yourproxyprovider.com/getproxies" style="flex: 1;">
+            <button class="btn btn-secondary" onclick="fetchProxiesFromApi()">Fetch Now</button>
+          </div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">Supports Bright Data, Smartproxy, Oxylabs, Webshare, ProxyScrape (JSON or Text list)</div>
+        </div>
+
         <div class="form-group">
           <label>One proxy per line (Format: <code>host:port:user:pass</code> or <code>user:pass@host:port</code>)</label>
           <textarea id="proxiesText" placeholder="global.provider.com:10000:username:password&#10;1.2.3.4:8080"></textarea>
@@ -710,6 +719,7 @@ HTML_PAGE = """<!DOCTYPE html>
       switchNetworkMode(netMode);
       
       document.getElementById('proxiesText').value = data.proxies || '';
+      document.getElementById('proxyApiUrl').value = (cfg.proxy && cfg.proxy.api_url) || '';
     } catch (e) {
       console.error("loadConfig failed:", e);
     }
@@ -721,6 +731,7 @@ HTML_PAGE = """<!DOCTYPE html>
       headless: document.getElementById('modeHeadless').checked,
       network_mode: currentNetworkMode,
       airplane_mode_wait: parseInt(document.getElementById('airplaneWait').value) || 4,
+      proxy_api_url: document.getElementById('proxyApiUrl').value.trim(),
       min_dwell: parseInt(document.getElementById('minDwell').value),
       max_dwell: parseInt(document.getElementById('maxDwell').value),
       click_prob: parseFloat(document.getElementById('clickProb').value),
@@ -741,6 +752,32 @@ HTML_PAGE = """<!DOCTYPE html>
       }
     } else {
       alert('Error saving config: ' + data.error);
+    }
+  }
+
+  async function fetchProxiesFromApi() {
+    const url = document.getElementById('proxyApiUrl').value.trim();
+    if (!url) {
+      alert('Please enter a valid Proxy Provider API URL');
+      return;
+    }
+    showToast('Fetching proxies from provider API…');
+    try {
+      const res = await fetch('/api/proxies/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ api_url: url })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        document.getElementById('proxiesText').value = data.proxies;
+        showToast('Successfully fetched ' + data.count + ' proxies!');
+        fetchStatus();
+      } else {
+        alert('Failed to fetch proxies: ' + (data.error || data.msg));
+      }
+    } catch (e) {
+      alert('Error fetching from API: ' + e);
     }
   }
 
@@ -903,11 +940,42 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                     if "network" not in cfg:
                         cfg["network"] = {}
                     cfg["network"]["airplane_mode_wait"] = int(payload["airplane_mode_wait"])
+                if "proxy_api_url" in payload:
+                    if "proxy" not in cfg:
+                        cfg["proxy"] = {}
+                    cfg["proxy"]["api_url"] = str(payload["proxy_api_url"]).strip()
 
                 write_config(cfg)
                 self._send_json({"ok": True, "msg": "Config saved"})
             except Exception as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=400)
+            return
+
+        if path == "/api/proxies/fetch":
+            import pool
+            api_url = payload.get("api_url", "").strip()
+            if not api_url:
+                self._send_json({"ok": False, "error": "API URL is required"}, status=400)
+                return
+            try:
+                lines = pool.fetch_proxies_from_api(api_url)
+                if not lines:
+                    self._send_json({"ok": False, "error": "No proxies returned by API"})
+                    return
+                proxies_str = "\n".join(lines)
+                write_proxies(proxies_str)
+                cfg = read_config()
+                if "proxy" not in cfg:
+                    cfg["proxy"] = {}
+                cfg["proxy"]["api_url"] = api_url
+                write_config(cfg)
+                self._send_json({
+                    "ok": True,
+                    "count": count_valid_proxies(),
+                    "proxies": proxies_str,
+                })
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=500)
             return
 
         if path == "/api/adb/rotate":

@@ -135,7 +135,13 @@ async def main() -> None:
         logger.info("Operating in Mobile USB Tethering Mode (ADB IP Rotation)")
         pool = MobileTetherPool(cfg)
     else:
-        pool = await ProxyPool.from_file(cfg["proxy"]["file"], cfg)
+        api_url = cfg.get("proxy", {}).get("api_url", "")
+        if api_url:
+            logger.info("Fetching proxy pool dynamically from API: %s", api_url)
+            pool = await ProxyPool.from_api(api_url, cfg)
+        else:
+            pool = await ProxyPool.from_file(cfg["proxy"]["file"], cfg)
+
         if len(pool) == 0:
             logger.error("No valid proxies in pool. Exiting.")
             sys.exit(1)
