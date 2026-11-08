@@ -914,11 +914,15 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             import mobile_adb
             try:
                 wait_sec = int(payload.get("airplane_wait", 4))
-                res = mobile_adb.rotate_ip(wait_seconds=wait_sec)
-                old_ip = res.get("old_ip", {}).get("ip", "unknown")
-                new_ip = res.get("new_ip", {}).get("ip", "unknown")
-                msg = f"Flight mode rotated successfully! IP changed: {old_ip} -> {new_ip}"
-                self._send_json({"ok": True, "msg": msg, "data": res})
+                ok, old_ip, new_ip, msg_text = mobile_adb.rotate_ip(wait_seconds=wait_sec)
+                if ok:
+                    self._send_json({
+                        "ok": True,
+                        "msg": msg_text,
+                        "data": {"old_ip": old_ip, "new_ip": new_ip},
+                    })
+                else:
+                    self._send_json({"ok": False, "msg": f"Rotation failed: {msg_text}"})
             except Exception as exc:
                 self._send_json({"ok": False, "msg": f"Rotation failed: {exc}"})
             return
