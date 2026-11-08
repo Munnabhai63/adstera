@@ -15,6 +15,24 @@ from playwright.async_api import Page
 logger = logging.getLogger(__name__)
 
 
+# ── Cursor state tracking ──────────────────────────────────────────────────────
+_cursor_positions: dict[int, tuple[float, float]] = {}
+
+
+def get_current_cursor(page: Page, rng: Optional[random.Random] = None) -> tuple[float, float]:
+    """Return the last known mouse position for this page, or an initial natural starting coordinate."""
+    pos = _cursor_positions.get(id(page))
+    if pos is not None:
+        return pos
+    if rng is None:
+        rng = random.Random()
+    vp = page.viewport_size or {"width": 1280, "height": 800}
+    start_x = vp["width"] * rng.uniform(0.35, 0.65)
+    start_y = vp["height"] * rng.uniform(0.35, 0.65)
+    _cursor_positions[id(page)] = (start_x, start_y)
+    return (start_x, start_y)
+
+
 # ── Bezier helpers ─────────────────────────────────────────────────────────────
 
 def _cubic_bezier(p0: tuple, p1: tuple, p2: tuple, p3: tuple, t: float) -> tuple[float, float]:
@@ -67,15 +85,15 @@ async def move_mouse(
 ) -> None:
     """
     Move the mouse from (start_x, start_y) to (x1, y1) along a cubic Bezier path.
+    Preserves continuous cursor tracking across movements without unnatural teleportation.
     Steps: 18–38. Delay per step: 8–30 ms. 4% chance of a mid-path micro-pause.
     """
     if rng is None:
         rng = random.Random()
 
-    # Retrieve current mouse position from page state if not provided
+    # Retrieve current mouse position without teleporting
     if start_x is None or start_y is None:
-        start_x = rng.uniform(0, 800)
-        start_y = rng.uniform(0, 600)
+        start_x, start_y = get_current_cursor(page, rng)
 
     steps = rng.randint(18, 38)
     path = _bezier_path(start_x, start_y, x1, y1, steps, rng)
@@ -89,6 +107,72 @@ async def move_mouse(
         if i == pause_at:
             await asyncio.sleep(rng.uniform(0.15, 0.6))
 
+    _cursor_positions[id(page)] = (x1, y1)
+
+
+async def micro_tremor(
+    page: Page,
+    x: float,
+    y: float,
+    count: int = 3,
+    rng: Optional[random.Random] = None,
+) -> tuple[float, float]:
+    """
+    Simulate natural human physiological micro-tremor (0.5–1.8 px micro-movements)
+    over 120ms–240ms while resting or hovering on a point before interacting.
+    """
+    if rng is None:
+        rng = random.Random()
+    cur_x, cur_y = x, y
+    for _ in range(count):
+        dx = rng.uniform(-1.5, 1.5)
+        dy = rng.uniform(-1.5, 1.5)
+        cur_x = max(0.0, x + dx)
+        cur_y = max(0.0, y + dy)
+        await page.mouse.move(cur_x, cur_y)
+        await asyncio.sleep(rng.uniform(0.03, 0.07))
+    _cursor_positions[id(page)] = (cur_x, cur_y)
+    return cur_x, cur_y
+
+
+async def click_point(
+    page: Page,
+    x: float,
+    y: float,
+    rng: Optional[random.Random] = None,
+) -> None:
+    """
+    Execute a human-grade ergonomic click at (x, y):
+    1. Continuous Bézier trajectory from current cursor position.
+    2. Pre-click hover dwell (120ms–240ms) with hand micro-tremors.
+    3. Mouse down.
+    4. Human finger depress hold duration (60ms–130ms).
+    5. Mouse up.
+    6. Post-click micro settlement dwell (40ms–90ms).
+    """
+    if rng is None:
+        rng = random.Random()
+
+    # 1. Smooth Bézier glide to target
+    await move_mouse(page, x, y, rng)
+
+    # 2. Pre-click settlement with physiological micro-tremors
+    tremor_steps = rng.randint(2, 4)
+    await micro_tremor(page, x, y, count=tremor_steps, rng=rng)
+    await asyncio.sleep(rng.uniform(0.04, 0.10))
+
+    # 3. Mouse down
+    await page.mouse.down()
+
+    # 4. Finger hold duration
+    await asyncio.sleep(rng.uniform(0.06, 0.13))
+
+    # 5. Mouse up
+    await page.mouse.up()
+
+    # 6. Post-click settlement dwell
+    await asyncio.sleep(rng.uniform(0.04, 0.09))
+
 
 async def click_element(
     page: Page,
@@ -96,7 +180,8 @@ async def click_element(
     rng: Optional[random.Random] = None,
 ) -> bool:
     """
-    Click an element at a random point inside its bounding box (20–80% x, 25–75% y).
+    Click an element at a biological point inside its bounding box (20–80% x, 25–75% y)
+    with pre-click settlement and micro-tremors.
     Returns True on success.
     """
     if rng is None:
@@ -110,15 +195,11 @@ async def click_element(
         if box is None:
             return False
 
+        # Ergonomic randomized distribution (never exact center 50/50)
         tx = box["x"] + box["width"] * rng.uniform(0.20, 0.80)
         ty = box["y"] + box["height"] * rng.uniform(0.25, 0.75)
 
-        await move_mouse(page, tx, ty, rng,
-                         start_x=rng.uniform(0, page.viewport_size["width"] if page.viewport_size else 800),
-                         start_y=rng.uniform(0, page.viewport_size["height"] if page.viewport_size else 600))
-
-        await asyncio.sleep(rng.uniform(0.05, 0.15))
-        await page.mouse.click(tx, ty)
+        await click_point(page, tx, ty, rng)
         return True
     except Exception as exc:
         logger.debug("click_element(%s) failed: %s", selector, exc)
@@ -174,18 +255,17 @@ async def idle_drift(
 ) -> None:
     """
     Produce small idle mouse movements so there are always recent input events.
-    Called every 8–20 s during dwell.
+    Called every 8–20 s during dwell. Moves continuously from current cursor position.
     """
     if rng is None:
         rng = random.Random()
 
     viewport = page.viewport_size or {"width": 800, "height": 600}
-    x = rng.uniform(50, viewport["width"] - 50)
-    y = rng.uniform(50, viewport["height"] - 50)
-    jitter_x = x + rng.uniform(-20, 20)
-    jitter_y = y + rng.uniform(-20, 20)
+    start_x, start_y = get_current_cursor(page, rng)
+    jitter_x = max(30.0, min(viewport["width"] - 30.0, start_x + rng.uniform(-40, 40)))
+    jitter_y = max(30.0, min(viewport["height"] - 30.0, start_y + rng.uniform(-40, 40)))
 
-    await move_mouse(page, jitter_x, jitter_y, rng, start_x=x, start_y=y)
+    await move_mouse(page, jitter_x, jitter_y, rng, start_x=start_x, start_y=start_y)
     await asyncio.sleep(duration_s * rng.uniform(0.8, 1.2))
 
 

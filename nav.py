@@ -67,8 +67,6 @@ async def navigate_internal(
         rng.uniform(100, viewport["width"] - 100),
         rng.uniform(100, viewport["height"] - 100),
         rng,
-        start_x=rng.uniform(50, viewport["width"] - 50),
-        start_y=rng.uniform(50, viewport["height"] - 50),
     )
     await asyncio.sleep(rng.uniform(0.3, 0.8))
 

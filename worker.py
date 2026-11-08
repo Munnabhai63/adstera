@@ -136,14 +136,7 @@ async def _attempt_ad_click(
                 tx = box["x"] + box["width"] * rng.uniform(0.20, 0.80)
                 ty = box["y"] + box["height"] * rng.uniform(0.25, 0.75)
 
-                viewport = page.viewport_size or {"width": 1280, "height": 800}
-                await human.move_mouse(
-                    page, tx, ty, rng,
-                    start_x=rng.uniform(50, viewport["width"] - 50),
-                    start_y=rng.uniform(50, viewport["height"] - 50),
-                )
-                await asyncio.sleep(rng.uniform(0.1, 0.3))
-                await page.mouse.click(tx, ty)
+                await human.click_point(page, tx, ty, rng)
                 logger.debug("Clicked ad element: %s at (%.0f, %.0f)", sel, tx, ty)
 
                 # Handle potential popunder/new tab
