@@ -206,13 +206,57 @@ async def click_element(
         return False
 
 
+async def keyboard_scroll(
+    page: Page,
+    direction: str = "down",
+    key: Optional[str] = None,
+    rng: Optional[random.Random] = None,
+) -> int:
+    """
+    Perform human-grade keyboard scrolling using Space, PageDown, or Arrow keys.
+    Simulates natural physical finger hold duration (60ms–140ms).
+    Returns the estimated or measured scroll distance.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    if key is None:
+        if direction == "down":
+            key_choices = ["Space", "PageDown", "ArrowDown"]
+            weights = [0.45, 0.35, 0.20]
+            key = rng.choices(key_choices, weights=weights, k=1)[0]
+        else:
+            key_choices = ["ArrowUp", "PageUp"]
+            weights = [0.70, 0.30]
+            key = rng.choices(key_choices, weights=weights, k=1)[0]
+
+    y_before = await page.evaluate("() => window.scrollY")
+
+    # If Arrow keys, user may press 1 to 3 times in rhythm
+    repeat = rng.randint(1, 3) if "Arrow" in key else 1
+
+    for r in range(repeat):
+        hold_time = rng.uniform(0.06, 0.14)
+        await page.keyboard.down(key)
+        await asyncio.sleep(hold_time)
+        await page.keyboard.up(key)
+        if r < repeat - 1:
+            await asyncio.sleep(rng.uniform(0.08, 0.18))
+
+    await asyncio.sleep(rng.uniform(0.15, 0.35))
+    y_after = await page.evaluate("() => window.scrollY")
+    return int(abs(y_after - y_before))
+
+
 async def scroll_page(
     page: Page,
     rng: Optional[random.Random] = None,
 ) -> None:
     """
-    Scroll through the page in human-like chunks with easing.
-    Total scroll: 180–520 px per chunk, 1.2–6.0 s pauses, 18% chance of a scroll-back.
+    Scroll through the page in human-like chunks with hybrid navigation.
+    Mixes smooth mouse wheel easing (75%) with keyboard navigation (25% - Spacebar, PageDown, ArrowDown).
+    Pause duration: 1.2–6.0 s per chunk.
+    18% chance of partial scroll-back (rereading paragraphs via wheel or ArrowUp).
     """
     if rng is None:
         rng = random.Random()
@@ -223,29 +267,48 @@ async def scroll_page(
     if total <= 0:
         return
 
-    current_y = 0
-    while current_y < total:
-        chunk = rng.randint(180, 520)
-        # Easing: split chunk into substeps with quadratic ease-out
-        substeps = rng.randint(8, 18)
-        for s in range(substeps):
-            t = (s + 1) / substeps
-            ease = 1 - (1 - t) ** 2          # ease-out quad
-            partial = int(chunk * ease / substeps)
-            if partial > 0:
-                await page.mouse.wheel(0, partial)
-            await asyncio.sleep(rng.uniform(0.03, 0.09))
+    current_y = await page.evaluate("() => window.scrollY")
 
-        current_y = min(current_y + chunk, total)
+    while current_y < total:
+        # 25% chance of keyboard scroll, 75% chance of mouse wheel scroll
+        use_keyboard = rng.random() < 0.25
+
+        if use_keyboard:
+            # Keyboard navigation: Spacebar, PageDown, or ArrowDown
+            scrolled_dist = await keyboard_scroll(page, direction="down", rng=rng)
+            current_y = await page.evaluate("() => window.scrollY")
+            if scrolled_dist <= 0:
+                # Fallback if key didn't move viewport
+                chunk = rng.randint(180, 520)
+                await page.mouse.wheel(0, chunk)
+                current_y = min(current_y + chunk, total)
+        else:
+            # Mouse wheel scroll with quadratic ease-out substeps
+            chunk = rng.randint(180, 520)
+            substeps = rng.randint(8, 18)
+            for s in range(substeps):
+                t = (s + 1) / substeps
+                ease = 1 - (1 - t) ** 2  # ease-out quad
+                partial = int(chunk * ease / substeps)
+                if partial > 0:
+                    await page.mouse.wheel(0, partial)
+                await asyncio.sleep(rng.uniform(0.03, 0.09))
+            current_y = await page.evaluate("() => window.scrollY")
+
+        # Natural reading dwell pause
         pause = rng.uniform(1.2, 6.0)
         await asyncio.sleep(pause)
 
-        # 18% chance of a partial scroll-back
+        # 18% chance of a partial scroll-back (rereading)
         if rng.random() < 0.18:
-            back = rng.randint(60, 200)
-            await page.mouse.wheel(0, -back)
+            back_key = rng.random() < 0.30
+            if back_key:
+                await keyboard_scroll(page, direction="up", rng=rng)
+            else:
+                back = rng.randint(60, 200)
+                await page.mouse.wheel(0, -back)
             await asyncio.sleep(rng.uniform(0.5, 1.5))
-            current_y = max(0, current_y - back)
+            current_y = await page.evaluate("() => window.scrollY")
 
 
 async def idle_drift(
