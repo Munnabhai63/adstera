@@ -27,6 +27,7 @@
 | 21 | Remote Proxy Provider API Auto-Fetch (`proxy_api_url`) | Allows fetching, parsing, and auto-updating proxies directly from provider API endpoints (Bright Data, Smartproxy, Oxylabs, Webshare, ProxyScrape) via UI or CLI |
 | 22 | Native `NavigatorUAData` prototype inheritance and GREASE brands for Client Hints | Step 1 upgrade: Ensures `navigator.userAgentData` passes `[object NavigatorUAData]`, `instanceof NavigatorUAData`, and masked `[native code]` functions |
 | 23 | Coordinate-based deterministic LSB micro-jitter for Canvas & WebGL | Step 2 upgrade: Injects coordinate-seeded LSB noise on `getImageData`, offscreen clone for `toDataURL` and `toBlob`, and WebGL `readPixels`, guaranteeing zero-drift across multiple reads while keeping seeds unique per proxy |
+| 24 | Mock `navigator.mediaDevices.enumerateDevices()` and `navigator.getBattery()` | Step 3 upgrade: Generates deterministic 64-char sha256 deviceId & groupId descriptors for media devices (3 on desktop, 4 on mobile) and realistic BatteryManager simulation with native prototype inheritance and `[native code]` masking, eliminating empty hardware signatures typical of headless environments |
 
 ## KNOWN GAPS
 

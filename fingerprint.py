@@ -227,6 +227,55 @@ def _extract_client_hints(fp: Fingerprint) -> dict:
     }
 
 
+def _generate_media_devices(fp: Fingerprint) -> list[dict]:
+    seed = fp.canvas_seed
+    devs = []
+    if fp.is_mobile:
+        configs = [
+            ("audioinput", "mic_in"),
+            ("audiooutput", "speaker_out"),
+            ("videoinput", "cam_back"),
+            ("videoinput", "cam_front"),
+        ]
+    else:
+        configs = [
+            ("audioinput", "mic_default"),
+            ("audiooutput", "speaker_default"),
+            ("videoinput", "webcam_default"),
+        ]
+
+    for kind, tag in configs:
+        d_id = hashlib.sha256(f"{seed}_{kind}_{tag}".encode()).hexdigest()
+        g_id = hashlib.sha256(f"{seed}_{kind}_group".encode()).hexdigest()
+        devs.append({"kind": kind, "deviceId": d_id, "groupId": g_id, "label": ""})
+    return devs
+
+
+def _generate_battery(fp: Fingerprint) -> dict:
+    seed = fp.canvas_seed
+    if fp.is_mobile:
+        level = round(0.45 + (seed % 48) / 100.0, 2)
+        charging = (seed % 5) == 0
+    else:
+        is_laptop = (seed % 2) == 0
+        if is_laptop:
+            level = round(0.55 + (seed % 42) / 100.0, 2)
+            charging = (seed % 3) == 0
+        else:
+            level = 1.0
+            charging = True
+
+    ch_time = 0 if level == 1.0 else ((seed % 3600) + 1800 if charging else None)
+    dis_time = None if charging else ((seed % 14400) + 7200)
+
+    return {
+        "level": level,
+        "charging": charging,
+        "chargingTime": ch_time,
+        "dischargingTime": dis_time,
+    }
+
+
 def init_script(fp: Fingerprint) -> str:
     """
     Return a JS string to inject via page.add_init_script().
@@ -235,6 +284,8 @@ def init_script(fp: Fingerprint) -> str:
     langs_json = json.dumps(fp.languages)
     screen_avail_height = fp.viewport_height - fp.screen_avail_offset
     ch = _extract_client_hints(fp)
+    media_devs = _generate_media_devices(fp)
+    bat_info = _generate_battery(fp)
 
     return f"""
 (function() {{
@@ -404,6 +455,62 @@ def init_script(fp: Fingerprint) -> str:
     Object.defineProperty(navigator.connection, 'downlink',      {{ get: () => {fp.downlink}, configurable: true }});
     Object.defineProperty(navigator.connection, 'rtt',           {{ get: () => {fp.rtt}, configurable: true }});
   }}
+
+  // ── mediaDevices (enumerateDevices) ───────────────────────────────────────
+  const _mockDevData = {json.dumps(media_devs)};
+  const _devProto = (typeof window !== 'undefined' && window.MediaDeviceInfo)
+    ? window.MediaDeviceInfo.prototype
+    : Object.prototype;
+
+  const _mockDevices = _mockDevData.map((d) => {{
+    const item = Object.create(_devProto);
+    Object.defineProperties(item, {{
+      deviceId: {{ value: d.deviceId, enumerable: true }},
+      kind:     {{ value: d.kind,     enumerable: true }},
+      label:    {{ value: d.label,    enumerable: true }},
+      groupId:  {{ value: d.groupId,  enumerable: true }},
+      toJSON:   {{
+        value: _makeNative(function() {{
+          return {{ deviceId: this.deviceId, kind: this.kind, label: this.label, groupId: this.groupId }};
+        }}, 'toJSON'),
+        enumerable: true
+      }}
+    }});
+    return item;
+  }});
+
+  if (!navigator.mediaDevices) {{
+    const _mdProto = (typeof window !== 'undefined' && window.MediaDevices)
+      ? window.MediaDevices.prototype
+      : (typeof EventTarget !== 'undefined' ? EventTarget.prototype : Object.prototype);
+    navigator.mediaDevices = Object.create(_mdProto);
+  }}
+
+  navigator.mediaDevices.enumerateDevices = _makeNative(function() {{
+    return Promise.resolve(_mockDevices);
+  }}, 'enumerateDevices');
+
+  // ── Battery Status API (navigator.getBattery) ─────────────────────────────
+  const _batData = {json.dumps(bat_info)};
+  const _bmProto = (typeof window !== 'undefined' && window.BatteryManager)
+    ? window.BatteryManager.prototype
+    : (typeof EventTarget !== 'undefined' ? EventTarget.prototype : Object.prototype);
+
+  const _batteryManager = Object.create(_bmProto);
+  Object.defineProperties(_batteryManager, {{
+    charging:        {{ value: _batData.charging, enumerable: true }},
+    chargingTime:    {{ value: _batData.chargingTime === null ? Infinity : _batData.chargingTime, enumerable: true }},
+    dischargingTime: {{ value: _batData.dischargingTime === null ? Infinity : _batData.dischargingTime, enumerable: true }},
+    level:           {{ value: _batData.level, enumerable: true }},
+    onchargingchange:        {{ value: null, writable: true, enumerable: true }},
+    onchargingtimechange:    {{ value: null, writable: true, enumerable: true }},
+    ondischargingtimechange: {{ value: null, writable: true, enumerable: true }},
+    onlevelchange:           {{ value: null, writable: true, enumerable: true }}
+  }});
+
+  navigator.getBattery = _makeNative(function() {{
+    return Promise.resolve(_batteryManager);
+  }}, 'getBattery');
 
   // ── canvas & WebGL buffer integrity (deterministic seeded coordinate jitter) ──
   const _canvasSeed = {fp.canvas_seed};

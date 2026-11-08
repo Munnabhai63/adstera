@@ -269,6 +269,41 @@ async def _run_browser_checks(cfg: dict) -> None:
             if label == "proxy_a":
                 print(f"  [11] PASS — Canvas & WebGL buffer integrity (getImageData + toDataURL zero-drift, [native code] masked)")
 
+            # Check 12: Hardware Peripherals & Battery API Simulation
+            hw_res = await page.evaluate("""async () => {
+                const devs = await navigator.mediaDevices.enumerateDevices();
+                const b = await navigator.getBattery();
+                return {
+                    devCount: devs.length,
+                    hasAudioIn: devs.some(d => d.kind === 'audioinput'),
+                    hasAudioOut: devs.some(d => d.kind === 'audiooutput'),
+                    hasVideoIn: devs.some(d => d.kind === 'videoinput'),
+                    dev0_idLen: devs[0] ? devs[0].deviceId.length : 0,
+                    dev0_groupLen: devs[0] ? devs[0].groupId.length : 0,
+                    dev0_isInstance: (typeof window.MediaDeviceInfo !== 'undefined') ? (devs[0] instanceof window.MediaDeviceInfo) : true,
+                    dev0_tag: Object.prototype.toString.call(devs[0]),
+                    dev0_nativeToJSON: devs[0] && devs[0].toJSON ? devs[0].toJSON.toString() : '',
+                    nativeEnumerate: navigator.mediaDevices.enumerateDevices.toString(),
+                    battery_charging: typeof b.charging === 'boolean',
+                    battery_level: b.level,
+                    battery_isInstance: (typeof window.BatteryManager !== 'undefined') ? (b instanceof window.BatteryManager) : true,
+                    battery_tag: Object.prototype.toString.call(b),
+                    nativeGetBattery: navigator.getBattery.toString()
+                };
+            }""")
+            assert hw_res["devCount"] >= 3, f"[12] FAIL ({label}) — enumerateDevices returned < 3 devices: {hw_res['devCount']}"
+            assert hw_res["hasAudioIn"], f"[12] FAIL ({label}) — No audioinput found"
+            assert hw_res["hasAudioOut"], f"[12] FAIL ({label}) — No audiooutput found"
+            assert hw_res["hasVideoIn"], f"[12] FAIL ({label}) — No videoinput found"
+            assert hw_res["dev0_idLen"] == 64, f"[12] FAIL ({label}) — deviceId not 64-char sha256: len={hw_res['dev0_idLen']}"
+            assert hw_res["dev0_groupLen"] == 64, f"[12] FAIL ({label}) — groupId not 64-char sha256: len={hw_res['dev0_groupLen']}"
+            assert "[native code]" in hw_res["nativeEnumerate"], f"[12] FAIL ({label}) — enumerateDevices not [native code]"
+            assert hw_res["battery_charging"], f"[12] FAIL ({label}) — battery.charging is not boolean"
+            assert 0.0 <= hw_res["battery_level"] <= 1.0, f"[12] FAIL ({label}) — battery.level out of range: {hw_res['battery_level']}"
+            assert "[native code]" in hw_res["nativeGetBattery"], f"[12] FAIL ({label}) — getBattery not [native code]"
+            if label == "proxy_a":
+                print(f"  [12] PASS — Hardware Peripherals & Battery Status API (devs={hw_res['devCount']}, battery={hw_res['battery_level']}, [native code] masked)")
+
             await context.close()
 
         # Check 11 cross-seed check: different proxies yield different canvas outputs
