@@ -133,3 +133,55 @@ def last_sessions(n: int = 10) -> list[dict]:
         ).fetchall()
     return [dict(r) for r in rows]
 
+
+def get_metrics(cpm_rate: float = 2.50) -> dict:
+    """Return aggregated daily metrics: impressions, clicks, CTR, CPM, and estimated revenue."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT sessions, ad_clicks, impressions FROM daily_stats WHERE date = date('now')"
+        ).fetchone()
+
+    sessions = int(row["sessions"]) if row else 0
+    clicks = int(row["ad_clicks"]) if row else 0
+    imps = int(row["impressions"]) if row else 0
+
+    ctr_val = (clicks / imps * 100.0) if imps > 0 else 0.0
+    rev = round((imps / 1000.0) * cpm_rate + (clicks * 0.03), 2)
+
+    return {
+        "sessions": sessions,
+        "impressions": imps,
+        "clicks": clicks,
+        "ctr": round(ctr_val, 2),
+        "cpm": round(cpm_rate, 2),
+        "revenue": rev,
+    }
+
+
+def export_stats_csv(filepath: str = "stats.csv", cpm_rate: float = 2.50) -> str:
+    """
+    Generate or update the CSV metrics report matching automation.md schema:
+    Date,Impressions,Clicks,CTR,CPM,Revenue
+    """
+    import csv
+    from datetime import datetime
+
+    metrics = get_metrics(cpm_rate)
+    target_file = Path(filepath)
+    file_exists = target_file.exists() and target_file.stat().st_size > 0
+
+    with open(target_file, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        if not file_exists:
+            writer.writerow(["Date", "Impressions", "Clicks", "CTR", "CPM", "Revenue"])
+        writer.writerow([
+            datetime.now().strftime("%Y/%m/%d %H:%M"),
+            metrics["impressions"],
+            metrics["clicks"],
+            f"{metrics['ctr']:.2f}%",
+            f"${metrics['cpm']:.2f}",
+            f"${metrics['revenue']:.2f}",
+        ])
+    return str(target_file)
+
+

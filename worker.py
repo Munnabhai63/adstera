@@ -362,6 +362,12 @@ async def run_session(
         status=result["status"],
     )
 
+    try:
+        cpm_rate = float(cfg.get("target", {}).get("cpm_rate", 2.50))
+        db.export_stats_csv("stats.csv", cpm_rate)
+    except Exception:
+        pass
+
     logger.info(
         "Session %s | dwell=%.1fs | pages=%d | clicks=%d | imps=%d | %s",
         proxy.proxy_id, result["dwell"], result["pages"],

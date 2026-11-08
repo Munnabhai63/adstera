@@ -482,6 +482,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <span class="status-dot"></span>
         <span id="statusText">STOPPED</span>
       </div>
+      <a href="/api/stats/csv" download="stats.csv" class="btn btn-secondary" style="text-decoration: none;">📥 Export CSV</a>
       <button class="btn btn-secondary" onclick="fetchStatus()">↻ Refresh</button>
     </div>
   </header>
@@ -493,8 +494,16 @@ HTML_PAGE = """<!DOCTYPE html>
       <div class="stat-val" id="statSessionsToday">0</div>
     </div>
     <div class="stat-card">
+      <div class="stat-title">Impressions / Clicks</div>
+      <div class="stat-val" id="statImpsClicks" style="color: #60a5fa; font-size: 22px;">0 / 0</div>
+    </div>
+    <div class="stat-card">
       <div class="stat-title">Current CTR (Last 100)</div>
       <div class="stat-val" id="statCTR">0.0%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-title">Est. Revenue / CPM</div>
+      <div class="stat-val" id="statRevenue" style="color: #34d399; font-size: 22px;">$0.00</div>
     </div>
     <div class="stat-card">
       <div class="stat-title">Active Proxies</div>
@@ -769,6 +778,13 @@ HTML_PAGE = """<!DOCTYPE html>
       document.getElementById('statSessionsToday').innerText = data.today;
       document.getElementById('statCTR').innerText = (data.ctr * 100).toFixed(1) + '%';
       document.getElementById('statProxies').innerText = data.proxies_count;
+
+      if (data.metrics) {
+        const impsClicksElem = document.getElementById('statImpsClicks');
+        if (impsClicksElem) impsClicksElem.innerText = `${data.metrics.impressions} / ${data.metrics.clicks}`;
+        const revElem = document.getElementById('statRevenue');
+        if (revElem) revElem.innerText = `$${data.metrics.revenue.toFixed(2)} ($${data.metrics.cpm.toFixed(2)})`;
+      }
 
       if (data.ua_stats) {
         const uaElem = document.getElementById('statUserAgents');
@@ -1152,11 +1168,15 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/status":
             db.init()
             import ua_provider
+            cfg = read_config()
+            cpm_rate = float(cfg.get("target", {}).get("cpm_rate", 2.50))
+            metrics = db.get_metrics(cpm_rate)
             status_data = {
                 "is_running": RUNNER.is_running(),
                 "pid": RUNNER.get_pid(),
                 "today": db.today(),
                 "ctr": db.ctr(100),
+                "metrics": metrics,
                 "proxies_count": count_valid_proxies(),
                 "ua_stats": ua_provider.get_stats(),
                 "active_ua": read_active_ua(),
@@ -1164,6 +1184,19 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "logs": RUNNER.get_logs(),
             }
             self._send_json(status_data)
+            return
+
+        if path == "/api/stats/csv":
+            cfg = read_config()
+            cpm_rate = float(cfg.get("target", {}).get("cpm_rate", 2.50))
+            csv_path = db.export_stats_csv("stats.csv", cpm_rate)
+            raw = Path(csv_path).read_bytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Content-Disposition", 'attachment; filename="stats.csv"')
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
             return
 
         if path == "/api/config":
