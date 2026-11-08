@@ -194,6 +194,25 @@ async def _run_browser_checks(cfg: dict) -> None:
             if label == "proxy_a":
                 print(f"  [5] PASS — navigator.language: {nav_lang!r}")
 
+            # Check 10: Client Hints (navigator.userAgentData) coherence
+            uad_info = await page.evaluate("""async () => {
+                if (!navigator.userAgentData) return null;
+                const high = await navigator.userAgentData.getHighEntropyValues(['platform', 'model', 'architecture']);
+                return {
+                    brands: navigator.userAgentData.brands,
+                    mobile: navigator.userAgentData.mobile,
+                    platform: navigator.userAgentData.platform,
+                    high: high
+                };
+            }""")
+            assert uad_info is not None, f"[10] FAIL ({label}) — navigator.userAgentData is missing/None"
+            assert len(uad_info.get("brands", [])) >= 2, f"[10] FAIL ({label}) — userAgentData.brands empty"
+            assert uad_info.get("mobile") == fp.is_mobile, (
+                f"[10] FAIL ({label}) — userAgentData.mobile ({uad_info.get('mobile')}) != fp.is_mobile ({fp.is_mobile})"
+            )
+            if label == "proxy_a":
+                print(f"  [10] PASS — Client Hints coherent: platform='{uad_info.get('platform')}', mobile={uad_info.get('mobile')}")
+
             await context.close()
 
         await browser.close()

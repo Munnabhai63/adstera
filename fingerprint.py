@@ -7,6 +7,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import re
 import struct
 from dataclasses import dataclass
 from typing import Optional
@@ -166,6 +167,66 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
     )
 
 
+def _extract_client_hints(fp: Fingerprint) -> dict:
+    ua = fp.user_agent
+    m_ver = re.search(r"(?:Chrome|CriOS|Edg)/(\d+)(?:\.([\d\.]+))?", ua)
+    major_ver = m_ver.group(1) if m_ver else "130"
+    full_ver = f"{major_ver}.{m_ver.group(2)}" if m_ver and m_ver.group(2) else f"{major_ver}.0.0.0"
+
+    is_mob = fp.is_mobile
+    ch_platform = "Windows"
+    ch_platform_version = "15.0.0"
+    ch_arch = "x86"
+    ch_model = ""
+
+    ua_low = ua.lower()
+    if "android" in ua_low:
+        ch_platform = "Android"
+        ch_arch = "arm"
+        m_os = re.search(r"Android (\d+(?:\.\d+)?)", ua, re.IGNORECASE)
+        ch_platform_version = f"{m_os.group(1)}.0.0" if m_os else "14.0.0"
+        m_mod = re.search(r"Android [^;]+; ([^)]+)\)", ua)
+        if m_mod:
+            ch_model = m_mod.group(1).split("Build")[0].strip()
+        else:
+            ch_model = "SM-S928B"
+    elif "iphone" in ua_low or "ipad" in ua_low:
+        ch_platform = "iOS"
+        ch_arch = "arm"
+        ch_model = "iPhone" if "iphone" in ua_low else "iPad"
+        ch_platform_version = "17.4.0"
+    elif "macintosh" in ua_low or "mac os x" in ua_low:
+        ch_platform = "macOS"
+        ch_arch = "arm"
+        ch_model = ""
+        ch_platform_version = "14.5.0"
+    elif "linux" in ua_low or "x11" in ua_low:
+        ch_platform = "Linux"
+        ch_arch = "x86"
+        ch_model = ""
+        ch_platform_version = "6.5.0"
+
+    brands = [
+        {"brand": "Chromium", "version": major_ver},
+        {"brand": "Google Chrome", "version": major_ver},
+        {"brand": "Not?A_Brand", "version": "99"},
+    ]
+    if "edg" in ua_low:
+        brands[1] = {"brand": "Microsoft Edge", "version": major_ver}
+
+    return {
+        "major_ver": major_ver,
+        "full_ver": full_ver,
+        "brands": brands,
+        "mobile": is_mob,
+        "platform": ch_platform,
+        "platform_version": ch_platform_version,
+        "architecture": ch_arch,
+        "bitness": "64",
+        "model": ch_model,
+    }
+
+
 def init_script(fp: Fingerprint) -> str:
     """
     Return a JS string to inject via page.add_init_script().
@@ -173,6 +234,7 @@ def init_script(fp: Fingerprint) -> str:
     """
     langs_json = json.dumps(fp.languages)
     screen_avail_height = fp.viewport_height - fp.screen_avail_offset
+    ch = _extract_client_hints(fp)
 
     return f"""
 (function() {{
@@ -185,6 +247,51 @@ def init_script(fp: Fingerprint) -> str:
   // ── platform / vendor ──────────────────────────────────────────────────────
   Object.defineProperty(navigator, 'platform',   {{ get: () => {json.dumps(fp.platform)}, configurable: true }});
   Object.defineProperty(navigator, 'vendor',     {{ get: () => 'Google Inc.', configurable: true }});
+
+  // ── Client Hints (navigator.userAgentData) ─────────────────────────────────
+  const _chBrands = {json.dumps(ch["brands"])};
+  const _chMobile = {str(ch["mobile"]).lower()};
+  const _chPlatform = {json.dumps(ch["platform"])};
+  const _chPlatformVersion = {json.dumps(ch["platform_version"])};
+  const _chArch = {json.dumps(ch["architecture"])};
+  const _chBitness = {json.dumps(ch["bitness"])};
+  const _chModel = {json.dumps(ch["model"])};
+  const _chFullVer = {json.dumps(ch["full_ver"])};
+
+  const _uad = {{
+    brands: _chBrands,
+    mobile: _chMobile,
+    platform: _chPlatform,
+    getHighEntropyValues: function(hints) {{
+      return Promise.resolve({{
+        architecture: _chArch,
+        bitness: _chBitness,
+        brands: _chBrands,
+        fullVersionList: [
+          {{ brand: _chBrands[0].brand, version: _chFullVer }},
+          {{ brand: _chBrands[1].brand, version: _chFullVer }},
+          {{ brand: 'Not?A_Brand', version: '99.0.0.0' }}
+        ],
+        mobile: _chMobile,
+        model: _chModel,
+        platform: _chPlatform,
+        platformVersion: _chPlatformVersion,
+        uaFullVersion: _chFullVer
+      }});
+    }},
+    toJSON: function() {{
+      return {{
+        brands: _chBrands,
+        mobile: _chMobile,
+        platform: _chPlatform
+      }};
+    }}
+  }};
+  Object.defineProperty(navigator, 'userAgentData', {{
+    get: () => _uad,
+    configurable: true,
+    enumerable: true
+  }});
 
   // ── hardware ───────────────────────────────────────────────────────────────
   Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => {fp.hardware_concurrency}, configurable: true }});
