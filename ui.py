@@ -332,6 +332,34 @@ def read_active_ua() -> dict:
     }
 
 
+_last_mobile_check_ts = 0.0
+_cached_mobile_info = {"device": "RZCX21WTS9E", "carrier": "Cellular Dynamic IP"}
+_mobile_check_in_progress = False
+
+
+def get_cached_mobile_info() -> dict:
+    global _last_mobile_check_ts, _cached_mobile_info, _mobile_check_in_progress
+    now = time.time()
+    if now - _last_mobile_check_ts > 20.0 and not _mobile_check_in_progress:
+        _mobile_check_in_progress = True
+
+        def _bg_check():
+            global _last_mobile_check_ts, _cached_mobile_info, _mobile_check_in_progress
+            try:
+                import mobile_adb
+                devs = mobile_adb.list_devices()
+                dev_name = devs[0]["id"] if devs else "No phone"
+                _cached_mobile_info = {"device": dev_name, "carrier": "Cellular Dynamic IP"}
+            except Exception:
+                pass
+            finally:
+                _last_mobile_check_ts = time.time()
+                _mobile_check_in_progress = False
+
+        threading.Thread(target=_bg_check, daemon=True).start()
+    return _cached_mobile_info
+
+
 # ── Web UI HTML Template ────────────────────────────────────────────────────────
 
 HTML_PAGE = """<!DOCTYPE html>
@@ -506,8 +534,9 @@ HTML_PAGE = """<!DOCTYPE html>
       <div class="stat-val" id="statRevenue" style="color: #34d399; font-size: 22px;">$0.00</div>
     </div>
     <div class="stat-card">
-      <div class="stat-title">Active Proxies</div>
-      <div class="stat-val" id="statProxies">0</div>
+      <div class="stat-title" id="statProxyTitle">Active Proxies</div>
+      <div class="stat-val" id="statProxies" style="color: #60a5fa;">0</div>
+      <div id="statProxySub" style="font-size: 11px; color: var(--muted); margin-top: 2px;">Proxy Pool Mode</div>
     </div>
     <div class="stat-card">
       <div class="stat-title">User-Agents (useragent.in)</div>
@@ -637,8 +666,8 @@ HTML_PAGE = """<!DOCTYPE html>
       <div class="card-title">
         <span>Network &amp; IP Source</span>
         <div style="display: flex; gap: 8px;">
-          <button id="btnTabProxy" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="switchNetworkMode('proxy')">🌐 Proxies</button>
-          <button id="btnTabMobile" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="switchNetworkMode('mobile_tether')">📱 Mobile ADB IP</button>
+          <button id="btnTabProxy" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="switchNetworkMode('proxy', true)">🌐 Proxies</button>
+          <button id="btnTabMobile" class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="switchNetworkMode('mobile_tether', true)">📱 Mobile ADB IP</button>
         </div>
       </div>
 
@@ -786,7 +815,27 @@ HTML_PAGE = """<!DOCTYPE html>
 
       document.getElementById('statSessionsToday').innerText = data.today;
       document.getElementById('statCTR').innerText = (data.ctr * 100).toFixed(1) + '%';
-      document.getElementById('statProxies').innerText = data.proxies_count;
+
+      const statTitle = document.getElementById('statProxyTitle');
+      const statVal = document.getElementById('statProxies');
+      const statSub = document.getElementById('statProxySub');
+
+      if (currentNetworkMode === 'mobile_tether') {
+        if (statTitle) statTitle.innerText = 'Network Source';
+        if (statVal) {
+          statVal.innerHTML = '<span style="color: #34d399; font-size: 20px;">📱 Mobile ADB</span>';
+        }
+        if (statSub) {
+          statSub.innerText = data.mobile_info ? `${data.mobile_info.device} • ${data.mobile_info.carrier}` : 'Direct Cellular USB Tether';
+        }
+      } else {
+        if (statTitle) statTitle.innerText = 'Active Proxies';
+        if (statVal) {
+          statVal.innerText = data.proxies_count;
+          statVal.style.color = '#60a5fa';
+        }
+        if (statSub) statSub.innerText = 'Proxy Pool Mode';
+      }
 
       if (data.metrics) {
         const impsClicksElem = document.getElementById('statImpsClicks');
@@ -896,7 +945,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
   let currentNetworkMode = 'proxy';
 
-  function switchNetworkMode(mode) {
+  function switchNetworkMode(mode, autoSave = false) {
     currentNetworkMode = mode;
     const btnProxy = document.getElementById('btnTabProxy');
     const btnMobile = document.getElementById('btnTabMobile');
@@ -918,6 +967,10 @@ HTML_PAGE = """<!DOCTYPE html>
       secMobile.style.display = 'none';
       document.getElementById('concurrency').disabled = false;
     }
+    if (autoSave) {
+      saveConfig(false);
+    }
+    fetchStatus();
   }
 
   async function checkAdbStatus() {
@@ -1111,6 +1164,25 @@ HTML_PAGE = """<!DOCTYPE html>
   }
 
   async function startRunner() {
+    if (currentNetworkMode === 'proxy') {
+      const pText = document.getElementById('proxiesText').value.trim();
+      if (!pText) {
+        alert("⚠️ You are in '🌐 Proxies' mode, but no proxies are configured!\n\nEither paste your proxies into 'One proxy per line', or switch to the '📱 Mobile ADB IP' tab to run directly via your connected phone's mobile data.");
+        return;
+      }
+    } else if (currentNetworkMode === 'mobile_tether') {
+      try {
+        const adbRes = await fetch('/api/adb/status');
+        const adbData = await adbRes.json();
+        if (!adbData.ok || !adbData.devices || adbData.devices.length === 0) {
+          alert("⚠️ No Android phone detected via USB debugging!\n\nPlease check:\n1. Mobile phone is plugged in via USB\n2. USB Tethering is turned ON in phone Settings\n3. USB Debugging is turned ON in Developer Options\n4. Check phone screen to allow USB debugging prompt");
+          return;
+        }
+      } catch (err) {
+        console.warn("Pre-flight ADB check error:", err);
+      }
+    }
+
     await saveConfig(false);
     const res = await fetch('/api/start', { method: 'POST' });
     const data = await res.json();
@@ -1197,21 +1269,51 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         path = parsed.path
 
         if path in ("", "/"):
-            self._send_html(HTML_PAGE)
+            cfg = read_config()
+            net_mode = cfg.get("network", {}).get("mode", "proxy")
+            raw_urls = cfg.get("target", {}).get("urls") or ([cfg.get("target", {}).get("url")] if cfg.get("target", {}).get("url") else [])
+            urls_text = "\n".join(raw_urls)
+            proxies_text = read_proxies()
+
+            rendered = HTML_PAGE
+            if net_mode == "mobile_tether":
+                rendered = rendered.replace('id="btnTabProxy" class="btn btn-primary"', 'id="btnTabProxy" class="btn btn-secondary"')
+                rendered = rendered.replace('id="btnTabMobile" class="btn btn-secondary"', 'id="btnTabMobile" class="btn btn-primary"')
+                rendered = rendered.replace('id="sectionProxy" style="display: flex;', 'id="sectionProxy" style="display: none;')
+                rendered = rendered.replace('id="sectionMobile" style="display: none;', 'id="sectionMobile" style="display: flex;')
+                rendered = rendered.replace("let currentNetworkMode = 'proxy';", "let currentNetworkMode = 'mobile_tether';")
+
+            if urls_text:
+                rendered = rendered.replace('id="targetUrls" rows="3" placeholder="https://example.com/article-1&#10;https://example.com/article-2&#10;https://example.com/article-3" style="width: 100%; font-family: \'JetBrains Mono\', monospace; font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: #e2e8f0; resize: vertical;" oninput="updateTargetUrlsCount()"></textarea>', f'id="targetUrls" rows="3" placeholder="https://example.com/article-1&#10;https://example.com/article-2&#10;https://example.com/article-3" style="width: 100%; font-family: \'JetBrains Mono\', monospace; font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: #e2e8f0; resize: vertical;" oninput="updateTargetUrlsCount()">{urls_text}</textarea>')
+                count_lbl = f"{len(raw_urls)} URLs in Pool" if len(raw_urls) > 1 else "1 URL Active"
+                rendered = rendered.replace('>1 URL Active</span>', f'>{count_lbl}</span>')
+
+            if proxies_text:
+                rendered = rendered.replace('id="proxiesText" placeholder="global.provider.com:10000:username:password&#10;1.2.3.4:8080"></textarea>', f'id="proxiesText" placeholder="global.provider.com:10000:username:password&#10;1.2.3.4:8080">{proxies_text}</textarea>')
+
+            self._send_html(rendered)
             return
 
         if path == "/api/status":
             db.init()
             import ua_provider
             cfg = read_config()
+            net_mode = cfg.get("network", {}).get("mode", "proxy")
             cpm_rate = float(cfg.get("target", {}).get("cpm_rate", 2.50))
             metrics = db.get_metrics(cpm_rate)
+
+            mobile_info = None
+            if net_mode == "mobile_tether":
+                mobile_info = get_cached_mobile_info()
+
             status_data = {
                 "is_running": RUNNER.is_running(),
                 "pid": RUNNER.get_pid(),
                 "today": db.today(),
                 "ctr": db.ctr(100),
                 "metrics": metrics,
+                "network_mode": net_mode,
+                "mobile_info": mobile_info,
                 "proxies_count": count_valid_proxies(),
                 "ua_stats": ua_provider.get_stats(),
                 "active_ua": read_active_ua(),

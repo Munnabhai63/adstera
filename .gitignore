@@ -8,4 +8,5 @@ state/
 profiles/
 bin/
 .pytest_cache/
+stats.csv
 

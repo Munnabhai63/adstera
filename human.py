@@ -8,7 +8,7 @@ import asyncio
 import logging
 import math
 import random
-from typing import Optional
+from typing import Optional, Any
 
 from playwright.async_api import Page
 
@@ -206,6 +206,18 @@ async def click_element(
         return False
 
 
+async def _safe_eval(page: Page, expr: str, default: Any = 0) -> Any:
+    """Safely evaluate JS expression on page, tolerating in-flight redirects or context resets."""
+    try:
+        return await page.evaluate(expr)
+    except Exception:
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=2500)
+            return await page.evaluate(expr)
+        except Exception:
+            return default
+
+
 async def keyboard_scroll(
     page: Page,
     direction: str = "down",
@@ -230,21 +242,24 @@ async def keyboard_scroll(
             weights = [0.70, 0.30]
             key = rng.choices(key_choices, weights=weights, k=1)[0]
 
-    y_before = await page.evaluate("() => window.scrollY")
+    y_before = await _safe_eval(page, "() => window.scrollY", 0)
 
     # If Arrow keys, user may press 1 to 3 times in rhythm
     repeat = rng.randint(1, 3) if "Arrow" in key else 1
 
     for r in range(repeat):
         hold_time = rng.uniform(0.06, 0.14)
-        await page.keyboard.down(key)
-        await asyncio.sleep(hold_time)
-        await page.keyboard.up(key)
+        try:
+            await page.keyboard.down(key)
+            await asyncio.sleep(hold_time)
+            await page.keyboard.up(key)
+        except Exception:
+            break
         if r < repeat - 1:
             await asyncio.sleep(rng.uniform(0.08, 0.18))
 
     await asyncio.sleep(rng.uniform(0.15, 0.35))
-    y_after = await page.evaluate("() => window.scrollY")
+    y_after = await _safe_eval(page, "() => window.scrollY", y_before)
     return int(abs(y_after - y_before))
 
 
@@ -262,12 +277,12 @@ async def scroll_page(
         rng = random.Random()
 
     viewport_h = (page.viewport_size or {}).get("height", 768)
-    page_h = await page.evaluate("() => document.body.scrollHeight")
+    page_h = await _safe_eval(page, "() => (document.body ? document.body.scrollHeight : 0) || (document.documentElement ? document.documentElement.scrollHeight : 0) || 768", 768)
     total = max(0, int(page_h) - viewport_h)
     if total <= 0:
         return
 
-    current_y = await page.evaluate("() => window.scrollY")
+    current_y = await _safe_eval(page, "() => window.scrollY", 0)
 
     while current_y < total:
         # 25% chance of keyboard scroll, 75% chance of mouse wheel scroll
@@ -276,11 +291,14 @@ async def scroll_page(
         if use_keyboard:
             # Keyboard navigation: Spacebar, PageDown, or ArrowDown
             scrolled_dist = await keyboard_scroll(page, direction="down", rng=rng)
-            current_y = await page.evaluate("() => window.scrollY")
+            current_y = await _safe_eval(page, "() => window.scrollY", current_y + 100)
             if scrolled_dist <= 0:
                 # Fallback if key didn't move viewport
                 chunk = rng.randint(180, 520)
-                await page.mouse.wheel(0, chunk)
+                try:
+                    await page.mouse.wheel(0, chunk)
+                except Exception:
+                    break
                 current_y = min(current_y + chunk, total)
         else:
             # Mouse wheel scroll with quadratic ease-out substeps
@@ -291,9 +309,12 @@ async def scroll_page(
                 ease = 1 - (1 - t) ** 2  # ease-out quad
                 partial = int(chunk * ease / substeps)
                 if partial > 0:
-                    await page.mouse.wheel(0, partial)
+                    try:
+                        await page.mouse.wheel(0, partial)
+                    except Exception:
+                        break
                 await asyncio.sleep(rng.uniform(0.03, 0.09))
-            current_y = await page.evaluate("() => window.scrollY")
+            current_y = await _safe_eval(page, "() => window.scrollY", current_y + chunk)
 
         # Natural reading dwell pause
         pause = rng.uniform(1.2, 6.0)
@@ -306,9 +327,12 @@ async def scroll_page(
                 await keyboard_scroll(page, direction="up", rng=rng)
             else:
                 back = rng.randint(60, 200)
-                await page.mouse.wheel(0, -back)
+                try:
+                    await page.mouse.wheel(0, -back)
+                except Exception:
+                    pass
             await asyncio.sleep(rng.uniform(0.5, 1.5))
-            current_y = await page.evaluate("() => window.scrollY")
+            current_y = await _safe_eval(page, "() => window.scrollY", current_y)
 
 
 async def idle_drift(
