@@ -22,6 +22,12 @@ import yaml
 
 import db
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger("web_ui")
 
@@ -473,6 +479,20 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Live Browser Screen Card -->
+  <div class="card" id="cardPreview">
+    <div class="card-title">
+      <span>🖥️ Live Browser Screen (Real-Time Preview)</span>
+      <span style="font-size: 12px; color: var(--muted); font-weight: normal;">Live render updates during session</span>
+    </div>
+    <div style="background: #070a10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 240px; text-align: center;">
+      <img id="livePreviewImg" src="/api/preview.jpg" alt="Live Browser Preview" style="max-width: 100%; max-height: 520px; border-radius: 6px; border: 1px solid #1e293b; display: none;" onload="this.style.display='block'; document.getElementById('previewPlaceholder').style.display='none';" onerror="this.style.display='none'; document.getElementById('previewPlaceholder').style.display='block';">
+      <div id="previewPlaceholder" style="color: var(--muted); font-size: 13px;">
+        <span>▶ Start a live session to see the real-time browser screen here</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Live Console Logs -->
   <div class="card">
     <div class="card-title">
@@ -622,12 +642,15 @@ HTML_PAGE = """<!DOCTYPE html>
       btnProxy.className = 'btn btn-secondary';
       secMobile.style.display = 'flex';
       secProxy.style.display = 'none';
+      document.getElementById('concurrency').value = 1;
+      document.getElementById('concurrency').disabled = true;
       checkAdbStatus();
     } else {
       btnProxy.className = 'btn btn-primary';
       btnMobile.className = 'btn btn-secondary';
       secProxy.style.display = 'flex';
       secMobile.style.display = 'none';
+      document.getElementById('concurrency').disabled = false;
     }
   }
 
@@ -820,10 +843,26 @@ HTML_PAGE = """<!DOCTYPE html>
     fetchStatus();
   }
 
+  function refreshPreview() {
+    const img = document.getElementById('livePreviewImg');
+    if (img) {
+      const stamp = Date.now();
+      const testImg = new Image();
+      testImg.onload = () => {
+        img.src = '/api/preview.jpg?t=' + stamp;
+        img.style.display = 'block';
+        const ph = document.getElementById('previewPlaceholder');
+        if (ph) ph.style.display = 'none';
+      };
+      testImg.src = '/api/preview.jpg?t=' + stamp;
+    }
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
   setInterval(fetchStatus, 3000);
+  setInterval(refreshPreview, 2500);
 </script>
 
 </body>
@@ -896,6 +935,20 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 })
             except Exception as exc:
                 self._send_json({"ok": False, "error": str(exc), "devices": [], "ip_info": {}})
+            return
+
+        if path == "/api/preview.jpg":
+            preview_file = BASE_DIR / "state" / "live_preview.jpg"
+            if preview_file.exists():
+                data = preview_file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(data)))
+                self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+                self.end_headers()
+                self.wfile.write(data)
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND, "No preview available")
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not Found")
@@ -1020,7 +1073,7 @@ def run_server(port: int = 5050, host: str = "127.0.0.1") -> None:
     server_address = (host, port)
     httpd = ThreadingHTTPServer(server_address, UIRequestHandler)
     print("\n" + "="*60)
-    print(f"🚀 QA Control Dashboard running at: http://{host}:{port}")
+    print(f">> QA Control Dashboard running at: http://{host}:{port}")
     print("="*60 + "\n")
     try:
         httpd.serve_forever()

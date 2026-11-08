@@ -132,7 +132,8 @@ async def main() -> None:
     net_mode = cfg.get("network", {}).get("mode", "proxy")
     if net_mode == "mobile_tether":
         from pool import MobileTetherPool
-        logger.info("Operating in Mobile USB Tethering Mode (ADB IP Rotation)")
+        logger.info("Operating in Mobile USB Tethering Mode (ADB IP Rotation) — Locking Concurrency to 1")
+        cfg["scheduler"]["concurrency"] = 1
         pool = MobileTetherPool(cfg)
     else:
         api_url = cfg.get("proxy", {}).get("api_url", "")
