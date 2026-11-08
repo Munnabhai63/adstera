@@ -4,6 +4,7 @@ worker.py — Session lifecycle: context creation, page visit, dwell, ad interac
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import time
@@ -20,6 +21,54 @@ import persist
 from pool import Proxy
 
 logger = logging.getLogger(__name__)
+
+ACTIVE_UA_PATH = Path(__file__).parent / "state" / "active_ua.json"
+
+
+def _record_active_ua(proxy_id: str, fp, active: bool = True) -> None:
+    try:
+        ACTIVE_UA_PATH.parent.mkdir(parents=True, exist_ok=True)
+        ua = getattr(fp, "user_agent", str(fp))
+        device_label = "Desktop"
+        if "Windows" in ua:
+            device_label = "Windows PC"
+        elif "Macintosh" in ua or "Mac OS X" in ua:
+            device_label = "Apple Mac"
+        elif "iPhone" in ua:
+            device_label = "Apple iPhone"
+        elif "iPad" in ua:
+            device_label = "Apple iPad"
+        elif "Android" in ua:
+            import re
+            m = re.search(r"Android [^;]+; ([^)]+)\)", ua)
+            device_label = f"Android ({m.group(1)})" if m else "Android Mobile"
+        elif "Linux" in ua:
+            device_label = "Linux Desktop"
+
+        browser_label = "Chrome"
+        if "Safari" in ua and "Chrome" not in ua and "CriOS" not in ua:
+            browser_label = "Safari"
+        elif "Firefox" in ua:
+            browser_label = "Firefox"
+        elif "Edg" in ua:
+            browser_label = "Edge"
+        elif "OPR" in ua or "Opera" in ua:
+            browser_label = "Opera"
+
+        is_mob = getattr(fp, "is_mobile", False)
+        payload = {
+            "active": active,
+            "proxy_id": proxy_id,
+            "user_agent": ua,
+            "device_label": f"{'📱' if is_mob else '💻'} {device_label} • {browser_label}",
+            "is_mobile": is_mob,
+            "platform": getattr(fp, "platform", "—"),
+            "timezone": getattr(fp, "timezone", "—"),
+            "updated_at": time.strftime("%H:%M:%S"),
+        }
+        ACTIVE_UA_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 # EU/UK country codes that require CMP handling
 _EU_UK_COUNTRIES = {
@@ -127,6 +176,7 @@ async def run_session(
     Returns a result dict with session metadata.
     """
     fp = fp_mod.build(proxy)
+    _record_active_ua(proxy.proxy_id, fp, active=True)
     start_url = cfg["target"]["fixture"] if use_fixture else cfg["target"]["url"]
     if use_fixture and not start_url.startswith("http"):
         start_url = "file:///" + start_url.replace("\\", "/")
@@ -290,6 +340,7 @@ async def run_session(
         result["status"] = "degraded"
         result["dwell"] = max(result["dwell"], time.time() - t0)
     finally:
+        _record_active_ua(proxy.proxy_id, fp, active=False)
         if context:
             try:
                 await context.close()

@@ -314,6 +314,24 @@ def count_valid_proxies() -> int:
     return len(lines)
 
 
+def read_active_ua() -> dict:
+    active_file = BASE_DIR / "state" / "active_ua.json"
+    if active_file.exists():
+        try:
+            return json.loads(active_file.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {
+        "active": False,
+        "proxy_id": "—",
+        "user_agent": "Ready — Click Start Live Run to rotate",
+        "device_label": "⚪ Waiting for session start…",
+        "is_mobile": False,
+        "platform": "—",
+        "updated_at": "—",
+    }
+
+
 # ── Web UI HTML Template ────────────────────────────────────────────────────────
 
 HTML_PAGE = """<!DOCTYPE html>
@@ -572,6 +590,24 @@ HTML_PAGE = """<!DOCTYPE html>
         <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="syncUserAgents()" id="btnSyncUA">🔄 Sync from useragent.in</button>
       </div>
 
+      <!-- Real-Time Live Active User-Agent Box (Requested by User) -->
+      <div id="liveUACard" style="background: #090e17; border: 1px solid #1e293b; border-radius: 8px; padding: 12px 14px; margin-top: 8px; display: flex; flex-direction: column; gap: 8px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 13px; font-weight: 700; color: #f1f5f9;">⚡ Live Session User-Agent</span>
+            <span id="uaLiveBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(148,163,184,0.15); color: #94a3b8; font-weight: 600;">⚪ IDLE / READY</span>
+          </div>
+          <span id="uaDeviceBadge" style="font-size: 11px; font-weight: 600; color: #38bdf8; background: rgba(56,189,248,0.1); padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56,189,248,0.2);">⚪ Waiting…</span>
+        </div>
+        <div style="background: #04070d; border: 1px solid #1e293b; border-radius: 6px; padding: 8px 10px; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #e2e8f0; word-break: break-all; line-height: 1.4; max-height: 60px; overflow-y: auto;" id="uaLiveText">
+          Ready — Session will pick a fresh UA from 27,103 pool upon launch
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); padding-top: 2px;">
+          <span>Connected IP: <strong id="uaLiveIP" style="color: #cbd5e1;">—</strong></span>
+          <span>Rotated At: <strong id="uaLiveTime" style="color: #cbd5e1;">—</strong></span>
+        </div>
+      </div>
+
       <div class="control-bar" style="margin-top: 10px;">
         <button id="btnStart" class="btn btn-success" style="flex: 1;" onclick="startRunner()">▶ Start Live Run</button>
         <button id="btnStop" class="btn btn-danger" style="flex: 1;" onclick="stopRunner()" disabled>■ Stop Run</button>
@@ -741,6 +777,37 @@ HTML_PAGE = """<!DOCTYPE html>
         if (sub) {
           sub.innerText = `${(data.ua_stats.total || 27103).toLocaleString()} Real UAs (${(data.ua_stats.desktop_count || 8989).toLocaleString()} Desktop, ${(data.ua_stats.mobile_count || 18114).toLocaleString()} Mobile/Tablet)`;
         }
+      }
+
+      if (data.active_ua) {
+        const uBadge = document.getElementById('uaLiveBadge');
+        const dBadge = document.getElementById('uaDeviceBadge');
+        const uText = document.getElementById('uaLiveText');
+        const uIp = document.getElementById('uaLiveIP');
+        const uTime = document.getElementById('uaLiveTime');
+
+        if (uBadge) {
+          if (data.active_ua.active) {
+            uBadge.innerText = '🟢 LIVE CONNECTED';
+            uBadge.style.background = 'rgba(34, 197, 94, 0.15)';
+            uBadge.style.color = '#22c55e';
+            uBadge.style.border = '1px solid rgba(34, 197, 94, 0.3)';
+          } else if (data.is_running) {
+            uBadge.innerText = '🔄 ROTATING NEXT';
+            uBadge.style.background = 'rgba(234, 179, 8, 0.15)';
+            uBadge.style.color = '#eab308';
+            uBadge.style.border = '1px solid rgba(234, 179, 8, 0.3)';
+          } else {
+            uBadge.innerText = '⏸️ IDLE / STOPPED';
+            uBadge.style.background = 'rgba(148,163,184,0.15)';
+            uBadge.style.color = '#94a3b8';
+            uBadge.style.border = 'none';
+          }
+        }
+        if (dBadge) dBadge.innerText = data.active_ua.device_label || '⚪ Ready';
+        if (uText) uText.innerText = data.active_ua.user_agent || 'Waiting for session…';
+        if (uIp) uIp.innerText = data.active_ua.proxy_id || '—';
+        if (uTime) uTime.innerText = data.active_ua.updated_at || '—';
       }
 
       // Update sessions table
@@ -1092,6 +1159,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "ctr": db.ctr(100),
                 "proxies_count": count_valid_proxies(),
                 "ua_stats": ua_provider.get_stats(),
+                "active_ua": read_active_ua(),
                 "recent_sessions": db.last_sessions(20),
                 "logs": RUNNER.get_logs(),
             }
