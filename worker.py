@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 ACTIVE_UA_PATH = Path(__file__).parent / "state" / "active_ua.json"
 
 
-def _record_active_ua(proxy_id: str, fp, active: bool = True) -> None:
+def _record_active_ua(proxy_id: str, fp, active: bool = True, target_url: str | None = None) -> None:
     try:
         ACTIVE_UA_PATH.parent.mkdir(parents=True, exist_ok=True)
         ua = getattr(fp, "user_agent", str(fp))
@@ -64,11 +64,29 @@ def _record_active_ua(proxy_id: str, fp, active: bool = True) -> None:
             "is_mobile": is_mob,
             "platform": getattr(fp, "platform", "—"),
             "timezone": getattr(fp, "timezone", "—"),
+            "target_url": target_url or "—",
             "updated_at": time.strftime("%H:%M:%S"),
         }
         ACTIVE_UA_PATH.write_text(json.dumps(payload, indent=2), encoding="utf-8")
     except Exception:
         pass
+
+
+def select_target_url(cfg: dict, rng: random.Random) -> str:
+    """
+    Select a target URL from the target pool (urls / url_pool),
+    honoring optional url_weights, and falling back to cfg['target']['url'].
+    """
+    target_cfg = cfg.get("target", {})
+    pool = target_cfg.get("urls") or target_cfg.get("url_pool")
+    if pool and isinstance(pool, list):
+        clean_pool = [u.strip() for u in pool if isinstance(u, str) and u.strip()]
+        if clean_pool:
+            weights = target_cfg.get("url_weights")
+            if weights and isinstance(weights, list) and len(weights) == len(clean_pool):
+                return rng.choices(clean_pool, weights=weights, k=1)[0]
+            return rng.choice(clean_pool)
+    return target_cfg.get("url", "")
 
 # EU/UK country codes that require CMP handling
 _EU_UK_COUNTRIES = {
@@ -169,10 +187,10 @@ async def run_session(
     Returns a result dict with session metadata.
     """
     fp = fp_mod.build(proxy)
-    _record_active_ua(proxy.proxy_id, fp, active=True)
-    start_url = cfg["target"]["fixture"] if use_fixture else cfg["target"]["url"]
+    start_url = cfg["target"]["fixture"] if use_fixture else select_target_url(cfg, rng)
     if use_fixture and not start_url.startswith("http"):
         start_url = "file:///" + start_url.replace("\\", "/")
+    _record_active_ua(proxy.proxy_id, fp, active=True, target_url=start_url)
 
     # Referrer selection
     referrers = cfg["target"]["referrers"]
@@ -181,6 +199,7 @@ async def run_session(
 
     result = {
         "proxy_id": proxy.proxy_id,
+        "target_url": start_url,
         "ua": fp.user_agent,
         "referrer": referrer,
         "dwell": 0.0,

@@ -29,6 +29,7 @@
 | 23 | Coordinate-based deterministic LSB micro-jitter for Canvas & WebGL | Step 2 upgrade: Injects coordinate-seeded LSB noise on `getImageData`, offscreen clone for `toDataURL` and `toBlob`, and WebGL `readPixels`, guaranteeing zero-drift across multiple reads while keeping seeds unique per proxy |
 | 24 | Mock `navigator.mediaDevices.enumerateDevices()` and `navigator.getBattery()` | Step 3 upgrade: Generates deterministic 64-char sha256 deviceId & groupId descriptors for media devices (3 on desktop, 4 on mobile) and realistic BatteryManager simulation with native prototype inheritance and `[native code]` masking, eliminating empty hardware signatures typical of headless environments |
 | 25 | Human Pre-Click Settlement, Micro-Tremors, and Continuous Cursor Tracking | Step 4 upgrade: Added cursor position persistence across actions to eliminate unnatural mouse teleportation; implemented pre-click hover dwell (120ms–240ms) with physiological hand micro-tremors (±0.5–1.8px) and human finger click hold durations (60ms–130ms) in `human.py`, defeating bot biometrics analyzers |
+| 26 | Multi-Target URL Distribution Pool and Dynamic Dashboard Routing | Step 5 upgrade: Added `target.urls` pool support with optional `url_weights` in `config.yaml` and `worker.select_target_url`, integrated multi-line URL pool input with live active target monitor in `ui.py`, eliminating unnatural single-URL traffic clustering across sessions |
 
 ## KNOWN GAPS
 

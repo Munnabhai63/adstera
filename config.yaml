@@ -1,5 +1,7 @@
 target:
   url: https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804
+  urls:
+  - https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804
   fixture: tests/fixtures/page.html
   referrers:
   - https://www.google.com/search?q=example+keyword

@@ -529,8 +529,14 @@ HTML_PAGE = """<!DOCTYPE html>
       </div>
 
       <div class="form-group">
-        <label>Target URL (Your Article / Webpage)</label>
-        <input type="text" id="targetUrl" placeholder="https://example.com/article">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+          <label style="margin: 0; font-weight: 700; color: #f1f5f9;">🎯 Target URLs Pool (One per line for rotation)</label>
+          <span id="targetUrlsCount" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(16,185,129,0.15); color: #10b981; font-weight: 600; border: 1px solid rgba(16,185,129,0.3);">1 URL Active</span>
+        </div>
+        <textarea id="targetUrls" rows="3" placeholder="https://example.com/article-1&#10;https://example.com/article-2&#10;https://example.com/article-3" style="width: 100%; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: #e2e8f0; resize: vertical;" oninput="updateTargetUrlsCount()"></textarea>
+        <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+          💡 प्रत्येक नया सेशन रैंडमली इस पूल में से एक अलग URL चुनेगा, जिससे ट्रैफ़िक पूरे डोमेन में प्राकृतिक रूप से फैलेगा।
+        </div>
       </div>
 
       <!-- Execution Mode Switcher -->
@@ -614,6 +620,9 @@ HTML_PAGE = """<!DOCTYPE html>
         <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); padding-top: 2px;">
           <span>Connected IP: <strong id="uaLiveIP" style="color: #cbd5e1;">—</strong></span>
           <span>Rotated At: <strong id="uaLiveTime" style="color: #cbd5e1;">—</strong></span>
+        </div>
+        <div style="font-size: 11px; color: var(--muted); border-top: 1px dashed rgba(255,255,255,0.08); padding-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <span>Active Target: <strong id="uaLiveTarget" style="color: #38bdf8; font-family: 'JetBrains Mono', monospace;">—</strong></span>
         </div>
       </div>
 
@@ -801,6 +810,7 @@ HTML_PAGE = """<!DOCTYPE html>
         const uText = document.getElementById('uaLiveText');
         const uIp = document.getElementById('uaLiveIP');
         const uTime = document.getElementById('uaLiveTime');
+        const uTarget = document.getElementById('uaLiveTarget');
 
         if (uBadge) {
           if (data.active_ua.active) {
@@ -824,6 +834,7 @@ HTML_PAGE = """<!DOCTYPE html>
         if (uText) uText.innerText = data.active_ua.user_agent || 'Waiting for session…';
         if (uIp) uIp.innerText = data.active_ua.proxy_id || '—';
         if (uTime) uTime.innerText = data.active_ua.updated_at || '—';
+        if (uTarget) uTarget.innerText = data.active_ua.target_url || '—';
       }
 
       // Update sessions table
@@ -970,13 +981,33 @@ HTML_PAGE = """<!DOCTYPE html>
     await saveConfig(true);
   }
 
+  function updateTargetUrlsCount() {
+    const el = document.getElementById('targetUrls');
+    if (!el) return;
+    const lines = el.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const countEl = document.getElementById('targetUrlsCount');
+    if (countEl) {
+      countEl.innerText = lines.length === 1 ? '1 URL Active' : (lines.length > 1 ? lines.length + ' URLs in Pool' : '0 URLs');
+      countEl.style.color = lines.length > 0 ? '#10b981' : '#f59e0b';
+    }
+  }
+
   async function loadConfig() {
     try {
       const res = await fetch('/api/config');
       const data = await res.json();
       const cfg = data.config;
       
-      document.getElementById('targetUrl').value = cfg.target.url || '';
+      let urls = [];
+      if (cfg.target && cfg.target.urls && Array.isArray(cfg.target.urls) && cfg.target.urls.length > 0) {
+        urls = cfg.target.urls;
+      } else if (cfg.target && cfg.target.url) {
+        urls = [cfg.target.url];
+      }
+      const targetUrlsEl = document.getElementById('targetUrls');
+      if (targetUrlsEl) targetUrlsEl.value = urls.join('\n');
+      updateTargetUrlsCount();
+
       document.getElementById('minDwell').value = cfg.target.min_dwell || 25;
       document.getElementById('maxDwell').value = cfg.target.max_dwell || 110;
       document.getElementById('clickProb').value = cfg.target.click_prob || 0.06;
@@ -1004,8 +1035,12 @@ HTML_PAGE = """<!DOCTYPE html>
   }
 
   async function saveConfig(showNotification = true) {
+    const rawUrls = (document.getElementById('targetUrls') ? document.getElementById('targetUrls').value : '') || '';
+    const urlsList = rawUrls.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
     const payload = {
-      url: document.getElementById('targetUrl').value.trim(),
+      url: urlsList.length > 0 ? urlsList[0] : '',
+      urls: urlsList,
       headless: document.getElementById('modeHeadless').checked,
       network_mode: currentNetworkMode,
       airplane_mode_wait: parseInt(document.getElementById('airplaneWait').value) || 4,
@@ -1237,8 +1272,15 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/config":
             try:
                 cfg = read_config()
-                if "url" in payload:
-                    cfg["target"]["url"] = payload["url"]
+                if "urls" in payload and isinstance(payload["urls"], list):
+                    clean_urls = [str(u).strip() for u in payload["urls"] if str(u).strip()]
+                    cfg["target"]["urls"] = clean_urls
+                    if clean_urls:
+                        cfg["target"]["url"] = clean_urls[0]
+                elif "url" in payload:
+                    u = str(payload["url"]).strip()
+                    cfg["target"]["url"] = u
+                    cfg["target"]["urls"] = [u] if u else []
                 if "headless" in payload:
                     if "browser" not in cfg:
                         cfg["browser"] = {}
