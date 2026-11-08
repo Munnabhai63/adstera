@@ -1,0 +1,246 @@
+"""
+tests/audit.py — Pre-flight invariant checks. Exits non-zero on any failure.
+
+Checks:
+ 1. UA contains no 'HeadlessChrome'.
+ 2. navigator.webdriver is falsy.
+ 3. WebGL renderer is not SwiftShader.
+ 4. Context timezone equals the geo timezone of the proxy.
+ 5. Accept-Language matches the geo locale.
+ 6. Two sessions on one proxy hash to the same fingerprint digest.
+ 7. Canvas digest differs between two different proxies.
+ 8. No datacenter ASN present in the loaded pool.
+ 9. proxies.txt parses and every line yields host and port.
+"""
+from __future__ import annotations
+
+import asyncio
+import hashlib
+import os
+import sys
+from pathlib import Path
+
+# Allow importing from the project root
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+import yaml
+
+
+def _load_cfg() -> dict:
+    cfg_path = Path(__file__).parent.parent / "config.yaml"
+    with open(cfg_path, encoding="utf-8") as f:
+        return yaml.safe_load(f)
+
+
+# ── Check 9: proxy file parsing (no browser needed) ───────────────────────────
+
+def check_proxy_file_parsing(cfg: dict) -> None:
+    proxy_file = Path(__file__).parent.parent / cfg["proxy"]["file"]
+    if not proxy_file.exists():
+        raise AssertionError(f"proxies.txt not found at {proxy_file}")
+
+    from pool import _parse_proxy_line
+    lines = proxy_file.read_text(encoding="utf-8").splitlines()
+    parsed = []
+    for ln in lines:
+        p = _parse_proxy_line(ln)
+        if p is not None:
+            assert p.host, f"Empty host in line: {ln!r}"
+            assert p.port > 0, f"Invalid port in line: {ln!r}"
+            parsed.append(p)
+
+    assert len(parsed) > 0, "No valid proxy lines found in proxies.txt"
+    print(f"  [9] PASS — {len(parsed)} proxies parsed successfully")
+
+
+# ── Check 8: no datacenter ASN in pool (static check on ASN names in fallback) ─
+
+def check_no_datacenter_asn(cfg: dict) -> None:
+    """
+    Static check: load proxies, verify none have datacenter ASN names already
+    baked in (from geo fallback table). Full runtime check happens in ProxyPool.from_file.
+    """
+    from pool import _parse_proxy_line, _DC_NAMES
+    proxy_file = Path(__file__).parent.parent / cfg["proxy"]["file"]
+    lines = proxy_file.read_text(encoding="utf-8").splitlines()
+    for ln in lines:
+        p = _parse_proxy_line(ln)
+        if p is None:
+            continue
+        # Check host against DC name fragments (heuristic for static audit)
+        host_lower = p.host.lower()
+        for dc in _DC_NAMES:
+            assert dc not in host_lower, (
+                f"Potential datacenter proxy host: {p.host!r} matches '{dc}'"
+            )
+    print("  [8] PASS — No datacenter ASN name fragments in proxy hosts")
+
+
+# ── Checks 1–7: browser-based ──────────────────────────────────────────────────
+
+async def _run_browser_checks(cfg: dict) -> None:
+    from playwright.async_api import async_playwright
+    import fingerprint as fp_mod
+    from pool import Proxy, GeoInfo
+
+    # Build two synthetic proxies for testing
+    proxy_a = Proxy(host="10.0.0.1", port=8080)
+    proxy_a.geo = GeoInfo(
+        country="US", region="NY", city="New York",
+        timezone="America/New_York", locale="en-US",
+    )
+    proxy_b = Proxy(host="10.0.0.2", port=8080)
+    proxy_b.geo = GeoInfo(
+        country="US", region="CA", city="Los Angeles",
+        timezone="America/Los_Angeles", locale="en-US",
+    )
+
+    fp_a1 = fp_mod.build(proxy_a)
+    fp_a2 = fp_mod.build(proxy_a)   # Must be identical to fp_a1
+    fp_b  = fp_mod.build(proxy_b)
+
+    # Check 6: same proxy → same digest
+    assert fp_a1.digest == fp_a2.digest, (
+        f"[6] FAIL — Same proxy produced different digests: {fp_a1.digest} vs {fp_a2.digest}"
+    )
+    print(f"  [6] PASS — Same-proxy digest stable: {fp_a1.digest}")
+
+    # Check 7: different proxy → different canvas seed → different digest
+    # Canvas seed differs if proxy fingerprint_seed differs
+    assert fp_a1.canvas_seed != fp_b.canvas_seed, (
+        "[7] FAIL — Different proxies produced identical canvas seeds"
+    )
+    print(f"  [7] PASS — Canvas seeds differ across proxies: {fp_a1.canvas_seed} vs {fp_b.canvas_seed}")
+
+    headless = cfg["browser"].get("headless", False)
+    slow_mo = cfg["browser"].get("slow_mo_ms", 40)
+
+    async with async_playwright() as pw:
+        browser = await pw.chromium.launch(
+            headless=headless,
+            slow_mo=slow_mo,
+            args=[
+                "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+                "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+                "--disable-blink-features=AutomationControlled",
+                "--no-first-run",
+            ],
+        )
+
+        for label, proxy, fp in [("proxy_a", proxy_a, fp_a1), ("proxy_b", proxy_b, fp_b)]:
+            context = await browser.new_context(
+                user_agent=fp.user_agent,
+                viewport={"width": fp.viewport_width, "height": fp.viewport_height},
+                locale=fp.locale,
+                timezone_id=fp.timezone,
+                extra_http_headers={"Accept-Language": ",".join(fp.languages)},
+            )
+            await context.add_init_script(script=fp_mod.init_script(fp))
+            page = await context.new_page()
+
+            fixture = Path(__file__).parent / "fixtures" / "page.html"
+            await page.goto(f"file:///{fixture.as_posix()}", wait_until="domcontentloaded")
+
+            # Check 1: UA has no 'HeadlessChrome'
+            ua: str = await page.evaluate("() => navigator.userAgent")
+            assert "HeadlessChrome" not in ua, (
+                f"[1] FAIL ({label}) — UA contains 'HeadlessChrome': {ua!r}"
+            )
+            if label == "proxy_a":
+                print(f"  [1] PASS — UA clean: {ua[:60]}…")
+
+            # Check 2: navigator.webdriver falsy
+            wd = await page.evaluate("() => navigator.webdriver")
+            assert not wd, f"[2] FAIL ({label}) — navigator.webdriver = {wd!r}"
+            if label == "proxy_a":
+                print(f"  [2] PASS — navigator.webdriver = {wd!r}")
+
+            # Check 3: WebGL renderer not SwiftShader
+            renderer: str = await page.evaluate("""() => {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (!gl) return '';
+                const ext = gl.getExtension('WEBGL_debug_renderer_info');
+                return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(37446);
+            }""")
+            assert "SwiftShader" not in renderer, (
+                f"[3] FAIL ({label}) — WebGL renderer is SwiftShader: {renderer!r}"
+            )
+            if label == "proxy_a":
+                print(f"  [3] PASS — WebGL renderer: {renderer!r}")
+
+            # Check 4: timezone matches geo
+            tz_in_page: str = await page.evaluate(
+                "() => Intl.DateTimeFormat().resolvedOptions().timeZone"
+            )
+            assert tz_in_page == fp.timezone, (
+                f"[4] FAIL ({label}) — Timezone mismatch: page={tz_in_page!r} expected={fp.timezone!r}"
+            )
+            if label == "proxy_a":
+                print(f"  [4] PASS — Timezone: {tz_in_page!r}")
+
+            # Check 5: Accept-Language matches locale
+            lang_header = fp.languages[0]
+            nav_lang: str = await page.evaluate("() => navigator.language")
+            assert nav_lang == lang_header, (
+                f"[5] FAIL ({label}) — navigator.language={nav_lang!r} expected={lang_header!r}"
+            )
+            if label == "proxy_a":
+                print(f"  [5] PASS — navigator.language: {nav_lang!r}")
+
+            await context.close()
+
+        await browser.close()
+
+
+async def run_all_async(cfg: dict | None = None) -> None:
+    """Run all audit checks asynchronously. Raises SystemExit(1) on any failure."""
+    if cfg is None:
+        cfg = _load_cfg()
+
+    print("Running pre-flight audit…")
+    failures: list[str] = []
+
+    net_mode = cfg.get("network", {}).get("mode", "proxy")
+    static_checks = [check_no_datacenter_asn]
+    if net_mode != "mobile_tether":
+        static_checks.insert(0, check_proxy_file_parsing)
+
+    # Static checks
+    for check_fn in static_checks:
+        try:
+            check_fn(cfg)
+        except AssertionError as e:
+            print(f"  FAIL — {e}")
+            failures.append(str(e))
+        except Exception as e:
+            print(f"  ERROR — {e}")
+            failures.append(str(e))
+
+    # Browser checks
+    try:
+        await _run_browser_checks(cfg)
+    except AssertionError as e:
+        print(f"  FAIL — {e}")
+        failures.append(str(e))
+    except Exception as e:
+        print(f"  ERROR — {e}")
+        failures.append(str(e))
+
+    if failures:
+        print(f"\nAudit FAILED — {len(failures)} check(s) failed:")
+        for f in failures:
+            print(f"  • {f}")
+        sys.exit(1)
+    else:
+        print("\nAll audit checks PASSED ✓")
+
+
+def run_all(cfg: dict | None = None) -> None:
+    """Synchronous entrypoint for CLI (python tests/audit.py)."""
+    asyncio.run(run_all_async(cfg))
+
+
+if __name__ == "__main__":
+    run_all()
+

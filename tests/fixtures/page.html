@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Test Article – Ad Fixture</title>
+  <style>
+    body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+    .ad-banner { width: 728px; height: 90px; background: #f0f0f0; border: 1px solid #ccc;
+                 display: flex; align-items: center; justify-content: center; margin: 20px 0; }
+    .fake-ad   { width: 300px; height: 250px; background: #e8f4f8; border: 2px solid #aaa;
+                 display: flex; align-items: center; justify-content: center;
+                 cursor: pointer; margin: 10px; }
+    nav a      { margin-right: 15px; color: #0066cc; }
+    .cmp-overlay { position: fixed; bottom: 0; left: 0; right: 0; background: #333;
+                   color: #fff; padding: 15px; z-index: 9999; display: flex;
+                   justify-content: space-between; align-items: center; }
+    .cmp-overlay button { padding: 8px 20px; border: none; cursor: pointer; border-radius: 4px; }
+    #cmp-accept  { background: #4CAF50; color: white; }
+    #cmp-reject  { background: #888; color: white; }
+    .article-body { min-height: 2000px; }
+    p { line-height: 1.6; margin-bottom: 1em; }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="page2.html">Article 2</a>
+  <a href="page3.html">Article 3</a>
+  <a href="about.html">About</a>
+</nav>
+
+<h1>How Technology Is Changing Everyday Life</h1>
+
+<!-- Top leaderboard ad (above fold) -->
+<div class="ad-banner">
+  <iframe class="ad-frame" src="about:blank" width="728" height="88"
+          frameborder="0" scrolling="no"
+          style="border: none;"
+          title="Ad Unit Top"></iframe>
+</div>
+
+<div class="article-body">
+  <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Phasellus gravida velit ut
+  arcu hendrerit, eget fermentum lorem congue. Vestibulum ante ipsum primis in faucibus
+  orci luctus et ultrices posuere cubilia curae; Donec vulputate lacus at turpis
+  malesuada, in finibus libero blandit.</p>
+
+  <p>Sed ultrices turpis vel nisl auctor, at eleifend mauris varius. Cras aliquet leo
+  vitae mi faucibus, vel lacinia augue facilisis. Morbi tempus odio eu diam rhoncus,
+  nec blandit dolor feugiat. Proin at ante sit amet nisi congue condimentum.</p>
+
+  <p>Fusce gravida, massa vel tincidunt commodo, ligula mauris fermentum velit, sit amet
+  molestie massa lectus at nisl. Sed lobortis libero ut est egestas, nec lobortis lorem
+  ultrices. Maecenas feugiat, felis nec laoreet tempus, nisi velit elementum dui,
+  a feugiat nisi augue eget nisi.</p>
+
+  <!-- Mid-article ad (below fold) -->
+  <div class="fake-ad" id="ad-slot-1" data-ad-slot="1">
+    <span>Advertisement</span>
+  </div>
+
+  <p>Nullam tristique libero vel diam tincidunt, in efficitur diam commodo. Pellentesque
+  habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas.
+  Vivamus consequat turpis vitae justo blandit, et fermentum odio luctus.</p>
+
+  <p>Duis vulputate purus id feugiat fringilla. Etiam pellentesque lorem in metus
+  ultrices scelerisque. Nam vitae lorem vitae augue efficitur condimentum at et nisl.
+  Proin interdum, lorem in sodales varius, lorem libero congue lorem, vitae faucibus
+  felis lorem vitae lorem.</p>
+
+  <p>Integer volutpat lorem vitae lorem pretium varius. Curabitur condimentum lorem vitae
+  lorem commodo varius. Sed lorem vitae lorem vitae lorem varius lorem. Nunc lorem vitae
+  lorem vitae lorem vitae lorem commodo vitae lorem.</p>
+
+  <!-- Bottom rectangle ad -->
+  <div class="fake-ad" id="ad-slot-2" data-ad-slot="2">
+    <span>Sponsored Content</span>
+  </div>
+
+  <p>Phasellus euismod lorem vitae lorem vitae lorem varius lorem. Integer lorem vitae
+  lorem vitae lorem varius lorem vitae lorem. Sed lorem vitae lorem vitae lorem varius
+  lorem vitae lorem.</p>
+</div>
+
+<!-- CMP consent banner -->
+<div class="cmp-overlay" id="cmp-banner">
+  <span>We use cookies to improve your experience. Do you consent?</span>
+  <div>
+    <button id="cmp-accept">Accept All</button>
+    <button id="cmp-reject">Reject</button>
+  </div>
+</div>
+
+<script>
+  // Hide banner when accept or reject clicked
+  document.getElementById('cmp-accept').addEventListener('click', function() {
+    document.getElementById('cmp-banner').style.display = 'none';
+    localStorage.setItem('cmp_consent', 'accepted');
+  });
+  document.getElementById('cmp-reject').addEventListener('click', function() {
+    document.getElementById('cmp-banner').style.display = 'none';
+    localStorage.setItem('cmp_consent', 'rejected');
+  });
+
+  // If already consented, hide banner immediately
+  if (localStorage.getItem('cmp_consent')) {
+    document.getElementById('cmp-banner').style.display = 'none';
+  }
+
+  // Track ad clicks
+  document.querySelectorAll('.fake-ad').forEach(function(ad) {
+    ad.addEventListener('click', function() {
+      console.log('Ad clicked: ' + ad.id);
+    });
+  });
+</script>
+</body>
+</html>
+

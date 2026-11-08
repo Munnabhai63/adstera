@@ -1,0 +1,314 @@
+"""
+worker.py — Session lifecycle: context creation, page visit, dwell, ad interaction.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import random
+import time
+
+from playwright.async_api import Browser, BrowserContext, Page, Playwright
+
+import cmp
+import db
+import fingerprint as fp_mod
+import human
+import nav
+import persist
+from pool import Proxy
+
+logger = logging.getLogger(__name__)
+
+# EU/UK country codes that require CMP handling
+_EU_UK_COUNTRIES = {
+    "AT", "BE", "BG", "CY", "CZ", "DE", "DK", "EE", "ES", "FI", "FR",
+    "GR", "HR", "HU", "IE", "IT", "LT", "LU", "LV", "MT", "NL", "PL",
+    "PT", "RO", "SE", "SI", "SK", "GB", "UK",
+}
+
+# Ad selectors to look for on the page
+_AD_SELECTORS = [
+    "iframe[src*='adsterra']",
+    "iframe[src*='googlesyndication']",
+    "iframe[src*='doubleclick']",
+    "ins.adsbygoogle",
+    "[id*='ad-slot']",
+    "[class*='ad-unit']",
+    "[class*='adsbygoogle']",
+    "[data-ad-slot]",
+    # Fixture selectors
+    ".fake-ad",
+    "iframe.ad-frame",
+]
+
+
+async def _count_impressions(page: Page) -> int:
+    """Count visible ad elements/iframes on the page."""
+    count = 0
+    for sel in _AD_SELECTORS:
+        try:
+            elems = await page.query_selector_all(sel)
+            for e in elems:
+                if await e.is_visible():
+                    count += 1
+        except Exception:
+            pass
+    return count
+
+
+async def _attempt_ad_click(
+    page: Page,
+    rng: random.Random,
+    ad_clicks_done: int,
+    ad_clicks_max: int,
+    scroll_done: bool,
+) -> int:
+    """
+    Attempt a single ad click if conditions are met.
+    Returns number of clicks performed (0 or 1).
+    """
+    if ad_clicks_done >= ad_clicks_max:
+        return 0
+    if not scroll_done:
+        return 0
+
+    for sel in _AD_SELECTORS:
+        try:
+            elems = await page.query_selector_all(sel)
+            for elem in elems:
+                if not await elem.is_visible():
+                    continue
+                box = await elem.bounding_box()
+                if box is None:
+                    continue
+
+                tx = box["x"] + box["width"] * rng.uniform(0.20, 0.80)
+                ty = box["y"] + box["height"] * rng.uniform(0.25, 0.75)
+
+                viewport = page.viewport_size or {"width": 1280, "height": 800}
+                await human.move_mouse(
+                    page, tx, ty, rng,
+                    start_x=rng.uniform(50, viewport["width"] - 50),
+                    start_y=rng.uniform(50, viewport["height"] - 50),
+                )
+                await asyncio.sleep(rng.uniform(0.1, 0.3))
+                await page.mouse.click(tx, ty)
+                logger.debug("Clicked ad element: %s at (%.0f, %.0f)", sel, tx, ty)
+
+                # Handle potential popunder/new tab
+                await asyncio.sleep(rng.uniform(0.5, 1.5))
+                pages = page.context.pages
+                for extra_page in pages[1:]:
+                    await asyncio.sleep(rng.uniform(8, 20))
+                    try:
+                        await extra_page.close()
+                    except Exception:
+                        pass
+
+                return 1
+        except Exception as exc:
+            logger.debug("Ad click attempt on %s failed: %s", sel, exc)
+            continue
+    return 0
+
+
+async def run_session(
+    playwright: Playwright,
+    browser: Browser,
+    proxy: Proxy,
+    cfg: dict,
+    rng: random.Random,
+    use_fixture: bool = False,
+) -> dict:
+    """
+    Run one complete browser session for a given proxy.
+    Returns a result dict with session metadata.
+    """
+    fp = fp_mod.build(proxy)
+    start_url = cfg["target"]["fixture"] if use_fixture else cfg["target"]["url"]
+    if use_fixture and not start_url.startswith("http"):
+        start_url = "file:///" + start_url.replace("\\", "/")
+
+    # Referrer selection
+    referrers = cfg["target"]["referrers"]
+    weights = cfg["target"]["referrer_weights"]
+    referrer = rng.choices(referrers, weights=weights, k=1)[0]
+
+    result = {
+        "proxy_id": proxy.proxy_id,
+        "ua": fp.user_agent,
+        "referrer": referrer,
+        "dwell": 0.0,
+        "pages": 0,
+        "ad_clicks": 0,
+        "impressions": 0,
+        "status": "ok",
+    }
+
+    context: BrowserContext | None = None
+    t0 = time.time()
+
+    try:
+        # Build context options
+        context_kwargs: dict = {
+            "user_agent": fp.user_agent,
+            "viewport": {"width": fp.viewport_width, "height": fp.viewport_height},
+            "locale": fp.locale,
+            "timezone_id": fp.timezone,
+            "extra_http_headers": {"Accept-Language": ",".join(fp.languages)},
+        }
+        if proxy.playwright_proxy:
+            context_kwargs["proxy"] = proxy.playwright_proxy
+
+        if fp.is_mobile:
+            context_kwargs["is_mobile"] = True
+            context_kwargs["has_touch"] = True
+
+        context = await browser.new_context(**context_kwargs)
+
+        # Restore cookies for return visits
+        is_return = rng.random() < cfg["session"]["return_visit_prob"]
+        if is_return and persist.has_state(proxy.proxy_id):
+            await persist.restore(context, proxy.proxy_id)
+            logger.debug("Return visit: restored cookies for %s", proxy.proxy_id)
+
+        # Inject fingerprint patches
+        init_js = fp_mod.init_script(fp)
+        await context.add_init_script(script=init_js)
+
+        # Block specified resource types
+        block_types = set(cfg["browser"].get("block_resources", []))
+        if block_types:
+            async def route_handler(route, request):
+                if request.resource_type in block_types:
+                    await route.abort()
+                else:
+                    await route.continue_()
+            await context.route("**/*", route_handler)
+
+        page = await context.new_page()
+
+        # Navigate to start URL with referrer
+        nav_kwargs: dict = {"wait_until": "domcontentloaded", "timeout": 30000}
+        if referrer:
+            nav_kwargs["referer"] = referrer
+        await page.goto(start_url, **nav_kwargs)
+
+        # CMP handling (EU/UK geos)
+        cmp_enabled = cfg["cmp"]["enabled"]
+        is_eu = proxy.geo.country in _EU_UK_COUNTRIES
+        if cmp_enabled and is_eu:
+            await cmp.handle(page, cfg["cmp"]["accept_prob"], rng)
+        elif cmp_enabled:
+            # Still handle banners even for non-EU if present
+            await cmp.handle(page, cfg["cmp"]["accept_prob"], rng)
+
+        # Count impressions on page load
+        result["impressions"] = await _count_impressions(page)
+
+        # Session dwell: target dwell time
+        min_dwell = cfg["target"]["min_dwell"]
+        max_dwell = cfg["target"]["max_dwell"]
+        # Right-skewed dwell: use beta distribution approximation
+        dwell_target = min_dwell + (max_dwell - min_dwell) * (rng.betavariate(1.5, 4.0))
+
+        scroll_done = False
+        ad_clicks_done = 0
+        t_on_page = time.time()
+        last_idle = time.time()
+        last_ad_attempt = 0.0
+
+        # Page callback for multi-page sessions
+        async def on_page_loaded(pg: Page, url: str, page_num: int) -> None:
+            nonlocal result, scroll_done, ad_clicks_done, last_idle, last_ad_attempt
+
+            # Scroll
+            if rng.random() < cfg["target"]["scroll_prob"]:
+                await human.scroll_page(pg, rng)
+                scroll_done = True
+
+            # Ad click probability check
+            if (
+                rng.random() < cfg["target"]["click_prob"]
+                and time.time() - t_on_page > 5.0
+                and ad_clicks_done < cfg["target"]["ad_clicks_max"]
+            ):
+                clicks = await _attempt_ad_click(pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done)
+                ad_clicks_done += clicks
+                result["ad_clicks"] += clicks
+
+        # First page
+        await on_page_loaded(page, start_url, 1)
+
+        # Multi-page navigation
+        pages_visited, final_url = await nav.run_session_pages(
+            page, start_url, cfg, rng,
+            on_page_loaded=on_page_loaded,
+        )
+        result["pages"] = pages_visited
+
+        # Remaining dwell after navigation
+        elapsed = time.time() - t_on_page
+        remaining = max(0, dwell_target - elapsed)
+
+        while remaining > 0:
+            # Idle drift every 8–20 s
+            idle_interval = rng.uniform(8, 20)
+            sleep_chunk = min(idle_interval, remaining)
+            await asyncio.sleep(sleep_chunk)
+            remaining -= sleep_chunk
+
+            if remaining > 0:
+                await human.idle_drift(page, rng, duration_s=0.5)
+
+            # Occasional focus blur (tab visibility simulation)
+            if rng.random() < 0.08:
+                try:
+                    cdp = await context.new_cdp_session(page)
+                    await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": True})
+                    await asyncio.sleep(rng.uniform(1, 3))
+                    await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": False})
+                    await cdp.detach()
+                except Exception:
+                    pass
+
+        result["dwell"] = time.time() - t_on_page
+
+        # Save cookies
+        if cfg["session"]["cookie_persist"]:
+            await persist.save(context, proxy.proxy_id)
+
+    except Exception as exc:
+        logger.warning("Session error for %s: %s", proxy.proxy_id, exc)
+        result["status"] = "degraded"
+        result["dwell"] = max(result["dwell"], time.time() - t0)
+    finally:
+        if context:
+            try:
+                await context.close()
+            except Exception:
+                pass
+
+    # Clamp dwell to configured bounds
+    result["dwell"] = max(cfg["target"]["min_dwell"], result["dwell"])
+
+    # Log to DB
+    db.log_session(
+        proxy_id=result["proxy_id"],
+        ua=result["ua"],
+        referrer=result["referrer"],
+        dwell=result["dwell"],
+        pages=result["pages"],
+        ad_clicks=result["ad_clicks"],
+        impressions=result["impressions"],
+        status=result["status"],
+    )
+
+    logger.info(
+        "Session %s | dwell=%.1fs | pages=%d | clicks=%d | imps=%d | %s",
+        proxy.proxy_id, result["dwell"], result["pages"],
+        result["ad_clicks"], result["impressions"], result["status"],
+    )
+    return result
+

@@ -1,0 +1,82 @@
+target:
+  url: https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804
+  fixture: tests/fixtures/page.html
+  referrers:
+  - https://www.google.com/search?q=example+keyword
+  - https://www.bing.com/search?q=example+keyword
+  - https://duckduckgo.com/?q=example+keyword
+  - ''
+  referrer_weights:
+  - 0.45
+  - 0.15
+  - 0.15
+  - 0.25
+  min_dwell: 25
+  max_dwell: 110
+  scroll_prob: 0.85
+  click_prob: 0.06
+  ad_clicks_max: 2
+session:
+  page_depth_min: 1
+  page_depth_max: 3
+  internal_nav_prob: 0.35
+  return_visit_prob: 0.12
+  cookie_persist: true
+proxy:
+  file: proxies.txt
+  geo_strict: true
+  country: US
+  max_uses_per_ip: 12
+  max_concurrent_per_ip: 1
+  dead_ip_cooldown_min: 45
+scheduler:
+  concurrency: 6
+  sessions_per_hour: 150
+  daily_cap: 2000
+  diurnal:
+  - 0.25
+  - 0.18
+  - 0.14
+  - 0.12
+  - 0.14
+  - 0.28
+  - 0.52
+  - 0.78
+  - 0.95
+  - 1.0
+  - 0.92
+  - 0.86
+  - 0.82
+  - 0.85
+  - 0.9
+  - 0.94
+  - 0.98
+  - 1.0
+  - 0.95
+  - 0.84
+  - 0.68
+  - 0.52
+  - 0.4
+  - 0.32
+  weekday_scale:
+  - 1.0
+  - 1.05
+  - 1.08
+  - 1.06
+  - 1.0
+  - 0.72
+  - 0.66
+  jitter_seconds: 20
+cmp:
+  enabled: true
+  accept_prob: 0.88
+browser:
+  headless: false
+  slow_mo_ms: 40
+  block_resources:
+  - font
+  - media
+
+network:
+  mode: proxy
+  airplane_mode_wait: 4

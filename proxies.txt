@@ -1,0 +1,15 @@
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-95592022-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-74726098-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-54767582-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-17659749-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-74660390-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-81254690-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-40674746-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-48207445-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-75135120-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-75351410-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-69994057-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-95778559-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-83492439-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-17670837-sessTime-60-sessAuto-1:52a73e
+global.rotgb.trustsource.live:10000:USER378520-zone-custom-region-CA-session-26346620-sessTime-60-sessAuto-1:52a73e
