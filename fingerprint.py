@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from pool import Proxy
+import ua_provider
 
 # ── Desktop UAs ────────────────────────────────────────────────────────────────
 _DESKTOP_UAS = [
@@ -109,17 +110,20 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
     else:
         is_mobile = rng.chance(0.17)
 
+    desktop_pool = ua_provider.get_desktop_uas()
+    mobile_pool = ua_provider.get_mobile_uas()
+
     if is_mobile:
-        ua = rng.choice(_MOBILE_UAS)
+        ua = rng.choice(mobile_pool)
         vw, vh = rng.choice(_MOBILE_VIEWPORTS)
-        platform = rng.choice(_MOBILE_PLATFORMS)
+        platform = ua_provider.infer_platform(ua)
         hc = rng.choice([4, 6, 8])
         dm = rng.choice([2, 4])
         mtp = 5
     else:
-        ua = rng.choice(_DESKTOP_UAS)
+        ua = rng.choice(desktop_pool)
         vw, vh = rng.choice(_DESKTOP_VIEWPORTS)
-        platform = rng.choice(_DESKTOP_PLATFORMS)
+        platform = ua_provider.infer_platform(ua)
         hc = rng.choice([4, 6, 8, 12, 16])
         dm = rng.choice([4, 8, 16])
         mtp = 0

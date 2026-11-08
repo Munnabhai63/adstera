@@ -483,6 +483,10 @@ HTML_PAGE = """<!DOCTYPE html>
       <div class="stat-val" id="statProxies">0</div>
     </div>
     <div class="stat-card">
+      <div class="stat-title">User-Agents (useragent.in)</div>
+      <div class="stat-val" id="statUserAgents" style="color: #38bdf8;">27,103</div>
+    </div>
+    <div class="stat-card">
       <div class="stat-title">Runner Process PID</div>
       <div class="stat-val" id="statPID">—</div>
     </div>
@@ -557,6 +561,15 @@ HTML_PAGE = """<!DOCTYPE html>
           <label>Concurrency (Parallel Browsers)</label>
           <input type="number" id="concurrency" value="6" min="1" max="20">
         </div>
+      </div>
+
+      <!-- useragent.in Database Info -->
+      <div style="display: flex; justify-content: space-between; align-items: center; background: #0d131f; border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin-top: 2px;">
+        <div>
+          <div style="font-size: 13px; font-weight: 700; color: #38bdf8;">🌐 useragent.in Database</div>
+          <div style="font-size: 11px; color: var(--muted); margin-top: 2px;" id="uaSubText">27,103 Real UAs (8,989 Desktop, 18,114 Mobile/Tablet)</div>
+        </div>
+        <button class="btn btn-secondary" style="padding: 6px 12px; font-size: 12px;" onclick="syncUserAgents()" id="btnSyncUA">🔄 Sync from useragent.in</button>
       </div>
 
       <div class="control-bar" style="margin-top: 10px;">
@@ -720,6 +733,15 @@ HTML_PAGE = """<!DOCTYPE html>
       document.getElementById('statSessionsToday').innerText = data.today;
       document.getElementById('statCTR').innerText = (data.ctr * 100).toFixed(1) + '%';
       document.getElementById('statProxies').innerText = data.proxies_count;
+
+      if (data.ua_stats) {
+        const uaElem = document.getElementById('statUserAgents');
+        if (uaElem) uaElem.innerText = (data.ua_stats.total || 27103).toLocaleString();
+        const sub = document.getElementById('uaSubText');
+        if (sub) {
+          sub.innerText = `${(data.ua_stats.total || 27103).toLocaleString()} Real UAs (${(data.ua_stats.desktop_count || 8989).toLocaleString()} Desktop, ${(data.ua_stats.mobile_count || 18114).toLocaleString()} Mobile/Tablet)`;
+        }
+      }
 
       // Update sessions table
       const tbody = document.getElementById('sessionsTbody');
@@ -993,6 +1015,31 @@ HTML_PAGE = """<!DOCTYPE html>
     fetchStatus();
   }
 
+  async function syncUserAgents() {
+    const btn = document.getElementById('btnSyncUA');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = '⏳ Syncing…';
+    }
+    showToast('Fetching latest 27,000+ UAs from useragent.in…');
+    try {
+      const res = await fetch('/api/useragents/sync', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        showToast('Successfully synced ' + data.total.toLocaleString() + ' UAs from useragent.in!');
+      } else {
+        alert('Sync error: ' + (data.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Network error syncing UAs: ' + e);
+    }
+    if (btn) {
+      btn.disabled = false;
+      btn.innerText = '🔄 Sync from useragent.in';
+    }
+    fetchStatus();
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
@@ -1037,12 +1084,14 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/status":
             db.init()
+            import ua_provider
             status_data = {
                 "is_running": RUNNER.is_running(),
                 "pid": RUNNER.get_pid(),
                 "today": db.today(),
                 "ctr": db.ctr(100),
                 "proxies_count": count_valid_proxies(),
+                "ua_stats": ua_provider.get_stats(),
                 "recent_sessions": db.last_sessions(20),
                 "logs": RUNNER.get_logs(),
             }
@@ -1172,6 +1221,15 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             proxies_str = payload.get("proxies", "")
             write_proxies(proxies_str)
             self._send_json({"ok": True, "count": count_valid_proxies()})
+            return
+
+        if path == "/api/useragents/sync":
+            try:
+                import ua_provider
+                res = ua_provider.sync_from_useragent_in()
+                self._send_json({"ok": True, **res})
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=500)
             return
 
         if path == "/api/start":
