@@ -12,6 +12,12 @@ import sys
 import time
 from pathlib import Path
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 import yaml
 from playwright.async_api import async_playwright
 
@@ -165,6 +171,8 @@ async def main() -> None:
                 "--no-default-browser-check",
                 "--disable-infobars",
                 "--disable-popup-blocking",
+                "--window-position=100,100",
+                "--window-size=1280,800",
             ],
         )
         try:

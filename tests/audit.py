@@ -20,6 +20,12 @@ import os
 import sys
 from pathlib import Path
 
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 # Allow importing from the project root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -233,7 +239,7 @@ async def run_all_async(cfg: dict | None = None) -> None:
             print(f"  • {f}")
         sys.exit(1)
     else:
-        print("\nAll audit checks PASSED ✓")
+        print("\nAll audit checks PASSED [OK]")
 
 
 def run_all(cfg: dict | None = None) -> None:

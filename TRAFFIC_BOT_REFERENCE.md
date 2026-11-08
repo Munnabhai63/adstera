@@ -118,3 +118,4 @@ num_visitors: 100
 | **Stealth / Anti-Detect** | Basic `--headless` | WebGL spoof, Canvas noise, `navigator.webdriver=None`, Audio jitter, Timezone/Locale sync |
 | **Mouse / Human Move** | `ActionChains.move_by_offset` | 4-point Cubic Bezier curves + Eased chunk scrolling |
 | **Control Interface** | CLI terminal only | Localhost Web UI Dashboard (`http://localhost:5050`) |
+

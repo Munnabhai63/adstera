@@ -35,11 +35,142 @@ BASE_DIR = Path(__file__).parent.resolve()
 CONFIG_PATH = BASE_DIR / "config.yaml"
 PROXIES_PATH = BASE_DIR / "proxies.txt"
 
+# ── Interactive Process Launcher ───────────────────────────────────────────────
+
+class InteractiveProcess:
+    """Spawns process on WinSta0\\Default so visible GUI windows appear on user's primary monitor."""
+    def __init__(self, cmd: list[str], cwd: str, env: dict):
+        self.cmd = cmd
+        self.cwd = cwd
+        self.env = env
+        self.pid: int | None = None
+        self._hProcess: int | None = None
+        self._pipe_r: int | None = None
+        self._returncode: int | None = None
+        self._spawn()
+
+    def _spawn(self) -> None:
+        import ctypes
+        import ctypes.wintypes
+        import msvcrt
+
+        class STARTUPINFOW(ctypes.Structure):
+            _fields_ = [
+                ('cb', ctypes.wintypes.DWORD),
+                ('lpReserved', ctypes.wintypes.LPWSTR),
+                ('lpDesktop', ctypes.wintypes.LPWSTR),
+                ('lpTitle', ctypes.wintypes.LPWSTR),
+                ('dwX', ctypes.wintypes.DWORD),
+                ('dwY', ctypes.wintypes.DWORD),
+                ('dwXSize', ctypes.wintypes.DWORD),
+                ('dwYSize', ctypes.wintypes.DWORD),
+                ('dwXCountChars', ctypes.wintypes.DWORD),
+                ('dwYCountChars', ctypes.wintypes.DWORD),
+                ('dwFillAttribute', ctypes.wintypes.DWORD),
+                ('dwFlags', ctypes.wintypes.DWORD),
+                ('wShowWindow', ctypes.wintypes.WORD),
+                ('cbReserved2', ctypes.wintypes.WORD),
+                ('lpReserved2', ctypes.c_void_p),
+                ('hStdInput', ctypes.wintypes.HANDLE),
+                ('hStdOutput', ctypes.wintypes.HANDLE),
+                ('hStdError', ctypes.wintypes.HANDLE),
+            ]
+
+        class PROCESS_INFORMATION(ctypes.Structure):
+            _fields_ = [
+                ('hProcess', ctypes.wintypes.HANDLE),
+                ('hThread', ctypes.wintypes.HANDLE),
+                ('dwProcessId', ctypes.wintypes.DWORD),
+                ('dwThreadId', ctypes.wintypes.DWORD),
+            ]
+
+        r_fd, w_fd = os.pipe()
+        w_handle = msvcrt.get_osfhandle(w_fd)
+        ctypes.windll.kernel32.SetHandleInformation(w_handle, 1, 1)
+
+        si = STARTUPINFOW()
+        si.cb = ctypes.sizeof(STARTUPINFOW)
+        si.lpDesktop = "WinSta0\\Default"
+        si.dwFlags = 0x00000100  # STARTF_USESTDHANDLES
+        si.hStdOutput = w_handle
+        si.hStdError = w_handle
+        si.hStdInput = msvcrt.get_osfhandle(0)
+
+        pi = PROCESS_INFORMATION()
+        cmd_str = subprocess.list2cmdline(self.cmd)
+
+        res = ctypes.windll.kernel32.CreateProcessW(
+            None, cmd_str, None, None, True, 0, None, str(self.cwd),
+            ctypes.byref(si), ctypes.byref(pi),
+        )
+        os.close(w_fd)
+        if not res:
+            os.close(r_fd)
+            raise OSError(f"CreateProcess failed (error {ctypes.windll.kernel32.GetLastError()})")
+
+        ctypes.windll.kernel32.CloseHandle(pi.hThread)
+        self._hProcess = pi.hProcess
+        self.pid = pi.dwProcessId
+        self._pipe_r = r_fd
+
+    def poll(self) -> int | None:
+        if self._returncode is not None:
+            return self._returncode
+        if not self._hProcess:
+            return -1
+        import ctypes
+        import ctypes.wintypes
+        code = ctypes.wintypes.DWORD()
+        res = ctypes.windll.kernel32.GetExitCodeProcess(self._hProcess, ctypes.byref(code))
+        if res and code.value != 259:
+            self._returncode = code.value
+            return self._returncode
+        return None
+
+    def terminate(self) -> None:
+        if self._hProcess and self.poll() is None:
+            import ctypes
+            ctypes.windll.kernel32.TerminateProcess(self._hProcess, 1)
+            self._returncode = 1
+
+    def kill(self) -> None:
+        self.terminate()
+
+    def readline(self) -> str:
+        if self._pipe_r is None:
+            return ""
+        chars = []
+        while True:
+            try:
+                b = os.read(self._pipe_r, 1)
+                if not b:
+                    break
+                chars.append(b)
+                if b == b"\n":
+                    break
+            except Exception:
+                break
+        return b"".join(chars).decode("utf-8", errors="replace")
+
+    def close_pipe(self) -> None:
+        if self._pipe_r is not None:
+            try:
+                os.close(self._pipe_r)
+            except Exception:
+                pass
+            self._pipe_r = None
+
+    def wait(self) -> int:
+        while self.poll() is None:
+            time.sleep(0.1)
+        return self._returncode or 0
+
+
 # ── Process Manager ─────────────────────────────────────────────────────────────
 
 class RunnerManager:
     def __init__(self):
-        self._proc: subprocess.Popen | None = None
+        self._proc = None
         self._lock = threading.Lock()
         self._logs = collections.deque(maxlen=300)
         self._reader_thread: threading.Thread | None = None
@@ -66,32 +197,61 @@ class RunnerManager:
 
             python_exe = sys.executable
             main_script = str(BASE_DIR / "main.py")
-
             cmd = [python_exe, "-u", main_script]
+
             try:
-                self._proc = subprocess.Popen(
-                    cmd,
-                    cwd=str(BASE_DIR),
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
-                )
+                if os.name == "nt":
+                    try:
+                        self._proc = InteractiveProcess(cmd, cwd=str(BASE_DIR), env=dict(os.environ))
+                    except Exception as ex:
+                        logger.warning("InteractiveProcess fallback to subprocess.Popen: %s", ex)
+                        self._proc = subprocess.Popen(
+                            cmd,
+                            cwd=str(BASE_DIR),
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            bufsize=1,
+                            env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                        )
+                else:
+                    self._proc = subprocess.Popen(
+                        cmd,
+                        cwd=str(BASE_DIR),
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                        env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                    )
+
                 cfg = read_config()
                 is_headless = cfg.get("browser", {}).get("headless", False)
-                mode_desc = "⚡ Headless (Background)" if is_headless else "👁️ Head-On (Visible Window)"
+                mode_desc = "⚡ Headless (Background)" if is_headless else "👁️ Head-On (Visible Window on Screen)"
                 self._logs.append(f"[{time.strftime('%X')}] Runner launched with PID {self._proc.pid} [{mode_desc}]")
 
                 # Background thread to capture stdout
-                def stream_reader(p: subprocess.Popen, log_queue: collections.deque):
-                    for line in iter(p.stdout.readline, ""):
-                        clean = line.rstrip()
-                        if clean:
-                            log_queue.append(clean)
-                    p.stdout.close()
-                    p.wait()
-                    log_queue.append(f"[{time.strftime('%X')}] Runner process ended (code {p.returncode})")
+                def stream_reader(p, log_queue: collections.deque):
+                    if hasattr(p, "readline") and not hasattr(p, "stdout"):
+                        while True:
+                            line = p.readline()
+                            if not line:
+                                break
+                            clean = line.rstrip()
+                            if clean:
+                                log_queue.append(clean)
+                        if hasattr(p, "close_pipe"):
+                            p.close_pipe()
+                        p.wait()
+                        log_queue.append(f"[{time.strftime('%X')}] Runner process ended (code {p.poll()})")
+                    else:
+                        for line in iter(p.stdout.readline, ""):
+                            clean = line.rstrip()
+                            if clean:
+                                log_queue.append(clean)
+                        p.stdout.close()
+                        p.wait()
+                        log_queue.append(f"[{time.strftime('%X')}] Runner process ended (code {p.returncode})")
 
                 self._reader_thread = threading.Thread(
                     target=stream_reader, args=(self._proc, self._logs), daemon=True
@@ -113,6 +273,9 @@ class RunnerManager:
             except Exception as exc:
                 try:
                     self._proc.kill()
+                    return True, f"Force killed: {exc}"
+                except Exception as k_exc:
+                    return False, f"Error stopping: {k_exc}"
                     return True, f"Force killed: {exc}"
                 except Exception as k_exc:
                     return False, f"Error stopping: {k_exc}"
@@ -483,7 +646,7 @@ HTML_PAGE = """<!DOCTYPE html>
   <div class="card" id="cardPreview">
     <div class="card-title">
       <span>🖥️ Live Browser Screen (Real-Time Preview)</span>
-      <span style="font-size: 12px; color: var(--muted); font-weight: normal;">Live render updates during session</span>
+      <span id="previewBadge" style="font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgba(148,163,184,0.15); color: #94a3b8; font-weight: 600;">⚪ Idle</span>
     </div>
     <div style="background: #070a10; border: 1px solid var(--border); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 240px; text-align: center;">
       <img id="livePreviewImg" src="/api/preview.jpg" alt="Live Browser Preview" style="max-width: 100%; max-height: 520px; border-radius: 6px; border: 1px solid #1e293b; display: none;" onload="this.style.display='block'; document.getElementById('previewPlaceholder').style.display='none';" onerror="this.style.display='none'; document.getElementById('previewPlaceholder').style.display='block';">
@@ -553,18 +716,29 @@ HTML_PAGE = """<!DOCTYPE html>
       const btnStart = document.getElementById('btnStart');
       const btnStop = document.getElementById('btnStop');
 
+      const pBadge = document.getElementById('previewBadge');
       if (data.is_running) {
         badge.className = 'status-badge running';
         text.innerText = 'RUNNING (PID ' + data.pid + ')';
         btnStart.disabled = true;
         btnStop.disabled = false;
         document.getElementById('statPID').innerText = data.pid;
+        if (pBadge) {
+          pBadge.innerText = '🟢 Live Stream Active';
+          pBadge.style.background = 'rgba(34,197,94,0.15)';
+          pBadge.style.color = '#22c55e';
+        }
       } else {
         badge.className = 'status-badge stopped';
         text.innerText = 'STOPPED';
         btnStart.disabled = false;
         btnStop.disabled = true;
         document.getElementById('statPID').innerText = '—';
+        if (pBadge) {
+          pBadge.innerText = '⏸️ Paused (Last Session Frame)';
+          pBadge.style.background = 'rgba(148,163,184,0.15)';
+          pBadge.style.color = '#94a3b8';
+        }
       }
 
       document.getElementById('statSessionsToday').innerText = data.today;
@@ -845,17 +1019,23 @@ HTML_PAGE = """<!DOCTYPE html>
 
   function refreshPreview() {
     const img = document.getElementById('livePreviewImg');
-    if (img) {
-      const stamp = Date.now();
-      const testImg = new Image();
-      testImg.onload = () => {
-        img.src = '/api/preview.jpg?t=' + stamp;
-        img.style.display = 'block';
+    if (!img) return;
+    const stamp = Date.now();
+    const testImg = new Image();
+    testImg.onload = () => {
+      img.src = '/api/preview.jpg?t=' + stamp;
+      img.style.display = 'block';
+      const ph = document.getElementById('previewPlaceholder');
+      if (ph) ph.style.display = 'none';
+    };
+    testImg.onerror = () => {
+      // Only show placeholder if image was never loaded before
+      if (!img.src || img.style.display === 'none') {
         const ph = document.getElementById('previewPlaceholder');
-        if (ph) ph.style.display = 'none';
-      };
-      testImg.src = '/api/preview.jpg?t=' + stamp;
-    }
+        if (ph) ph.style.display = 'block';
+      }
+    };
+    testImg.src = '/api/preview.jpg?t=' + stamp;
   }
 
   // Initial load & Polling

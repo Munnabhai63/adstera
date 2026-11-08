@@ -204,7 +204,12 @@ async def run_session(
         nav_kwargs: dict = {"wait_until": "domcontentloaded", "timeout": 30000}
         if referrer:
             nav_kwargs["referer"] = referrer
-        await page.goto(start_url, **nav_kwargs)
+        try:
+            await page.goto(start_url, **nav_kwargs)
+        except Exception as nav_err:
+            logger.warning("Initial navigation failed (%s) — retrying after 2.5s network settle...", nav_err)
+            await asyncio.sleep(2.5)
+            await page.goto(start_url, **nav_kwargs)
         await _save_preview(page)
 
         # CMP handling (EU/UK geos)
