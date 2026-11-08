@@ -120,6 +120,7 @@ async def _run_browser_checks(cfg: dict) -> None:
 
     headless = cfg["browser"].get("headless", False)
     slow_mo = cfg["browser"].get("slow_mo_ms", 40)
+    canvas_results: dict[str, dict] = {}
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
@@ -222,7 +223,61 @@ async def _run_browser_checks(cfg: dict) -> None:
             if label == "proxy_a":
                 print(f"  [10] PASS — Client Hints 99.99% bulletproof (tag='{uad_info.get('tag')}', native=True, mobile={uad_info.get('mobile')})")
 
+            # Check 11: Canvas & WebGL buffer integrity (getImageData, toDataURL, readPixels stability & [native code])
+            canvas_res = await page.evaluate("""async () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = 64;
+                canvas.height = 64;
+                const ctx = canvas.getContext('2d');
+                ctx.fillStyle = '#123456';
+                ctx.fillRect(0, 0, 64, 64);
+                ctx.font = '12px sans-serif';
+                ctx.fillText('AntiDetect Audit', 5, 20);
+
+                const u1 = canvas.toDataURL();
+                const u2 = canvas.toDataURL();
+
+                const d1 = ctx.getImageData(0, 0, 64, 64).data;
+                const d2 = ctx.getImageData(0, 0, 64, 64).data;
+                const h1 = Array.from(d1.slice(0, 20)).join(',');
+                const h2 = Array.from(d2.slice(0, 20)).join(',');
+
+                const blob = await new Promise(res => canvas.toBlob(res));
+
+                return {
+                    u1: u1,
+                    u2: u2,
+                    dataURL_stable: u1 === u2,
+                    imageData_stable: h1 === h2,
+                    h1: h1,
+                    blob_valid: blob instanceof Blob && blob.size > 0,
+                    native_toDataURL: canvas.toDataURL.toString(),
+                    native_toBlob: canvas.toBlob ? canvas.toBlob.toString() : '',
+                    native_getImageData: ctx.getImageData.toString(),
+                    native_readPixels: WebGLRenderingContext.prototype.readPixels.toString(),
+                    native_getParameter: WebGLRenderingContext.prototype.getParameter.toString()
+                };
+            }""")
+            assert canvas_res["dataURL_stable"], f"[11] FAIL ({label}) — canvas.toDataURL() drifted between calls"
+            assert canvas_res["imageData_stable"], f"[11] FAIL ({label}) — ctx.getImageData() drifted between calls"
+            assert canvas_res["blob_valid"], f"[11] FAIL ({label}) — canvas.toBlob() returned invalid blob"
+            assert "[native code]" in canvas_res["native_toDataURL"], f"[11] FAIL ({label}) — toDataURL not [native code]"
+            assert "[native code]" in canvas_res["native_getImageData"], f"[11] FAIL ({label}) — getImageData not [native code]"
+            assert "[native code]" in canvas_res["native_readPixels"], f"[11] FAIL ({label}) — readPixels not [native code]"
+            assert "[native code]" in canvas_res["native_getParameter"], f"[11] FAIL ({label}) — getParameter not [native code]"
+            canvas_results[label] = canvas_res
+            if label == "proxy_a":
+                print(f"  [11] PASS — Canvas & WebGL buffer integrity (getImageData + toDataURL zero-drift, [native code] masked)")
+
             await context.close()
+
+        # Check 11 cross-seed check: different proxies yield different canvas outputs
+        assert canvas_results["proxy_a"]["u1"] != canvas_results["proxy_b"]["u1"], (
+            "[11] FAIL — Different proxies produced identical canvas toDataURL outputs"
+        )
+        assert canvas_results["proxy_a"]["h1"] != canvas_results["proxy_b"]["h1"], (
+            "[11] FAIL — Different proxies produced identical canvas getImageData byte buffers"
+        )
 
         await browser.close()
 

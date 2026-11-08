@@ -25,6 +25,8 @@
 | 19 | Support for `host:port:user:pass` proxies & async audit fix in `main.py` | Accommodates standard residential proxy provider formats and prevents `asyncio.run()` event loop collisions |
 | 20 | Android USB Debugging (ADB) Mobile Tethering & Airplane Mode Dynamic IP Rotation | Provides seamless alternative to proxy services by utilizing direct USB tethered 4G/5G mobile connection, automatically toggling Airplane mode between sessions via ADB to renew carrier IP |
 | 21 | Remote Proxy Provider API Auto-Fetch (`proxy_api_url`) | Allows fetching, parsing, and auto-updating proxies directly from provider API endpoints (Bright Data, Smartproxy, Oxylabs, Webshare, ProxyScrape) via UI or CLI |
+| 22 | Native `NavigatorUAData` prototype inheritance and GREASE brands for Client Hints | Step 1 upgrade: Ensures `navigator.userAgentData` passes `[object NavigatorUAData]`, `instanceof NavigatorUAData`, and masked `[native code]` functions |
+| 23 | Coordinate-based deterministic LSB micro-jitter for Canvas & WebGL | Step 2 upgrade: Injects coordinate-seeded LSB noise on `getImageData`, offscreen clone for `toDataURL` and `toBlob`, and WebGL `readPixels`, guaranteeing zero-drift across multiple reads while keeping seeds unique per proxy |
 
 ## KNOWN GAPS
 

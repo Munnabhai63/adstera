@@ -383,11 +383,11 @@ def init_script(fp: Fingerprint) -> str:
   const patchWebGL = (ctx) => {{
     if (!ctx) return;
     const origGetParam = ctx.prototype.getParameter;
-    ctx.prototype.getParameter = function(param) {{
+    ctx.prototype.getParameter = _makeNative(function(param) {{
       if (param === 37445) return {json.dumps(fp.webgl_vendor)};   // UNMASKED_VENDOR_WEBGL
       if (param === 37446) return {json.dumps(fp.webgl_renderer)};  // UNMASKED_RENDERER_WEBGL
       return origGetParam.call(this, param);
-    }};
+    }}, 'getParameter');
   }};
   patchWebGL(WebGLRenderingContext);
   if (typeof WebGL2RenderingContext !== 'undefined') patchWebGL(WebGL2RenderingContext);
@@ -405,23 +405,95 @@ def init_script(fp: Fingerprint) -> str:
     Object.defineProperty(navigator.connection, 'rtt',           {{ get: () => {fp.rtt}, configurable: true }});
   }}
 
-  // ── canvas noise (deterministic seeded) ──────────────────────────────────
+  // ── canvas & WebGL buffer integrity (deterministic seeded coordinate jitter) ──
   const _canvasSeed = {fp.canvas_seed};
-  const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+  const _applyDeterministicJitter = (data, w, h, sx, sy) => {{
+    let seed = _canvasSeed;
+    const len = data.length;
+    for (let i = 0; i < len; i += 4) {{
+      const pIdx = i >> 2;
+      const px = (pIdx % w) + sx;
+      const py = Math.floor(pIdx / w) + sy;
+      const hVal = (Math.imul(px ^ seed, 1664525) + Math.imul(py ^ 0x5bd1e995, 1013904223)) ^ seed;
+      const jR = (hVal & 3) === 1 ? 1 : ((hVal & 3) === 2 ? -1 : 0);
+      const jB = ((hVal >> 2) & 3) === 1 ? 1 : (((hVal >> 2) & 3) === 2 ? -1 : 0);
+      if (jR !== 0) data[i] = Math.max(0, Math.min(255, data[i] + jR));
+      if (jB !== 0) data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + jB));
+    }}
+  }};
+
   const origGetImageData = CanvasRenderingContext2D.prototype.getImageData;
-  HTMLCanvasElement.prototype.toDataURL = function(...args) {{
-    const ctx2d = this.getContext('2d');
-    if (ctx2d) {{
-      const imgd = ctx2d.getImageData(0, 0, this.width || 1, this.height || 1);
-      let s = _canvasSeed;
-      for (let i = 0; i < imgd.data.length; i += 4) {{
-        s = (s * 1664525 + 1013904223) & 0xffffffff;
-        imgd.data[i] = (imgd.data[i] + (s & 0x03)) & 0xff;
-      }}
-      ctx2d.putImageData(imgd, 0, 0);
+  CanvasRenderingContext2D.prototype.getImageData = _makeNative(function(sx, sy, sw, sh, ...args) {{
+    const imgData = origGetImageData.call(this, sx, sy, sw, sh, ...args);
+    if (imgData && imgData.data && imgData.data.length > 0) {{
+      _applyDeterministicJitter(imgData.data, imgData.width, imgData.height, sx, sy);
+    }}
+    return imgData;
+  }}, 'getImageData');
+
+  const origToDataURL = HTMLCanvasElement.prototype.toDataURL;
+  HTMLCanvasElement.prototype.toDataURL = _makeNative(function(...args) {{
+    const w = this.width;
+    const h = this.height;
+    if (w > 0 && h > 0) {{
+      try {{
+        const offscreen = document.createElement('canvas');
+        offscreen.width = w;
+        offscreen.height = h;
+        const offCtx = offscreen.getContext('2d');
+        if (offCtx) {{
+          offCtx.drawImage(this, 0, 0);
+          const imgd = origGetImageData.call(offCtx, 0, 0, w, h);
+          if (imgd && imgd.data) {{
+            _applyDeterministicJitter(imgd.data, w, h, 0, 0);
+            offCtx.putImageData(imgd, 0, 0);
+            return origToDataURL.apply(offscreen, args);
+          }}
+        }}
+      }} catch(e) {{}}
     }}
     return origToDataURL.apply(this, args);
+  }}, 'toDataURL');
+
+  const origToBlob = HTMLCanvasElement.prototype.toBlob;
+  if (origToBlob) {{
+    HTMLCanvasElement.prototype.toBlob = _makeNative(function(callback, ...args) {{
+      const w = this.width;
+      const h = this.height;
+      if (w > 0 && h > 0 && typeof callback === 'function') {{
+        try {{
+          const offscreen = document.createElement('canvas');
+          offscreen.width = w;
+          offscreen.height = h;
+          const offCtx = offscreen.getContext('2d');
+          if (offCtx) {{
+            offCtx.drawImage(this, 0, 0);
+            const imgd = origGetImageData.call(offCtx, 0, 0, w, h);
+            if (imgd && imgd.data) {{
+              _applyDeterministicJitter(imgd.data, w, h, 0, 0);
+              offCtx.putImageData(imgd, 0, 0);
+              return origToBlob.call(offscreen, callback, ...args);
+            }}
+          }}
+        }} catch(e) {{}}
+      }}
+      return origToBlob.apply(this, [callback, ...args]);
+    }}, 'toBlob');
+  }}
+
+  const patchReadPixels = (glProto) => {{
+    if (!glProto || !glProto.prototype || !glProto.prototype.readPixels) return;
+    const origReadPixels = glProto.prototype.readPixels;
+    glProto.prototype.readPixels = _makeNative(function(x, y, w, h, format, type, pixels, ...args) {{
+      const res = origReadPixels.call(this, x, y, w, h, format, type, pixels, ...args);
+      if (pixels && pixels.length > 0) {{
+        _applyDeterministicJitter(pixels, w, h, x, y);
+      }}
+      return res;
+    }}, 'readPixels');
   }};
+  patchReadPixels(WebGLRenderingContext);
+  if (typeof WebGL2RenderingContext !== 'undefined') patchReadPixels(WebGL2RenderingContext);
 
   // ── audio context jitter ──────────────────────────────────────────────────
   const _audioJitter = {fp.audio_seed};
