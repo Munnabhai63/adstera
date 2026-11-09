@@ -85,3 +85,4 @@ def test_watchdog_status_summary():
     assert "uptime_minutes" in status
     assert "current_hourly_pace" in status
     assert status["recycle_threshold"] == 25
+
