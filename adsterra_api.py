@@ -1,12 +1,14 @@
 """
-adsterra_api.py — Adsterra Publisher Statistics API Client & Reconciliation Engine.
+adsterra_api.py — Official Adsterra Publisher API Client & Live Reconciliation Engine.
 
 Pillar 1 of 5 Advanced Enterprise Pillars:
-- Connects to Adsterra Official Stats API (https://api3.adsterratools.com/v1/statistic.json)
-- Fetches real-time impressions, clicks, CTR, eCPM, and revenue per domain
-- Reconciles live API data against local SQLite session logs (sessions.db)
-- Calculates discrepancy percentages to calibrate click/dwell pacing
-- Provides realistic mock mode for offline testing and verification
+- Connects to Adsterra Official Publisher API:
+    - Statistics: https://api3.adsterratools.com/publisher/stats.json
+    - Websites/Domains: https://api3.adsterratools.com/publisher/domains.json
+    - Placements/Smartlinks: https://api3.adsterratools.com/publisher/placements.json
+- Reads ADSTERRA_API_KEY securely from .env (zero hardcoded secrets in git)
+- Reconciles live API impressions, clicks, CTR, eCPM, and revenue against local sessions.db
+- Maps domain IDs to friendly domain titles and auto-discovers active Smartlink direct URLs
 """
 
 from __future__ import annotations
@@ -15,9 +17,15 @@ import argparse
 import asyncio
 import datetime
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any
+
+import httpx
+import yaml
+
+import db
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -25,18 +33,32 @@ if hasattr(sys.stdout, "reconfigure"):
     except Exception:
         pass
 
-import httpx
-import yaml
-
-import db
-
 logger = logging.getLogger(__name__)
 
-DEFAULT_ENDPOINT = "https://api3.adsterratools.com/v1/statistic.json"
+DEFAULT_STATS_ENDPOINT = "https://api3.adsterratools.com/publisher/stats.json"
+DEFAULT_DOMAINS_ENDPOINT = "https://api3.adsterratools.com/publisher/domains.json"
+DEFAULT_PLACEMENTS_ENDPOINT = "https://api3.adsterratools.com/publisher/placements.json"
+
+
+def load_env_credentials() -> dict[str, str]:
+    """Load key-value credentials from .env without third-party dependencies."""
+    env_file = Path(".env")
+    res = {}
+    if env_file.exists():
+        try:
+            with open(env_file, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        res[k.strip()] = v.strip().strip('"').strip("'")
+        except Exception as e:
+            logger.warning("Error reading .env file: %s", e)
+    return res
 
 
 class AdsterraApiClient:
-    """Official Adsterra Publisher Stats API Client with automated local reconciliation."""
+    """Official Adsterra Publisher API Client with live stats reconciliation and placement discovery."""
 
     def __init__(
         self,
@@ -47,11 +69,22 @@ class AdsterraApiClient:
         self.config_path = Path(config_path)
         self.config = self._load_config()
 
+        env_vars = load_env_credentials()
         api_cfg = self.config.get("adsterra_api", {})
-        self.api_key = api_key or api_cfg.get("api_key", "").strip()
-        self.endpoint = endpoint or api_cfg.get("endpoint", DEFAULT_ENDPOINT)
-        self.enabled = api_cfg.get("enabled", False)
-        self.sync_interval_min = api_cfg.get("sync_interval_min", 15)
+
+        # If api_key is explicitly provided, honor it; otherwise fallback to .env/os.environ/config
+        if api_key is not None:
+            self.api_key = api_key
+        else:
+            self.api_key = (
+                os.environ.get("ADSTERRA_API_KEY")
+                or env_vars.get("ADSTERRA_API_KEY")
+                or api_cfg.get("api_key", "").strip()
+            )
+        self.endpoint = endpoint or api_cfg.get("endpoint", DEFAULT_STATS_ENDPOINT)
+        self.domains_endpoint = DEFAULT_DOMAINS_ENDPOINT
+        self.placements_endpoint = DEFAULT_PLACEMENTS_ENDPOINT
+        self.enabled = True if self.api_key else api_cfg.get("enabled", False)
 
         # Configured domains from target.domains
         self.configured_domains = [
@@ -74,8 +107,49 @@ class AdsterraApiClient:
         """Return True if API key is absent or a dummy placeholder."""
         if not self.api_key:
             return True
-        dummy_markers = ["placeholder", "dummy", "test", "demo", "xxx", "your_"]
+        dummy_markers = ["placeholder", "dummy", "demo", "xxx", "your_"]
         return any(m in self.api_key.lower() for m in dummy_markers)
+
+    async def fetch_publisher_domains(self) -> list[dict[str, Any]]:
+        """Fetch list of publisher websites/domains registered on Adsterra."""
+        if self.is_mock_mode():
+            return [{"id": 6183986, "title": "smart-link-3549341"}]
+
+        headers = {"X-API-Key": self.api_key, "Accept": "application/json"}
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(self.domains_endpoint, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get("items", [])
+                logger.warning("Adsterra fetch_publisher_domains HTTP %s: %s", resp.status_code, resp.text[:200])
+        except Exception as e:
+            logger.error("Network error in fetch_publisher_domains: %s", e)
+        return []
+
+    async def fetch_placements(self) -> list[dict[str, Any]]:
+        """Fetch active ad units and Smartlink direct URLs from Adsterra."""
+        if self.is_mock_mode():
+            return [
+                {
+                    "id": 32152060,
+                    "domain_id": 6183986,
+                    "title": "Smartlink_1",
+                    "direct_url": "https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804",
+                }
+            ]
+
+        headers = {"X-API-Key": self.api_key, "Accept": "application/json"}
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(self.placements_endpoint, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return data.get("items", [])
+                logger.warning("Adsterra fetch_placements HTTP %s: %s", resp.status_code, resp.text[:200])
+        except Exception as e:
+            logger.error("Network error in fetch_placements: %s", e)
+        return []
 
     async def fetch_daily_stats(
         self,
@@ -125,39 +199,29 @@ class AdsterraApiClient:
             return {"status": "error", "error": str(e), "items": []}
 
     def _generate_mock_stats(self, start_date: str, finish_date: str) -> dict[str, Any]:
-        """
-        Generate mathematically realistic Adsterra stats matching local simulation
-        across all 10 publisher domains.
-        """
+        """Generate realistic mock stats for offline test runs."""
         import hashlib
 
         items = []
         for dom in self.configured_domains:
-            # Deterministic seeded generation per domain + date
             seed_val = int(hashlib.md5(f"{dom}:{start_date}".encode()).hexdigest()[:8], 16)
-
-            # Plausible impressions for a warming domain (45 - 180)
             imps = 40 + (seed_val % 140)
-
-            # Plausible clicks targeting 3.8% - 4.6% CTR
             ctr_target = 3.6 + ((seed_val % 12) * 0.1)
             clicks = max(1, round((imps * ctr_target) / 100.0))
             actual_ctr = round((clicks / imps) * 100.0, 2)
 
-            # High eCPM between $4.50 and $8.20 based on niche
             base_cpm = 5.20
             if "loan" in dom or "karz" in dom:
                 base_cpm = 7.10
             elif "rokda" in dom or "bhav" in dom:
                 base_cpm = 6.40
             cpm = round(base_cpm + ((seed_val % 18) * 0.1), 2)
-
-            # Revenue = (impressions / 1000 * cpm) + (clicks * lead_multiplier)
             revenue = round((imps / 1000.0 * cpm) + (clicks * 0.05), 3)
 
             items.append({
                 "domain": dom,
                 "date": start_date,
+                "impression": imps,
                 "impressions": imps,
                 "clicks": clicks,
                 "ctr": actual_ctr,
@@ -178,6 +242,12 @@ class AdsterraApiClient:
         """
         db.init()
         target_date = date_str or datetime.date.today().isoformat()
+
+        # Step 1: Fetch publisher registered domains to resolve ID -> name mapping
+        domains_list = await self.fetch_publisher_domains()
+        dom_id_map = {str(d.get("id")): d.get("title", "") for d in domains_list}
+
+        # Step 2: Fetch daily stats
         stats_resp = await self.fetch_daily_stats(
             start_date=target_date,
             finish_date=target_date,
@@ -190,30 +260,31 @@ class AdsterraApiClient:
         # Read local domain stats for comparison
         local_summary = {d["domain"]: d for d in db.all_domains_summary()}
 
+        # If live API returns specific domain IDs, match them with our active domains
         for item in items:
-            dom = item.get("domain", "")
-            if not dom:
-                continue
+            raw_dom = str(item.get("domain", ""))
+            # Resolve name from map or use first configured domain if smartlink ID
+            dom_name = dom_id_map.get(raw_dom, raw_dom)
+            if dom_name.isdigit() or "smart-link" in dom_name:
+                dom_name = self.configured_domains[0] if self.configured_domains else "loanraaj.com"
 
-            api_imps = int(item.get("impressions", 0))
+            # Support both Adsterra 'impression' and 'impressions'
+            api_imps = int(item.get("impression") or item.get("impressions") or 0)
             api_clicks = int(item.get("clicks", 0))
             api_ctr = float(item.get("ctr", 0.0))
             api_cpm = float(item.get("cpm", 0.0))
             api_rev = float(item.get("revenue", 0.0))
 
-            # Retrieve local recorded impressions for this domain today
-            loc_data = local_summary.get(dom, {})
+            loc_data = local_summary.get(dom_name, {})
             local_imps = int(loc_data.get("impressions", 0))
 
-            # Calculate discrepancy percentage: (API - Local) / Local * 100
             if local_imps > 0:
                 discrepancy = round(((api_imps - local_imps) / local_imps) * 100.0, 2)
             else:
                 discrepancy = 0.0 if api_imps == 0 else 100.0
 
-            # Store in database audit log
             sync_id = db.record_adsterra_sync(
-                domain=dom,
+                domain=dom_name,
                 date=target_date,
                 api_impressions=api_imps,
                 api_clicks=api_clicks,
@@ -226,7 +297,7 @@ class AdsterraApiClient:
 
             rec = {
                 "sync_id": sync_id,
-                "domain": dom,
+                "domain": dom_name,
                 "date": target_date,
                 "api_impressions": api_imps,
                 "api_clicks": api_clicks,
@@ -239,7 +310,7 @@ class AdsterraApiClient:
             }
             reconciled.append(rec)
 
-        logger.info("Adsterra API: Reconciled %d domains for %s", len(reconciled), target_date)
+        logger.info("Adsterra API: Reconciled %d records for %s", len(reconciled), target_date)
         return reconciled
 
     def sync_now(self, force_mock: bool = False) -> list[dict[str, Any]]:
@@ -247,10 +318,10 @@ class AdsterraApiClient:
         return asyncio.run(self.sync_and_reconcile(force_mock=force_mock))
 
 
-def print_reconciliation_table(records: list[dict[str, Any]]) -> None:
+def print_reconciliation_table(records: list[dict[str, Any]], mode_str: str = "LIVE_API") -> None:
     """Print an eye-readable, professional terminal table for manual CMD verification."""
     print("\n" + "=" * 98)
-    print(" [+] ADSTERRA STATS API RECONCILIATION REPORT (PILLAR 1)")
+    print(f" [+] ADSTERRA STATS API RECONCILIATION REPORT (MODE: {mode_str})")
     print("=" * 98)
     print(
         f"{'Domain':<18} | {'API Imps':>8} | {'API Clicks':>10} | {'API CTR':>8} | "
@@ -299,6 +370,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Adsterra API Client & Reconciliation Engine")
     parser.add_argument("--sync", action="store_true", help="Trigger live/mock sync and reconciliation")
     parser.add_argument("--mock", action="store_true", help="Force mock simulation mode even if key is present")
+    parser.add_argument("--placements", action="store_true", help="Fetch and display live Adsterra placements/Smartlinks")
     parser.add_argument("--key", type=str, default=None, help="Explicit Adsterra API Key override")
     parser.add_argument("--date", type=str, default=None, help="Target sync date (YYYY-MM-DD)")
 
@@ -306,7 +378,18 @@ if __name__ == "__main__":
 
     client = AdsterraApiClient(api_key=args.key)
     force = args.mock or client.is_mock_mode()
-    
-    print(f"[*] Initializing Adsterra API Client (Mode: {'MOCK/SIMULATION' if force else 'LIVE_API'})...")
-    records = client.sync_now(force_mock=force)
-    print_reconciliation_table(records)
+    mode = "MOCK_SIMULATION" if force else "LIVE_OFFICIAL_API"
+
+    if args.placements:
+        print(f"[*] Fetching live Adsterra placements using API token ({mode})...")
+        placements = asyncio.run(client.fetch_placements())
+        print("\n" + "=" * 90)
+        print(" 🎯 LIVE ADSTERRA SMARTLINKS & PLACEMENTS")
+        print("=" * 90)
+        for p in placements:
+            print(f" - [{p.get('id')}] {p.get('title')}: {p.get('direct_url')}")
+        print("=" * 90 + "\n")
+    else:
+        print(f"[*] Connecting to Adsterra Official API (Mode: {mode})...")
+        records = client.sync_now(force_mock=force)
+        print_reconciliation_table(records, mode_str=mode)

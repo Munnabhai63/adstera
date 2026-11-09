@@ -147,9 +147,9 @@ network:
 # ==============================================================================
 
 adsterra_api:
-  enabled: false
+  enabled: true
   api_key: ""
-  endpoint: "https://api3.adsterratools.com/v1/statistic.json"
+  endpoint: "https://api3.adsterratools.com/publisher/stats.json"
   sync_interval_min: 15
 
 lead_engine:
