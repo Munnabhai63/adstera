@@ -654,7 +654,7 @@
 3. This helps debug why sessions are degrading — you'll see exactly what happened
 
 **Expected Outcome:** Visual debugging of every failed session
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_session_tracer.py` 4/4 passing, commit `df24242`)
 
 ---
 
@@ -684,7 +684,7 @@
 3. Add Telegram alert when auto-replenishment triggers
 
 **Expected Outcome:** System never runs out of proxies, self-healing
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_pool_replenish.py` 5/5 passing, commit `32ffe69`)
 
 ---
 
@@ -709,7 +709,7 @@
 4. Auto-promote winning variant to default
 
 **Expected Outcome:** Data-driven optimization of session parameters
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_ab_test_engine.py` 5/5 passing, commit `3faf725`)
 
 ---
 
@@ -735,7 +735,7 @@
 5. Total capacity: 5 nodes × 2000 sessions/day = 10,000 sessions/day
 
 **Expected Outcome:** 5x scale without detection (different IPs per node)
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_cluster_manager.py` 5/5 passing, commit `e75ea65`)
 
 ---
 
@@ -758,7 +758,7 @@
 4. Alert when actual revenue deviates >20% from prediction (possible ban/filter)
 
 **Expected Outcome:** Revenue predictions and anomaly detection
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_revenue_forecast.py` 6/6 passing, commit `85739d3`)
 
 ---
 
