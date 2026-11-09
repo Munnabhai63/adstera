@@ -9,7 +9,7 @@ import json
 import random
 import re
 import struct
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
 
 from pool import Proxy
@@ -83,6 +83,7 @@ class Fingerprint:
     rtt: int
     canvas_seed: int
     audio_seed: float
+    fonts: list[str] = field(default_factory=list)
 
     @property
     def digest(self) -> str:
@@ -95,6 +96,69 @@ class Fingerprint:
             "webgl_renderer": self.webgl_renderer,
         }, sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:16]
+
+
+# ── Platform Fonts Catalogs (Step 3.1: Font Enumeration Spoofing) ─────────────
+_WINDOWS_FONTS = [
+    "Arial", "Arial Black", "Bahnschrift", "Calibri", "Cambria", "Candara",
+    "Comic Sans MS", "Consolas", "Constantia", "Corbel", "Courier New", "Ebrima",
+    "Franklin Gothic Medium", "Gabriola", "Gadugi", "Georgia", "Impact", "Ink Free",
+    "Javanese Text", "Leelawadee UI", "Lucida Console", "Lucida Sans Unicode",
+    "Malgun Gothic", "Marlett", "Microsoft Himalaya", "Microsoft JhengHei",
+    "Microsoft New Tai Lue", "Microsoft PhagsPa", "Microsoft Sans Serif",
+    "Microsoft Tai Le", "Microsoft YaHei", "Microsoft Yi Baiti", "MS Gothic",
+    "MS PGothic", "MS UI Gothic", "MV Boli", "Myanmar Text", "Nirmala UI",
+    "Palatino Linotype", "Segoe Print", "Segoe Script", "Segoe UI",
+    "Segoe UI Historic", "Segoe UI Emoji", "Segoe UI Symbol", "SimSun",
+    "Sitka Small", "Sylfaen", "Symbol", "Tahoma", "Times New Roman",
+    "Trebuchet MS", "Verdana", "Webdings", "Wingdings", "Yu Gothic"
+]
+
+_MACOS_FONTS = [
+    "San Francisco", "Helvetica", "Helvetica Neue", "Arial", "Arial Black",
+    "Avenir", "Avenir Next", "Courier", "Courier New", "Georgia", "Gill Sans",
+    "Lucida Grande", "Menlo", "Monaco", "Optima", "Palatino", "Times",
+    "Times New Roman", "Trebuchet MS", "Verdana", "Apple Color Emoji", "Geneva",
+    "Futura", "Baskerville", "Copperplate", "Didot"
+]
+
+_ANDROID_FONTS = [
+    "Roboto", "Noto Sans", "Droid Sans", "Droid Serif", "Droid Sans Mono",
+    "Noto Color Emoji", "Noto Serif", "Roboto Medium", "Roboto Light",
+    "Roboto Condensed", "Cutive Mono"
+]
+
+_LINUX_FONTS = [
+    "Liberation Sans", "Liberation Serif", "Liberation Mono", "DejaVu Sans",
+    "DejaVu Serif", "DejaVu Sans Mono", "Ubuntu", "Ubuntu Mono", "FreeSans",
+    "FreeSerif", "FreeMono", "Noto Color Emoji"
+]
+
+
+def _generate_fonts(platform: str, is_mobile: bool, rng: _SeededRng) -> list[str]:
+    """Return a deterministic, platform-coherent subset of realistic system fonts."""
+    plat_low = platform.lower()
+    if is_mobile or "android" in plat_low:
+        catalog = list(_ANDROID_FONTS)
+    elif "mac" in plat_low or "iphone" in plat_low or "ios" in plat_low:
+        catalog = list(_MACOS_FONTS)
+    elif "linux" in plat_low:
+        catalog = list(_LINUX_FONTS)
+    else:
+        catalog = list(_WINDOWS_FONTS)
+
+    core = catalog[:12]
+    rest = catalog[12:]
+    if rest:
+        sample_size = min(len(rest), rng.randint(len(rest) // 2, len(rest)))
+        shuffled = list(rest)
+        for i in range(len(shuffled) - 1, 0, -1):
+            j = rng.randint(0, i)
+            shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+        selected = sorted(set(core + shuffled[:sample_size]))
+    else:
+        selected = sorted(set(core))
+    return selected
 
 
 def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
@@ -140,6 +204,9 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
     canvas_seed = rng.randint(0, 2**31 - 1)
     audio_seed = rng.uniform(0.00001, 0.0001)
 
+    # Step 3.1: Seeded platform fonts
+    fonts = _generate_fonts(platform, is_mobile, rng)
+
     # Languages: primary locale + English fallback
     primary = proxy.geo.locale
     langs = [primary] if primary == "en-US" else [primary, "en-US", "en"]
@@ -164,6 +231,7 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
         rtt=rtt,
         canvas_seed=canvas_seed,
         audio_seed=audio_seed,
+        fonts=fonts,
     )
 
 
@@ -661,6 +729,39 @@ def init_script(fp: Fingerprint) -> str:
         }}
       }}, 'getFloatFrequencyData');
     }}
+  }}
+
+  // ── Step 3.1: Font Enumeration Spoofing (document.fonts.check & queryLocalFonts) ──
+  const _spoofedFonts = {json.dumps(fp.fonts)};
+  const _fontSet = new Set(_spoofedFonts.map(f => f.toLowerCase()));
+
+  if (typeof document !== 'undefined' && document.fonts && document.fonts.check) {{
+    const origCheck = document.fonts.check.bind(document.fonts);
+    document.fonts.check = _makeNative(function(font, text) {{
+      if (typeof font === 'string') {{
+        const parts = font.split(/[,]+/);
+        for (let p of parts) {{
+          const clean = p.replace(/['"]/g, '').trim().toLowerCase();
+          const family = clean.replace(/^(?:\\d+(?:\\.\\d+)?(?:px|pt|em|rem|%)\\s+|italic\\s+|bold\\s+|small-caps\\s+)+/i, '').trim();
+          if (family && _fontSet.has(family)) {{
+            return true;
+          }}
+        }}
+      }}
+      return origCheck(font, text);
+    }}, 'check');
+  }}
+
+  if (typeof window !== 'undefined') {{
+    window.queryLocalFonts = _makeNative(function() {{
+      const records = _spoofedFonts.map(f => ({{
+        family: f,
+        fullName: f,
+        postscriptName: f.replace(/\\s+/g, ''),
+        style: 'Regular'
+      }}));
+      return Promise.resolve(records);
+    }}, 'queryLocalFonts');
   }}
 }})();
 """

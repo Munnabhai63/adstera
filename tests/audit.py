@@ -11,6 +11,11 @@ Checks:
  7. Canvas digest differs between two different proxies.
  8. No datacenter ASN present in the loaded pool.
  9. proxies.txt parses and every line yields host and port.
+ 10. Client Hints 99.99% bulletproof.
+ 11. Canvas & WebGL buffer integrity.
+ 12. Hardware Peripherals & Battery Status API.
+ 13. WebAudio & AudioContext Stealth.
+ 14. Font Enumeration Spoofing.
 """
 from __future__ import annotations
 
@@ -337,6 +342,34 @@ async def _run_browser_checks(cfg: dict) -> None:
             assert audio_res.get("hasCtxTime") and audio_res.get("hasPerfTime"), f"[13] FAIL ({label}) — getOutputTimestamp invalid"
             if label == "proxy_a":
                 print(f"  [13] PASS — WebAudio & AudioContext Stealth (getChannelData & getOutputTimestamp [native code] masked, seed={audio_res.get('audioSum')})")
+
+            # Check 14: Font Enumeration Spoofing (Step 3.1)
+            font_res = await page.evaluate("""async () => {
+                const results = {};
+                if (typeof document !== 'undefined' && document.fonts && document.fonts.check) {
+                    results.checkNative = document.fonts.check.toString().includes('[native code]');
+                    results.checkValid = document.fonts.check('16px Arial') || document.fonts.check('16px Roboto') || document.fonts.check('16px Helvetica');
+                }
+                if (typeof window !== 'undefined' && typeof window.queryLocalFonts === 'function') {
+                    results.qlfNative = window.queryLocalFonts.toString().includes('[native code]');
+                    try {
+                        const fonts = await window.queryLocalFonts();
+                        results.fontCount = fonts.length;
+                        results.firstFont = fonts.length > 0 ? fonts[0].family : null;
+                        results.hasStyle = fonts.length > 0 && fonts[0].style === 'Regular';
+                    } catch (e) {
+                        results.qlfError = e.toString();
+                    }
+                }
+                return results;
+            }""")
+            assert font_res.get("checkNative"), f"[14] FAIL ({label}) — document.fonts.check not [native code]"
+            assert font_res.get("checkValid"), f"[14] FAIL ({label}) — document.fonts.check failed to match platform font"
+            assert font_res.get("qlfNative"), f"[14] FAIL ({label}) — window.queryLocalFonts not [native code]"
+            assert font_res.get("fontCount", 0) >= 8, f"[14] FAIL ({label}) — queryLocalFonts returned {font_res.get('fontCount')} fonts (< 8)"
+            assert font_res.get("hasStyle"), f"[14] FAIL ({label}) — queryLocalFonts record missing style property"
+            if label == "proxy_a":
+                print(f"  [14] PASS — Font Enumeration Spoofing (fonts={font_res['fontCount']}, checkNative=True, qlfNative=True, sample='{font_res['firstFont']}')")
 
             await context.close()
 

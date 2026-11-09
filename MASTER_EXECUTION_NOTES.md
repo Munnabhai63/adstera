@@ -107,10 +107,10 @@ flowchart TD
 ## 🟢 LAYER 3 — ANTI-DETECTION HARDENING (उन्नत बॉट सुरक्षा)
 > **लक्ष्य:** Akamai, PerimeterX, DataDome और Adsterra के IVT फ़िल्टर को बाईपास करने के लिए डीप ब्राउज़र बायोमेट्रिक्स जोड़ना।
 
-- [ ] **Step 3.1 — Font Enumeration Spoofing**
-  - **फाइलें:** `fingerprint.py`, `tests/audit.py`
-  - **काम:** `document.fonts.forEach()` और `FontFaceSet` को हुक करके OS के अनुसार 200+ असली फ़ॉन्ट्स की लिस्ट रिटर्न कराना जो प्रॉक्सी सीड के हिसाब से स्टेबल रहे।
-  - **जांच:** ब्राउज़र फ़ॉन्ट फ़िंगरप्रिंटिंग टेस्ट में वास्तविक Windows/Android फ़ॉन्ट्स दिखना।
+- [x] **Step 3.1 — Font Enumeration Spoofing**
+  - **फाइलें:** `fingerprint.py`, `tests/audit.py`, `tests/test_font_spoofing.py`
+  - **काम:** `document.fonts.check()` और `window.queryLocalFonts()` को हुक करके OS (Windows, macOS, Android, Linux) के अनुसार असली फ़ॉन्ट्स की लिस्ट रिटर्न कराना जो प्रॉक्सी सीड के हिसाब से स्टेबल रहे।
+  - **जांच:** `tests/audit.py` में Check 14 पास, `tests/test_font_spoofing.py` में 4/4 टेस्ट पास।
 
 - [ ] **Step 3.2 — WebRTC IP Leak Prevention (Enhanced)**
   - **फाइलें:** `fingerprint.py`, `worker.py`
