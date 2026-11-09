@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ if .Title }}{{ .Title }} — {{ end }}RechargeTak — Best Mobile Recharge Offers & Tricks</title>
+  <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}RechargeTak — Best Mobile Recharge Offers & Tricks{{ end }}">
+  <link rel="canonical" href="{{ .Permalink }}">
+  
+  <!-- Schema.org WebSite JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "RechargeTak — Best Mobile Recharge Offers & Tricks",
+    "url": "https://rechargetak.com/",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://rechargetak.com/search?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+
+  <style>
+    :root {
+      --primary: #1e3a8a; --accent: #2563eb; --bg: #f8fafc;
+      --card: #ffffff; --text: #0f172a; --muted: #64748b; --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); line-height: 1.7; }
+    header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; position: sticky; top: 0; z-index: 50; }
+    .header-inner { max-width: 1040px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .logo { font-size: 20px; font-weight: 800; color: var(--primary); text-decoration: none; }
+    nav a { margin-left: 16px; color: var(--muted); text-decoration: none; font-size: 14px; }
+    nav a:hover { color: var(--accent); }
+    .container { max-width: 1040px; margin: 28px auto; padding: 0 16px; display: grid; grid-template-columns: 2.2fr 1fr; gap: 28px; }
+    @media (max-width: 768px) { .container { grid-template-columns: 1fr; } }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 28px; }
+    .ad-slot { background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0; }
+    footer { text-align: center; padding: 32px; color: var(--muted); font-size: 13px; border-top: 1px solid var(--border); margin-top: 40px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo">rechargetak.com</a>
+      <nav>
+        <a href="/">होम</a>
+        <a href="#articles">गाइड</a>
+        <a href="#about">संपर्क</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    {{ block "main" . }}{{ end }}
+  </main>
+
+  <footer>
+    <p>&copy; 2026 rechargetak.com • All Rights Reserved • सर्वाधिकार सुरक्षित</p>
+  </footer>
+</body>
+</html>

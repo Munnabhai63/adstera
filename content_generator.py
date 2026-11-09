@@ -305,7 +305,9 @@ def generate_all_domain_articles() -> dict[str, int]:
         if not domain_folder.is_dir():
             continue
 
-        folder_name = domain_folder.name.lower()
+        folder_name = domain_folder.name.lower().replace(".com", "")
+        if folder_name not in DOMAIN_CATEGORIES:
+            continue
         category = DOMAIN_CATEGORIES.get(folder_name, "loan")
         blueprints = ARTICLE_BLUEPRINTS.get(category, ARTICLE_BLUEPRINTS["loan"])
         domain_fqdn = f"{folder_name}.com"

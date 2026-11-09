@@ -146,3 +146,20 @@ class SerpNavigator:
         except Exception as exc:
             logger.debug("ADV-1 organic Google journey notice: %s", exc)
             return False
+
+
+async def real_google_journey(
+    page: Page,
+    keyword: str,
+    target_domain: str,
+    rng: Optional[random.Random] = None,
+    **kwargs,
+) -> bool:
+    """Convenience functional wrapper for SerpNavigator.execute_journey."""
+    navigator = SerpNavigator()
+    return await navigator.execute_journey(
+        page=page,
+        target_domain=target_domain,
+        keyword=keyword,
+        rng=rng,
+    )

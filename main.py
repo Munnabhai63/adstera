@@ -22,6 +22,7 @@ import yaml
 from playwright.async_api import async_playwright
 
 import db
+import ivt_patches
 from mahi_connector import MahiConnector
 import tests.audit as audit_mod
 import worker
@@ -219,6 +220,7 @@ async def main() -> None:
             "--disable-features=WebRtcHideLocalIpsWithMdns",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
             "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+            "--enforce-webrtc-ip-permission-check",
             "--disable-blink-features=AutomationControlled",
             "--no-first-run",
             "--no-default-browser-check",

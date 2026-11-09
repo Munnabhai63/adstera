@@ -1,0 +1,16 @@
+baseURL = "https://loanraaj.com/"
+languageCode = "hi-IN"
+title = "LoanRaaj — Instant Personal & Business Loans Guide"
+theme = "editorial-clean"
+
+[params]
+  description = "LoanRaaj — Instant Personal & Business Loans Guide — Latest updates, guides, and tools for 2026."
+  niche = "Finance & Loans"
+  author = "Mahi Editorial Team"
+  adsterra_banner_active = true
+  adsterra_socialbar_active = true
+  cloudflare_pages = true
+
+[taxonomies]
+  category = "categories"
+  tag = "tags"

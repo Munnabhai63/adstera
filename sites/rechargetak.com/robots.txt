@@ -1,4 +1,3 @@
 User-agent: *
 Allow: /
-
 Sitemap: https://rechargetak.com/sitemap.xml

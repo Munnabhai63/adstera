@@ -28,6 +28,8 @@ from pool import Proxy
 import push_manager as push_mod
 import session_tracer as tracer_mod
 import ua_provider
+import ivt_patches
+import content_aware_session
 
 logger = logging.getLogger(__name__)
 
@@ -388,6 +390,17 @@ async def run_session(
         parsed_dom = parsed_dom.split(":")[0]
     target_domain = parsed_dom.lower() if parsed_dom else "loanraaj.com"
 
+    # ADV-8 & ADV-9: 40% chance of content-aware session
+    is_content_aware = (rng.random() < 0.40) and not use_fixture
+    content_article = None
+    if is_content_aware:
+        try:
+            content_article = content_aware_session.get_latest_article(target_domain)
+            if content_article and content_article.get("url"):
+                start_url = content_article["url"]
+        except Exception as e_ca:
+            logger.debug("Content aware selection notice: %s", e_ca)
+
     # Check if MAHI profiles are enabled and available (Gate 2 MD Spec 2)
     mahi_conn = None
     mahi_profile = None
@@ -455,6 +468,7 @@ async def run_session(
         "error_reason": "",
         "geo_country": proxy_country or "",
         "geo_tier": geo_tier or "tier1",
+        "content_aware": is_content_aware,
     }
 
     context: BrowserContext | None = None
@@ -483,15 +497,22 @@ async def run_session(
         tracer = tracer_mod.build_from_config(cfg, proxy.proxy_id)
         await tracer.start(context)
 
-        # Restore cookies for return visits
+        # Restore cookies for return visits (ADV-7)
         is_return = rng.random() < cfg["session"]["return_visit_prob"]
+        is_return_visitor = False
         if is_return and persist.has_state(proxy.proxy_id):
             await persist.restore(context, proxy.proxy_id)
-            logger.debug("Return visit: restored cookies for %s", proxy.proxy_id)
+            is_return_visitor = True
+            profile = persist.get_visitor_profile(proxy.proxy_id)
+            visited = profile.get("visited_urls", [])
+            if visited and not use_fixture and rng.random() < 0.65:
+                start_url = rng.choice(visited)
+            logger.debug("Return visit: restored cookies for %s (visits=%s)", proxy.proxy_id, profile.get("visit_count", 1))
 
-        # Inject fingerprint patches
+        # Inject fingerprint patches (including unified IVT patches FP-3 to FP-6)
         init_js = fp_mod.init_script(fp)
         await context.add_init_script(script=init_js)
+        await context.add_init_script(script=ivt_patches.generate_stealth_js(getattr(fp, "audio_jitter_seed", 0.000005)))
 
         # Block specified resource types
         block_types = set(cfg["browser"].get("block_resources", []))
@@ -603,7 +624,13 @@ async def run_session(
         min_dwell = cfg["target"]["min_dwell"]
         max_dwell = cfg["target"]["max_dwell"]
         # STAT-2: Authentic right-skewed human article reading time
-        dwell_target = math.exp(rng.gauss(math.log(52.0), 0.65))
+        if content_article:
+            reading_wpm = rng.uniform(180, 260)
+            dwell_target = (content_article.get("word_count", 2200) / reading_wpm) * 60 * rng.uniform(0.70, 1.30)
+        else:
+            dwell_target = math.exp(rng.gauss(math.log(52.0), 0.65))
+        if is_return_visitor:
+            dwell_target *= 0.70  # ADV-7: 30% shorter for return visitors
         dwell_target = max(float(min_dwell), min(dwell_target, float(max_dwell)))
 
         scroll_done = False

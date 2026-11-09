@@ -1,0 +1,39 @@
+{{ define "main" }}
+<article class="card">
+  <h1>{{ .Title }}</h1>
+  <div style="color:var(--muted); font-size:13px; margin-bottom:20px;">
+    प्रकाशित: {{ .Date.Format "02 Jan 2026" }} • पढ़ना: ~{{ .ReadingTime }} मिनट
+  </div>
+
+  <div class="ad-slot">
+    <div style="font-size:11px; text-transform:uppercase; color:var(--muted); margin-bottom:8px;">प्रायोजित विज्ञापन</div>
+    <div id="adsterra-banner-top" style="min-height:90px; background:#e2e8f0; display:flex; align-items:center; justify-content:center;">
+      <span style="color:#64748b; font-size:13px;">Adsterra Responsive Banner (728x90)</span>
+    </div>
+  </div>
+
+  <div class="article-content">
+    {{ .Content }}
+  </div>
+
+  <div class="ad-slot" style="margin-top:32px;">
+    <div style="font-size:11px; text-transform:uppercase; color:var(--muted); margin-bottom:8px;">संबंधित ऑफ़र</div>
+    <div id="adsterra-native-bottom" style="min-height:120px; background:#e2e8f0; display:flex; align-items:center; justify-content:center;">
+      <span style="color:#64748b; font-size:13px;">Adsterra Native Recommendation Unit</span>
+    </div>
+  </div>
+</article>
+
+<aside>
+  <div class="card" style="position:sticky; top:84px;">
+    <h3 style="font-size:16px; margin-bottom:12px; color:var(--primary);">ताज़ा लेख एवं अपडेट्स</h3>
+    <ul style="list-style:none;">
+      {{ range first 5 (where .Site.RegularPages "Type" "posts") }}
+        <li style="margin-bottom:10px;">
+          <a href="{{ .RelPermalink }}" style="color:var(--accent); text-decoration:none; font-size:14px;">📄 {{ .Title }} →</a>
+        </li>
+      {{ end }}
+    </ul>
+  </div>
+</aside>
+{{ end }}

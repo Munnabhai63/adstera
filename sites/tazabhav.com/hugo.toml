@@ -1,0 +1,16 @@
+baseURL = "https://tazabhav.com/"
+languageCode = "hi-IN"
+title = "TazaBhav — Live Gold, Silver & Mandi Rates India"
+theme = "editorial-clean"
+
+[params]
+  description = "TazaBhav — Live Gold, Silver & Mandi Rates India — Latest updates, guides, and tools for 2026."
+  niche = "Commodity & Gold Rates"
+  author = "Mahi Editorial Team"
+  adsterra_banner_active = true
+  adsterra_socialbar_active = true
+  cloudflare_pages = true
+
+[taxonomies]
+  category = "categories"
+  tag = "tags"

@@ -1,0 +1,16 @@
+baseURL = "https://tazarokda.com/"
+languageCode = "hi-IN"
+title = "TazaRokda — Stock Market, Demat & Crypto Guide"
+theme = "editorial-clean"
+
+[params]
+  description = "TazaRokda — Stock Market, Demat & Crypto Guide — Latest updates, guides, and tools for 2026."
+  niche = "Stocks, Crypto & Wealth"
+  author = "Mahi Editorial Team"
+  adsterra_banner_active = true
+  adsterra_socialbar_active = true
+  cloudflare_pages = true
+
+[taxonomies]
+  category = "categories"
+  tag = "tags"

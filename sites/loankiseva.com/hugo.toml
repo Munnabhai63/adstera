@@ -1,0 +1,16 @@
+baseURL = "https://loankiseva.com/"
+languageCode = "hi-IN"
+title = "LoanKiSeva — MUDRA, MSME & Govt Subsidy Loans"
+theme = "editorial-clean"
+
+[params]
+  description = "LoanKiSeva — MUDRA, MSME & Govt Subsidy Loans — Latest updates, guides, and tools for 2026."
+  niche = "MSME & Govt Schemes"
+  author = "Mahi Editorial Team"
+  adsterra_banner_active = true
+  adsterra_socialbar_active = true
+  cloudflare_pages = true
+
+[taxonomies]
+  category = "categories"
+  tag = "tags"

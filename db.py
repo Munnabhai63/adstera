@@ -1144,3 +1144,59 @@ def get_latest_published_posts(domain: str = "", limit: int = 5) -> list[dict]:
                 (limit,),
             ).fetchall()
         return [dict(r) for r in rows]
+
+
+def archive_old_sessions(retention_days: int = 30, archive_dir: str | Path | None = None) -> dict[str, Any]:
+    """
+    INFRA-3: Monthly archive rotation for sessions.db.
+    Moves records older than retention_days into an archive database in archive_dir.
+    Runs PRAGMA incremental_vacuum on the active database.
+    """
+    import datetime
+    import sqlite3
+
+    if archive_dir is None:
+        target_dir = Path(__file__).parent / "archives"
+    else:
+        target_dir = Path(archive_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    month_str = datetime.datetime.now().strftime("%Y_%m")
+    archive_db_path = target_dir / f"sessions_archive_{month_str}.db"
+
+    cutoff_ts = (datetime.datetime.now() - datetime.timedelta(days=retention_days)).strftime("%Y-%m-%d %H:%M:%S")
+
+    archived_count = 0
+    with _conn() as con:
+        rows = con.execute("SELECT * FROM sessions WHERE ts < ?", (cutoff_ts,)).fetchall()
+        if rows:
+            arch_con = sqlite3.connect(str(archive_db_path))
+            try:
+                cur = con.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'")
+                create_sql = cur.fetchone()[0]
+                arch_con.execute(create_sql)
+            except Exception:
+                pass
+
+            cols = [desc[0] for desc in con.execute("SELECT * FROM sessions LIMIT 1").description]
+            placeholders = ",".join(["?"] * len(cols))
+            arch_con.executemany(
+                f"INSERT OR REPLACE INTO sessions ({','.join(cols)}) VALUES ({placeholders})",
+                [tuple(r) for r in rows]
+            )
+            arch_con.commit()
+            arch_con.close()
+
+            con.execute("DELETE FROM sessions WHERE ts < ?", (cutoff_ts,))
+            archived_count = len(rows)
+
+        try:
+            con.execute("PRAGMA incremental_vacuum")
+        except Exception:
+            pass
+
+    return {
+        "archived_count": archived_count,
+        "archive_path": str(archive_db_path),
+        "cutoff_ts": cutoff_ts,
+    }

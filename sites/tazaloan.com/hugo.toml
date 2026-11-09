@@ -1,0 +1,16 @@
+baseURL = "https://tazaloan.com/"
+languageCode = "hi-IN"
+title = "TazaLoan — 5-Minute Cash & Low CIBIL Loans"
+theme = "editorial-clean"
+
+[params]
+  description = "TazaLoan — 5-Minute Cash & Low CIBIL Loans — Latest updates, guides, and tools for 2026."
+  niche = "Emergency Cash Loans"
+  author = "Mahi Editorial Team"
+  adsterra_banner_active = true
+  adsterra_socialbar_active = true
+  cloudflare_pages = true
+
+[taxonomies]
+  category = "categories"
+  tag = "tags"

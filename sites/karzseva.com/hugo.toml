@@ -1,0 +1,16 @@
+baseURL = "https://karzseva.com/"
+languageCode = "hi-IN"
+title = "KarzSeva — CIBIL Score Repair & Settlement Guide"
+theme = "editorial-clean"
+
+[params]
+  description = "KarzSeva — CIBIL Score Repair & Settlement Guide — Latest updates, guides, and tools for 2026."
+  niche = "Credit Score & Debt"
+  author = "Mahi Editorial Team"
+  adsterra_banner_active = true
+  adsterra_socialbar_active = true
+  cloudflare_pages = true
+
+[taxonomies]
+  category = "categories"
+  tag = "tags"
