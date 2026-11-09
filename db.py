@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     impressions INTEGER NOT NULL DEFAULT 0,
     status      TEXT    NOT NULL DEFAULT 'ok',
     domain      TEXT    NOT NULL DEFAULT 'loanraaj.com',
+    error_reason TEXT   DEFAULT '',
     ts          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -112,6 +113,9 @@ def init() -> None:
         if "domain" not in cols:
             con.execute("ALTER TABLE sessions ADD COLUMN domain TEXT NOT NULL DEFAULT 'loanraaj.com'")
             logger.info("Migrated sessions table: added 'domain' column.")
+        if "error_reason" not in cols:
+            con.execute("ALTER TABLE sessions ADD COLUMN error_reason TEXT DEFAULT ''")
+            logger.info("Migrated sessions table: added 'error_reason' column.")
     logger.debug("DB initialised at %s", _DB_PATH)
 
 
@@ -125,16 +129,17 @@ def log_session(
     impressions: int = 0,
     status: str = "ok",
     domain: str = "loanraaj.com",
+    error_reason: str = "",
 ) -> int:
     """Insert one session row and update daily_stats and domain_stats. Returns the new row id."""
     clean_domain = (domain or "loanraaj.com").lower().strip()
     with _conn() as con:
         cur = con.execute(
             """
-            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain),
+            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain, error_reason or ""),
         )
         row_id = cur.lastrowid
 

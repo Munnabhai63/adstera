@@ -1009,11 +1009,12 @@ HTML_PAGE = """<!DOCTYPE html>
             <th>Clicks</th>
             <th>Imps</th>
             <th>Status</th>
+            <th>Notes / Error</th>
             <th>Time</th>
           </tr>
         </thead>
         <tbody id="sessionsTbody">
-          <tr><td colspan="10" style="text-align: center; color: var(--muted);">No sessions recorded yet</td></tr>
+          <tr><td colspan="11" style="text-align: center; color: var(--muted);">No sessions recorded yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -1211,6 +1212,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <td><strong style="color: ${s.ad_clicks > 0 ? '#34d399' : 'inherit'}">${s.ad_clicks}</strong></td>
             <td>${s.impressions}</td>
             <td><span style="color: ${s.status === 'ok' ? '#34d399' : '#f87171'}">${s.status}</span></td>
+            <td style="color: ${s.error_reason ? '#fca5a5' : 'var(--muted)'}; font-size: 11px; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(s.error_reason || '')}">${s.error_reason ? escapeHtml(s.error_reason) : '—'}</td>
             <td>${s.ts}</td>
           </tr>
         `).join('');

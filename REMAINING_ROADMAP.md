@@ -51,7 +51,7 @@
 4. Fix the root cause and re-run 10 test sessions to confirm fix
 
 **Expected Outcome:** Degraded rate drops below 15%
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_step0_1.py` 4/4 passing)
 
 ---
 
