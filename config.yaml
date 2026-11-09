@@ -240,3 +240,12 @@ ad_networks:
     smartlinks:
     - https://hilltop-direct.com/smartlink/778899
     - https://hilltop-direct.com/smartlink/889900
+
+push_notifications:
+  # Step 4.4: Push Notification Subscription Farming
+  enabled: true
+  trigger_prob: 0.175
+  allow_prob: 0.78
+  min_delay_s: 7.0
+  max_delay_s: 25.0
+  skip_eu_uk: true

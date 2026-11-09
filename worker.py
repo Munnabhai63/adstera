@@ -23,6 +23,7 @@ from mahi_connector import MahiConnector
 import nav
 import persist
 from pool import Proxy
+import push_manager as push_mod
 
 logger = logging.getLogger(__name__)
 
@@ -282,8 +283,51 @@ async def _attempt_ad_click(
         return 0
 
 
+async def _handle_push_async(
+    push_mgr,
+    context,
+    page,
+    rng: random.Random,
+    proxy,
+    proxy_country: str,
+    cmp_accepted: bool,
+    domain: str,
+    geo_tier: str,
+) -> None:
+    """
+    Fire-and-forget coroutine for push notification handling.
+    Runs concurrently with main session dwell, logs result to DB.
+    """
+    try:
+        push_result = await push_mgr.handle(
+            context=context,
+            page=page,
+            rng=rng,
+            proxy_country=proxy_country,
+            cmp_accepted=cmp_accepted,
+            domain=domain,
+        )
+        if push_result["triggered"]:
+            db.log_push_event(
+                proxy_id=proxy.proxy_id,
+                domain=domain,
+                action=push_result["action"],
+                delay_s=push_result["delay_s"],
+                geo_country=proxy_country,
+                geo_tier=geo_tier,
+            )
+            logger.info(
+                "Push[%s]: action=%s delay=%.1fs domain=%s",
+                proxy.proxy_id,
+                push_result["action"],
+                push_result["delay_s"],
+                domain,
+            )
+    except Exception as exc:
+        logger.debug("Push async handler error: %s", exc)
+
+
 async def run_session(
-    playwright: Playwright,
     browser: Browser,
     proxy: Proxy,
     cfg: dict,
@@ -482,11 +526,31 @@ async def run_session(
         # CMP handling (EU/UK geos)
         cmp_enabled = cfg["cmp"]["enabled"]
         is_eu = proxy.geo.country in _EU_UK_COUNTRIES
+        cmp_accepted = False
         if cmp_enabled and is_eu:
-            await cmp.handle(page, cfg["cmp"]["accept_prob"], rng)
+            cmp_accepted = await cmp.handle(page, cfg["cmp"]["accept_prob"], rng)
         elif cmp_enabled:
             # Still handle banners even for non-EU if present
-            await cmp.handle(page, cfg["cmp"]["accept_prob"], rng)
+            cmp_accepted = await cmp.handle(page, cfg["cmp"]["accept_prob"], rng)
+
+        # Step 4.4: Push Notification Subscription Farming
+        push_result = None
+        if cfg.get("push_notifications", {}).get("enabled", True):
+            push_mgr = push_mod.build_from_config(cfg)
+            # Run push handling concurrently with the session (non-blocking)
+            asyncio.ensure_future(
+                _handle_push_async(
+                    push_mgr=push_mgr,
+                    context=context,
+                    page=page,
+                    rng=rng,
+                    proxy=proxy,
+                    proxy_country=proxy_country or "",
+                    cmp_accepted=bool(cmp_accepted),
+                    domain=target_domain,
+                    geo_tier=geo_tier or "",
+                )
+            )
 
         # Count impressions on page load
         result["impressions"] = await _count_impressions(page)

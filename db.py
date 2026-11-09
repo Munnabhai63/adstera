@@ -93,6 +93,18 @@ CREATE TABLE IF NOT EXISTS ecpm_history (
     weight      REAL NOT NULL DEFAULT 1.0,
     synced_at   TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    proxy_id        TEXT    NOT NULL,
+    domain          TEXT    NOT NULL DEFAULT 'loanraaj.com',
+    action          TEXT    NOT NULL DEFAULT 'skipped',
+    delay_s         REAL    NOT NULL DEFAULT 0.0,
+    geo_country     TEXT    DEFAULT '',
+    geo_tier        TEXT    DEFAULT '',
+    session_id      INTEGER DEFAULT NULL,
+    ts              TEXT    DEFAULT (datetime('now'))
+);
 """
 
 
@@ -139,6 +151,83 @@ def init() -> None:
             con.execute("ALTER TABLE sessions ADD COLUMN ad_network TEXT DEFAULT 'adsterra'")
             logger.info("Migrated sessions table: added 'ad_network' column.")
     logger.debug("DB initialised at %s", _DB_PATH)
+
+
+def log_push_event(
+    proxy_id: str,
+    domain: str,
+    action: str,
+    delay_s: float = 0.0,
+    geo_country: str = "",
+    geo_tier: str = "",
+    session_id: int | None = None,
+) -> int:
+    """
+    Log a push notification permission event.
+    action: 'allow' | 'block' | 'skipped' | 'eu_skip' | 'allow_failed'
+    Returns the new row id.
+    """
+    with _conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO push_subscriptions
+                (proxy_id, domain, action, delay_s, geo_country, geo_tier, session_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (proxy_id, domain or "loanraaj.com", action, delay_s, geo_country, geo_tier, session_id),
+        )
+        logger.debug(
+            "Push event logged: domain=%s action=%s proxy=%s delay=%.1fs",
+            domain, action, proxy_id, delay_s,
+        )
+        return cur.lastrowid or 0
+
+
+def push_allow_rate(domain: str = "", last_n: int = 200) -> float:
+    """
+    Returns the push allow rate (0-1) for the given domain over the last N events.
+    Used for monitoring in UI dashboard.
+    """
+    with _conn() as con:
+        if domain:
+            rows = con.execute(
+                """
+                SELECT action FROM push_subscriptions
+                WHERE domain = ?
+                ORDER BY ts DESC LIMIT ?
+                """,
+                (domain, last_n),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT action FROM push_subscriptions
+                ORDER BY ts DESC LIMIT ?
+                """,
+                (last_n,),
+            ).fetchall()
+    if not rows:
+        return 0.0
+    allowed = sum(1 for r in rows if r[0] == "allow")
+    return allowed / len(rows)
+
+
+def push_today_count() -> dict:
+    """Returns today's push event counts by action type."""
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT action, COUNT(*) as cnt
+            FROM push_subscriptions
+            WHERE DATE(ts) = DATE('now')
+            GROUP BY action
+            """,
+        ).fetchall()
+    result = {"allow": 0, "block": 0, "skipped": 0, "eu_skip": 0, "allow_failed": 0}
+    for row in rows:
+        action = row[0] if row[0] in result else "skipped"
+        result[action] = row[1]
+    return result
 
 
 def log_session(
