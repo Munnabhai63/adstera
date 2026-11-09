@@ -253,8 +253,8 @@ def check_domain_safety(domain: str, max_ctr: float = 0.050, warning_ctr: float 
         }
 
 
-def all_domains_summary(default_cpm: float = 4.50) -> list[dict]:
-    """Return aggregated today metrics for all tracked domains."""
+def all_domains_summary(default_cpm: float = 4.50, configured_domains: list | None = None) -> list[dict]:
+    """Return aggregated today metrics for all tracked domains, merging configured domains."""
     with _conn() as con:
         rows = con.execute(
             """
@@ -266,8 +266,10 @@ def all_domains_summary(default_cpm: float = 4.50) -> list[dict]:
         ).fetchall()
 
     summary = []
+    seen_domains = set()
     for r in rows:
         dom = r["domain"]
+        seen_domains.add(dom)
         s = int(r["sessions"])
         c = int(r["ad_clicks"])
         i = int(r["impressions"])
@@ -285,6 +287,24 @@ def all_domains_summary(default_cpm: float = 4.50) -> list[dict]:
             "cpm": round(default_cpm, 2),
             "estimated_revenue": est_rev,
         })
+
+    if configured_domains:
+        for item in configured_domains:
+            dom = item.get("domain") if isinstance(item, dict) else str(item)
+            if dom and dom not in seen_domains:
+                seen_domains.add(dom)
+                cpm = item.get("target_cpm", default_cpm) if isinstance(item, dict) else default_cpm
+                summary.append({
+                    "domain": dom,
+                    "sessions": 0,
+                    "impressions": 0,
+                    "clicks": 0,
+                    "ctr": 0.0,
+                    "status": "OPTIMAL",
+                    "allow_click": True,
+                    "cpm": round(float(cpm), 2),
+                    "estimated_revenue": 0.0,
+                })
     return summary
 
 

@@ -1451,7 +1451,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "today": db.today(),
                 "ctr": db.ctr(100),
                 "metrics": metrics,
-                "domains": db.all_domains_summary(cpm_rate),
+                "domains": db.all_domains_summary(
+                    cpm_rate,
+                    configured_domains=cfg.get("target", {}).get("domains", []),
+                ),
                 "accounts_total": len(accs),
                 "accounts_warmed": warmed_c,
                 "accounts_sample": [a.to_dict() for a in accs[:8]],
