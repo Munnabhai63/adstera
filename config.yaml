@@ -219,3 +219,24 @@ ecpm_feedback:
   enabled: true
   top_earner_share: 0.60
   sync_interval_min: 15
+
+ad_networks:
+  adsterra:
+    enabled: true
+    weight: 0.50
+    smartlinks:
+    - https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804
+    - https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035
+    - https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449
+  propellerads:
+    enabled: true
+    weight: 0.30
+    smartlinks:
+    - https://propeller-direct.com/smartlink/3549341
+    - https://monetag-direct.net/smartlink/489102
+  hilltopads:
+    enabled: true
+    weight: 0.20
+    smartlinks:
+    - https://hilltop-direct.com/smartlink/778899
+    - https://hilltop-direct.com/smartlink/889900

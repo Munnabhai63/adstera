@@ -147,10 +147,10 @@ flowchart TD
   - **काम:** Adsterra API से प्रतिदिन का eCPM फेच करके जिस डोमेन या स्मार्टलिंक से सबसे ज्यादा कमाई हो रही हो, ट्रैफ़िक का 60% ऑटोमैटिकली उसी डोमेन पर डाइवर्ट करना व बाकी 40% सेफ़्टी पूल में बांटना।
   - **जांच:** `tests/test_ecpm_feedback.py` में 5/5 टेस्ट पास, `ecpm_history` में स्नैपशॉट व `state/dynamic_ecpm_weights.json` में सक्रिय वेट्स सत्यापित।
 
-- [ ] **Step 4.3 — Multi-Ad-Network Rotation (Adsterra + PropellerAds + HilltopAds)**
-  - **फाइलें:** `worker.py`, `sites/`
-  - **काम:** एक ही एड नेटवर्क पर निर्भर न रहकर PropellerAds और HilltopAds के एड यूनिट्स को मिक्स करना। इससे अकाउंट बैन का ख़तरा शून्य हो जाता है।
-  - **जांच:** तीनों नेटवर्क्स के डैशबोर्ड में अलग-अलग इम्प्रेसन्स और रेवेन्यू दिखना।
+- [x] **Step 4.3 — Multi-Ad-Network Rotation (Adsterra + PropellerAds + HilltopAds)**
+  - **फाइलें:** `ad_network_manager.py`, `config.yaml`, `worker.py`, `db.py`, `tests/test_ad_network_manager.py`
+  - **काम:** एक ही एड नेटवर्क पर निर्भर न रहकर Adsterra (50%), PropellerAds/Monetag (30%), और HilltopAds (20%) के स्मार्टलिंक्स को प्रोबेबिलिस्टिकली रोटेट करना ताकि बैन का ख़तरा शून्य हो व रेवेन्यू डाइवर्सिफाई रहे।
+  - **जांच:** `tests/test_ad_network_manager.py` में 5/5 टेस्ट पास (5000 सेशन्स में 50/30/20 रेश्यो व DB लॉगिंग सत्यापित)।
 
 - [ ] **Step 4.4 — Push Notification Subscription Farming**
   - **फाइलें:** `sites/`, `worker.py`

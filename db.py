@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     error_reason TEXT   DEFAULT '',
     geo_country TEXT    DEFAULT '',
     geo_tier    TEXT    DEFAULT '',
+    ad_network  TEXT    DEFAULT 'adsterra',
     ts          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -134,6 +135,9 @@ def init() -> None:
         if "geo_tier" not in cols:
             con.execute("ALTER TABLE sessions ADD COLUMN geo_tier TEXT DEFAULT ''")
             logger.info("Migrated sessions table: added 'geo_tier' column.")
+        if "ad_network" not in cols:
+            con.execute("ALTER TABLE sessions ADD COLUMN ad_network TEXT DEFAULT 'adsterra'")
+            logger.info("Migrated sessions table: added 'ad_network' column.")
     logger.debug("DB initialised at %s", _DB_PATH)
 
 
@@ -150,16 +154,17 @@ def log_session(
     error_reason: str = "",
     geo_country: str = "",
     geo_tier: str = "",
+    ad_network: str = "adsterra",
 ) -> int:
     """Insert one session row and update daily_stats and domain_stats. Returns the new row id."""
     clean_domain = (domain or "loanraaj.com").lower().strip()
     with _conn() as con:
         cur = con.execute(
             """
-            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason, geo_country, geo_tier)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason, geo_country, geo_tier, ad_network)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain, error_reason or "", geo_country or "", geo_tier or ""),
+            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain, error_reason or "", geo_country or "", geo_tier or "", ad_network or "adsterra"),
         )
         row_id = cur.lastrowid
 

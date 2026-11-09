@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from pathlib import Path
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
+from ad_network_manager import AdNetworkManager
 import cmp
 import db
 import fingerprint as fp_mod
@@ -351,10 +352,15 @@ async def run_session(
         weights = cfg["target"]["referrer_weights"]
         referrer = rng.choices(referrers, weights=weights, k=1)[0]
 
+    # Step 4.3: Multi-Ad-Network Selection
+    ad_net_mgr = AdNetworkManager()
+    selected_network = ad_net_mgr.select_network(rng)
+
     result = {
         "proxy_id": proxy.proxy_id,
         "target_url": start_url,
         "domain": target_domain,
+        "ad_network": selected_network,
         "mahi_profile_id": mahi_profile["id"] if mahi_profile else None,
         "ua": fp.user_agent,
         "referrer": referrer,
@@ -610,6 +616,7 @@ async def run_session(
         error_reason=result.get("error_reason", ""),
         geo_country=result.get("geo_country", ""),
         geo_tier=result.get("geo_tier", ""),
+        ad_network=result.get("ad_network", "adsterra"),
     )
 
     # Layer 4: Real-time Circuit Breaker evaluation & Telegram alert dispatch
