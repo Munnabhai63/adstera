@@ -323,10 +323,28 @@ async def run_session(
         except Exception as mahi_err:
             logger.debug("MAHI profile bridge fallback: %s", mahi_err)
 
-    # Referrer selection
-    referrers = cfg["target"]["referrers"]
-    weights = cfg["target"]["referrer_weights"]
-    referrer = rng.choices(referrers, weights=weights, k=1)[0]
+    # Pillar 3: Dynamic SERP Organic Referrer Synthesis
+    referrer = ""
+    try:
+        from serp_synthesizer import SerpSynthesizer
+        serp_synth = SerpSynthesizer()
+        if serp_synth.should_use_organic_serp(rng):
+            c_city = getattr(proxy.geo, "city", "Dallas") if proxy.geo else "Dallas"
+            c_state = getattr(proxy.geo, "region", "TX") if proxy.geo else "TX"
+            referrer = serp_synth.build_organic_referrer_url(
+                domain=target_domain,
+                city=c_city,
+                state=c_state,
+                rng=rng,
+            )
+            logger.info("Pillar 3: Generated organic search referrer for %s (%s, %s)", target_domain, c_city, c_state)
+    except Exception as serp_err:
+        logger.debug("SERP Synthesizer notice: %s", serp_err)
+
+    if not referrer:
+        referrers = cfg["target"]["referrers"]
+        weights = cfg["target"]["referrer_weights"]
+        referrer = rng.choices(referrers, weights=weights, k=1)[0]
 
     result = {
         "proxy_id": proxy.proxy_id,

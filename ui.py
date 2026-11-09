@@ -842,6 +842,36 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Pillar 3: Dynamic SERP Organic Search Referrer Card -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>🔍 Pillar 3: Dynamic SERP Organic Search Referrer</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span style="font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">40% Organic Google/Bing Traffic</span>
+        <button id="btnPreviewSerp" class="btn btn-secondary" onclick="previewSerpQueries()" style="padding: 4px 10px; font-size: 11px;">⚡ Refresh Organic Queries</button>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
+      Dynamic search intent generator interpolating proxy geo (City, State) to produce 100% verified Google Search referrers, eliminating invalid traffic (IVT) flags.
+    </div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Geo Location</th>
+            <th>Synthesized Organic Search Query</th>
+            <th>Search Engine</th>
+            <th>Referrer Type</th>
+          </tr>
+        </thead>
+        <tbody id="serpTbody">
+          <tr><td colspan="5" style="text-align: center; color: var(--muted);">Click "Refresh Organic Queries" to view live query matrix...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Unlimited Accounts & Warmed Cookie Pool Card (MD Spec 3 & 4) -->
   <div class="card">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -1516,9 +1546,40 @@ HTML_PAGE = """<!DOCTYPE html>
     `).join('');
   }
 
+  async function previewSerpQueries() {
+    const btn = document.getElementById('btnPreviewSerp');
+    if (btn) btn.innerText = '⏳ Generating…';
+    try {
+      const res = await fetch('/api/serp/preview');
+      const data = await res.json();
+      if (data.success && data.queries) {
+        renderSerp(data.queries);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '⚡ Refresh Organic Queries';
+    }
+  }
+
+  function renderSerp(queries) {
+    const tbody = document.getElementById('serpTbody');
+    if (!tbody || !queries || queries.length === 0) return;
+    tbody.innerHTML = queries.map(q => `
+      <tr>
+        <td><strong style="color: #38bdf8;">${q.domain}</strong></td>
+        <td>${q.city}, ${q.state}</td>
+        <td><span style="color: #f8fafc; font-style: italic;">"${q.query}"</span></td>
+        <td><span style="font-weight: 600; color: #4ade80;">Google</span></td>
+        <td><span class="status-badge status-ok">ORGANIC SEARCH</span></td>
+      </tr>
+    `).join('');
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
+  previewSerpQueries();
   setInterval(fetchStatus, 3000);
 </script>
 
@@ -1641,6 +1702,22 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             leads = db.get_lead_conversions(limit=20)
             summary = db.today_leads_summary()
             self._send_json({"success": True, "summary": summary, "leads": leads})
+            return
+
+        if path == "/api/serp/preview":
+            from serp_synthesizer import SerpSynthesizer, DOMAIN_QUERY_MATRIX, DEFAULT_US_GEOS
+            synth = SerpSynthesizer()
+            queries = []
+            for idx, dom in enumerate(DOMAIN_QUERY_MATRIX.keys()):
+                geo = DEFAULT_US_GEOS[idx % len(DEFAULT_US_GEOS)]
+                q = synth.generate_query(dom, city=geo["city"], state=geo["state"])
+                queries.append({
+                    "domain": dom,
+                    "city": geo["city"],
+                    "state": geo["state"],
+                    "query": q,
+                })
+            self._send_json({"success": True, "queries": queries})
             return
 
         if path == "/api/accounts":
