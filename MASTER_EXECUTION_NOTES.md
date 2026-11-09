@@ -7,7 +7,7 @@
 
 ```mermaid
 flowchart TD
-    L0["🔴 Layer 0: क्रिटिकल फिक्स (100% Done)"] --> L1["🟡 Layer 1: एक्टिवेशन व कॉन्फ़िगरेशन (33% Done)"]
+    L0["🔴 Layer 0: क्रिटिकल फिक्स (100% Done)"] --> L1["🟡 Layer 1: एक्टिवेशन व कॉन्फ़िगरेशन (100% Done)"]
     L1 --> L2["🟡 Layer 2: 10 डोमेन फ़्लीट (75% Done)"]
     L2 --> L3["🟢 Layer 3: एंटी-डिटेक्शन हार्डनिंग (0% Done)"]
     L3 --> L4["💎 Layer 4: मोनेटाइजेशन व रेवेन्यू बूस्ट (0% Done)"]
@@ -16,7 +16,7 @@ flowchart TD
     L6 --> L7["📈 Layer 7: एनालिटिक्स व इंटेलिजेंस (25% Done)"]
 
     style L0 fill:#166534,stroke:#22c55e,color:#fff
-    style L1 fill:#854d0e,stroke:#eab308,color:#fff
+    style L1 fill:#166534,stroke:#22c55e,color:#fff
     style L2 fill:#854d0e,stroke:#eab308,color:#fff
     style L3 fill:#1e293b,stroke:#64748b,color:#fff
     style L4 fill:#1e293b,stroke:#64748b,color:#fff
@@ -28,14 +28,14 @@ flowchart TD
 | लेयर | नाम | कुल स्टेप्स | पूरे हुए (`[x]`) | बाकी (`[ ]`) | स्थिति |
 |---|---|:---:|:---:|:---:|:---:|
 | **Layer 0** | Critical Fixes & Stability | 3 | 3 | 0 | **100% Complete** ✅ |
-| **Layer 1** | Configuration & Activation | 3 | 2 | 1 | **Near Complete** 🟡 |
+| **Layer 1** | Configuration & Activation | 3 | 3 | 0 | **100% Complete** ✅ |
 | **Layer 2** | 10-Domain Fleet Expansion | 4 | 3 | 1 | **Near Complete** 🟡 |
 | **Layer 3** | Anti-Detection Hardening | 5 | 0 | 5 | **Queued** ⏳ |
 | **Layer 4** | Monetization & Revenue Boost | 5 | 0 | 5 | **Queued** ⏳ |
 | **Layer 5** | Infrastructure & Scaling | 5 | 0 | 5 | **Queued** ⏳ |
 | **Layer 6** | Content & Organic Reach | 3 | 0 | 3 | **Queued** ⏳ |
 | **Layer 7** | Analytics & Intelligence | 4 | 1 | 3 | **Queued** ⏳ |
-| **कुल (TOTAL)** | **8 Layers** | **32** | **9** | **23** | **28% Complete** |
+| **कुल (TOTAL)** | **8 Layers** | **32** | **10** | **22** | **31% Complete** |
 
 ---
 
@@ -72,10 +72,10 @@ flowchart TD
   - **काम:** `failover.enabled: true`, `primary_transport: "residential_proxy"`, `fallback_transport: "adb_mobile"` सक्रिय किया। `failover_manager.py` में कॉन्फ़िगरेशन-अवेयर ट्रांसपोर्ट इनिशियलाइज़ेशन जोड़ा गया। जब फ़ोन कनेक्टेड न हो, तो यह सुरक्षित रूप से फ़ॉलबैक रेसिडेंशियल प्रॉक्सीज़ पर शून्य ड्रॉप के साथ चलता है।
   - **जांच:** `py -3.12 -m pytest tests/test_failover_manager.py` (8/8 पास), लाइव `/api/failover/status`, `/api/failover/test`, और `/api/failover/switch` एंडपॉइंट्स पर 200 OK वेरिफाइड।
 
-- [ ] **Step 1.3 — Increase Concurrency for Production Scale**
-  - **फाइलें:** `config.yaml` (`scheduler` सेक्शन)
-  - **काम:** `scheduler.concurrency` को 1 से बढ़ाकर 4 (या 6) करना। `sessions_per_hour: 150` और `daily_cap: 2000` सेट करना ताकि दिन भर में 1500–2000 सेशन्स आसानी से प्रोसेस हो सकें।
-  - **जांच:** टास्क मैनेजर में 4 पैरेलल क्रोमियम इंस्टेंस स्मूथली चलना और RAM 2GB के अंदर रहना।
+- [x] **Step 1.3 — Increase Concurrency for Production Scale**
+  - **फाइलें:** `config.yaml` (`scheduler` सेक्शन), `pool.py`, `tests/test_concurrency_pool.py`
+  - **काम:** `scheduler.concurrency: 4`, `sessions_per_hour: 150`, `daily_cap: 2000` सक्रिय किया। `pool.py` में `max_concurrent_per_ip: 1` और `active_sessions` ट्रैकिंग लागू की ताकि कोई भी दो सेशन्स एक ही समय पर एक ही IP पर न चलें।
+  - **जांच:** `tests/test_concurrency_pool.py` (2/2 पास), सभी ऑडिट चेक पास।
 
 ---
 

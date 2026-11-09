@@ -98,7 +98,7 @@ proxy:
   max_concurrent_per_ip: 1
   dead_ip_cooldown_min: 45
 scheduler:
-  concurrency: 1
+  concurrency: 4
   sessions_per_hour: 150
   daily_cap: 2000
   diurnal:

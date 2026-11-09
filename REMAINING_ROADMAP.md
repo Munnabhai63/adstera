@@ -199,7 +199,7 @@
 4. Calculate: `concurrency × 400MB = RAM needed` → 4 sessions = ~1.6GB RAM minimum
 
 **Expected Outcome:** 4-6 parallel sessions running smoothly
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: `scheduler.concurrency: 4`, `sessions_per_hour: 150`, `daily_cap: 2000`, `pool.py` per-IP concurrency locking active, tests/test_concurrency_pool.py 2/2 pass)
 
 ---
 

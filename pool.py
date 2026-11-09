@@ -60,6 +60,7 @@ class Proxy:
     uses_today: int = 0
     last_used_ts: float = 0.0
     dead_until_ts: float = 0.0
+    active_sessions: int = 0
     _lock: asyncio.Semaphore = field(default_factory=lambda: asyncio.Semaphore(1))
 
     @property
@@ -87,11 +88,13 @@ class Proxy:
             p["password"] = self.password
         return p
 
-    def is_available(self, max_uses: int, cooldown_secs: float) -> bool:
+    def is_available(self, max_uses: int, cooldown_secs: float, max_concurrent: int = 1) -> bool:
         now = time.time()
         if now < self.dead_until_ts:
             return False
         if self.uses_today >= max_uses:
+            return False
+        if self.active_sessions >= max_concurrent:
             return False
         return True
 
@@ -387,12 +390,13 @@ class ProxyPool:
         """Return next available proxy or None if pool exhausted."""
         max_uses = self._cfg["proxy"]["max_uses_per_ip"]
         cooldown = self._cfg["proxy"]["dead_ip_cooldown_min"]
+        max_concurrent = int(self._cfg["proxy"].get("max_concurrent_per_ip", 1))
         cooldown_secs = cooldown * 60
 
         async with self._global_lock:
             available = [
                 p for p in self._proxies
-                if p.is_available(max_uses, cooldown_secs)
+                if p.is_available(max_uses, cooldown_secs, max_concurrent)
             ]
             if not available:
                 return None
@@ -400,11 +404,13 @@ class ProxyPool:
             available.sort(key=lambda p: p.last_used_ts)
             chosen = available[0]
             chosen.record_use()
+            chosen.active_sessions += 1
             return chosen
 
     def release(self, proxy: Proxy) -> None:
         """Call after a session on this proxy completes."""
-        pass  # state is on the Proxy object; no pool-level action needed
+        if proxy:
+            proxy.active_sessions = max(0, proxy.active_sessions - 1)
 
     def mark_dead(self, proxy: Proxy) -> None:
         proxy.mark_dead(self._cfg["proxy"]["dead_ip_cooldown_min"])
@@ -413,6 +419,7 @@ class ProxyPool:
         for p in self._proxies:
             p.uses_today = 0
             p.dead_until_ts = 0.0
+            p.active_sessions = 0
         logger.info("Daily proxy counts reset")
 
     def __len__(self) -> int:
