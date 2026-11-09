@@ -119,3 +119,4 @@ def test_mahi_connector_dynamic_profile():
     assert dyn_p is not None
     assert "settings" in dyn_p
     assert "display" in dyn_p["settings"]
+

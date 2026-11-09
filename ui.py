@@ -777,6 +777,35 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Unlimited Accounts & Warmed Cookie Pool Card (MD Spec 3 & 4) -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>👤 Unlimited Persona Accounts & Warmed Cookie Pool</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="accountsCountBadge" style="font-size: 11px; background: rgba(56, 189, 248, 0.15); color: #38bdf8; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(56, 189, 248, 0.3);">Loading accounts…</span>
+        <button class="btn btn-secondary" onclick="generateSyntheticAccount()" style="padding: 4px 10px; font-size: 11px;">⚡ +1 Synthetic Persona</button>
+      </div>
+    </div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Email / Identity</th>
+            <th>Persona Name</th>
+            <th>US Location</th>
+            <th>Credit Score</th>
+            <th>Commercial Intent</th>
+            <th>Warmed Status</th>
+            <th>Cookies Cached</th>
+          </tr>
+        </thead>
+        <tbody id="accountsTbody">
+          <tr><td colspan="7" style="text-align: center; color: var(--muted);">Loading accounts pool…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Session Log Table -->
   <div class="card">
     <div class="card-title">
@@ -945,6 +974,32 @@ HTML_PAGE = """<!DOCTYPE html>
         }).join('');
       } else if (domTbody) {
         domTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted);">No domain sessions recorded today yet</td></tr>';
+      }
+
+      // Update accounts pool table
+      const accBadge = document.getElementById('accountsCountBadge');
+      if (accBadge && data.accounts_total !== undefined) {
+        accBadge.innerText = `${data.accounts_total} Accounts (${data.accounts_warmed || 0} Warmed)`;
+      }
+      const accTbody = document.getElementById('accountsTbody');
+      if (accTbody && data.accounts_sample && data.accounts_sample.length > 0) {
+        accTbody.innerHTML = data.accounts_sample.map(a => {
+          const p = a.persona || {};
+          const isW = a.warmed || (a.cookies_count > 0);
+          return `
+            <tr>
+              <td><strong style="color: #f8fafc;">${a.email}</strong></td>
+              <td>${p.full_name || a.name || '—'}</td>
+              <td>${p.city ? p.city + ', ' + p.state : 'US Domestic'}</td>
+              <td><span style="color: #34d399; font-weight: 600;">${p.credit_score || 740}</span></td>
+              <td><span style="font-size: 11px; color: #94a3b8;">${p.commercial_intent || 'Finance & Loans'}</span></td>
+              <td><span style="font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; color: ${isW ? '#34d399' : '#fbbf24'}; background: ${isW ? 'rgba(52,211,153,0.15)' : 'rgba(251,191,36,0.15)'}; border: 1px solid ${isW ? 'rgba(52,211,153,0.3)' : 'rgba(251,191,36,0.3)'};">${isW ? '🔥 WARMED' : '⏳ FRESH'}</span></td>
+              <td><strong>${a.cookies_count || (isW ? 18 : 0)}</strong></td>
+            </tr>
+          `;
+        }).join('');
+      } else if (accTbody) {
+        accTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--muted);">No accounts loaded yet</td></tr>';
       }
 
       // Update sessions table
@@ -1292,6 +1347,22 @@ HTML_PAGE = """<!DOCTYPE html>
     fetchStatus();
   }
 
+  async function generateSyntheticAccount() {
+    showToast('Generating synthetic high-intent persona…');
+    try {
+      const res = await fetch('/api/accounts/generate', { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.account) {
+        showToast('Generated: ' + data.account.email + ' (' + (data.account.persona?.full_name || 'Persona') + ')');
+        fetchStatus();
+      } else {
+        alert('Failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Network error generating account: ' + e);
+    }
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
@@ -1368,6 +1439,12 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             if net_mode == "mobile_tether":
                 mobile_info = get_cached_mobile_info()
 
+            from accounts_manager import AccountsManager
+            from autopilot_watchdog import AutopilotWatchdog
+            acc_mgr = AccountsManager()
+            accs = acc_mgr.get_all_accounts()
+            warmed_c = sum(1 for a in accs if a.warmed or a.cookies_count > 0)
+
             status_data = {
                 "is_running": RUNNER.is_running(),
                 "pid": RUNNER.get_pid(),
@@ -1375,6 +1452,14 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "ctr": db.ctr(100),
                 "metrics": metrics,
                 "domains": db.all_domains_summary(cpm_rate),
+                "accounts_total": len(accs),
+                "accounts_warmed": warmed_c,
+                "accounts_sample": [a.to_dict() for a in accs[:8]],
+                "hourly_target": AutopilotWatchdog.calculate_diurnal_pace(
+                    base_hourly_rate=cfg.get("scheduler", {}).get("sessions_per_hour", 150),
+                    diurnal=cfg.get("scheduler", {}).get("diurnal"),
+                    weekday_scale=cfg.get("scheduler", {}).get("weekday_scale")
+                ),
                 "network_mode": net_mode,
                 "mobile_info": mobile_info,
                 "proxies_count": count_valid_proxies(),
@@ -1384,6 +1469,13 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "logs": RUNNER.get_logs(),
             }
             self._send_json(status_data)
+            return
+
+        if path == "/api/accounts":
+            from accounts_manager import AccountsManager
+            mgr = AccountsManager()
+            accs = [a.to_dict() for a in mgr.get_all_accounts()]
+            self._send_json({"success": True, "accounts": accs})
             return
 
         if path == "/api/stats/csv":
@@ -1433,6 +1525,16 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             payload = json.loads(body.decode("utf-8")) if body else {}
         except Exception:
             payload = {}
+
+        if path == "/api/accounts/generate":
+            try:
+                from accounts_manager import AccountsManager
+                mgr = AccountsManager()
+                acc = mgr.generate_synthetic_account()
+                self._send_json({"success": True, "account": acc.to_dict()})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
 
         if path == "/api/config":
             try:

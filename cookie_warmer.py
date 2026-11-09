@@ -163,3 +163,4 @@ class CookieWarmer:
             return len(data.get("cookies", []))
         except Exception:
             return 0
+

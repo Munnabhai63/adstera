@@ -60,8 +60,14 @@ def _conn():
 
 
 def init() -> None:
-    """Create tables if they don't exist and run incremental schema migrations."""
+    """Create tables if they don't exist, enable WAL mode, and run incremental schema migrations."""
     with _conn() as con:
+        # Enable Write-Ahead Logging (WAL) for high-concurrency read/write
+        try:
+            con.execute("PRAGMA journal_mode=WAL;")
+            con.execute("PRAGMA synchronous=NORMAL;")
+        except Exception:
+            pass
         con.executescript(_DDL)
         # Incremental migration: Ensure 'domain' column exists on legacy sessions table
         cur = con.execute("PRAGMA table_info(sessions)")

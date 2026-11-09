@@ -147,3 +147,4 @@ class ProfileFactory:
             p = cls.generate_profile(seed=s)
             profiles.append(p)
         return profiles
+

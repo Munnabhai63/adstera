@@ -42,6 +42,7 @@
 | 36 | Implemented Per-Domain CTR Governance & Multi-Domain Fleet Logging | Added `domain` tracking to `sessions`, `domain_stats` table, 3-tier circuit breaker (OPTIMAL, GUARD_ACTIVE, PAUSED), and live UI fleet table; verified by `tests/test_domain_governor.py` |
 | 37 | Implemented MAHI Browser Gate 2 Read-Only Bridge (`mahi_connector.py`) | Orchestrated MAHI custom Chromium core (v138.0.7204.0) and 22+ active profiles via read-only SQLite URI (`mode=ro`) with strict zero-tampering guarantee and isolated state in `state/mahi_bridge/`; verified by `tests/test_mahi_bridge.py` |
 | 38 | Implemented Unlimited Accounts, Persona Factory & MAHI Cookie Warmer (`accounts_manager.py`, `profile_factory.py`, `cookie_warmer.py`) | Implemented multi-format account parsing (`accounts.txt`), on-the-fly hardware profile factory, high-intent financial personas, and pre-session cookie warming based on MAHI Browser's `cookie-warmer-service.ts`; verified by `tests/test_profile_cookie_automation.py` |
+| 39 | Implemented 24/7 Autopilot Watchdog, SQLite WAL Mode & Dashboard Accounts Monitor (`autopilot_watchdog.py`, `ui.py`) | Added 24-hr diurnal traffic pacing, browser process memory recycling (every 50 sessions), zombie chrome process sweeper, SQLite WAL concurrency, and live accounts/persona pool card on dashboard; verified by `tests/test_autopilot_dashboard.py` |
 
 ## KNOWN GAPS
 
