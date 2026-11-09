@@ -265,9 +265,36 @@ class RunnerManager:
                     return True, f"Force killed: {exc}"
                 except Exception as k_exc:
                     return False, f"Error stopping: {k_exc}"
-                    return True, f"Force killed: {exc}"
-                except Exception as k_exc:
-                    return False, f"Error stopping: {k_exc}"
+
+    def force_stop(self) -> tuple[bool, str]:
+        """Instantly and forcefully terminate runner process tree and all open Chromium browsers."""
+        with self._lock:
+            pid = self._proc.pid if self._proc else None
+            # 1. Kill the runner process tree on Windows via taskkill
+            if pid:
+                try:
+                    import subprocess
+                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, timeout=5)
+                except Exception:
+                    pass
+
+            # 2. Terminate any lingering Chromium instances launched by this automation
+            try:
+                import subprocess
+                subprocess.run(["taskkill", "/F", "/IM", "chrome.exe"], capture_output=True, timeout=5)
+            except Exception:
+                pass
+
+            # 3. Clean up internal process reference
+            if self._proc:
+                try:
+                    self._proc.kill()
+                except Exception:
+                    pass
+                self._proc = None
+
+            self._logs.append(f"[{time.strftime('%X')}] 🛑 FORCE STOP EXECUTED: All runner processes and browsers terminated immediately.")
+            return True, "Force stop complete. All processes and browsers killed."
 
     def get_logs(self) -> list[str]:
         return list(self._logs)
@@ -552,9 +579,12 @@ HTML_PAGE = """<!DOCTYPE html>
   <div class="main-grid">
     <!-- Config Column -->
     <div class="card">
-      <div class="card-title">
+      <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
         <span>Target Configuration</span>
-        <button class="btn btn-primary" onclick="saveConfig()">Save Config</button>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn" onclick="clearAllUrls()" style="padding: 5px 10px; font-size: 11px; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3);">🗑️ Clear All</button>
+          <button class="btn btn-primary" onclick="saveConfig()" style="padding: 5px 12px; font-size: 12px;">💾 Save Config</button>
+        </div>
       </div>
 
       <div class="form-group">
@@ -563,7 +593,24 @@ HTML_PAGE = """<!DOCTYPE html>
           <span id="targetUrlsCount" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; background: rgba(16,185,129,0.15); color: #10b981; font-weight: 600; border: 1px solid rgba(16,185,129,0.3);">1 URL Active</span>
         </div>
         <textarea id="targetUrls" rows="3" placeholder="https://example.com/article-1&#10;https://example.com/article-2&#10;https://example.com/article-3" style="width: 100%; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.4; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: #0f172a; color: #e2e8f0; resize: vertical;" oninput="updateTargetUrlsCount()"></textarea>
-        <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+
+        <!-- Quick Add Single URL -->
+        <div style="display: flex; gap: 6px; margin-top: 6px;">
+          <input type="text" id="newUrlInput" placeholder="Add custom URL (e.g. https://loanraaj.com) and click Add" style="flex: 1; font-size: 12px; padding: 6px 10px; background: #0f172a; border: 1px solid var(--border); border-radius: 6px; color: #fff;">
+          <button class="btn btn-secondary" onclick="addSingleUrl()" style="padding: 6px 12px; font-size: 12px; white-space: nowrap;">+ Add URL</button>
+        </div>
+
+        <!-- Interactive URL Pills List with individual ❌ Remove buttons -->
+        <div style="margin-top: 8px;">
+          <div style="font-size: 11px; color: var(--muted); margin-bottom: 4px; display: flex; justify-content: space-between;">
+            <span>Active URLs in Pool (Click ❌ to remove):</span>
+          </div>
+          <div id="targetUrlsPills" style="display: flex; flex-direction: column; gap: 4px; max-height: 140px; overflow-y: auto; padding-right: 2px;">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
+        <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
           💡 प्रत्येक नया सेशन रैंडमली इस पूल में से एक अलग URL चुनेगा, जिससे ट्रैफ़िक पूरे डोमेन में प्राकृतिक रूप से फैलेगा।
         </div>
       </div>
@@ -655,9 +702,10 @@ HTML_PAGE = """<!DOCTYPE html>
         </div>
       </div>
 
-      <div class="control-bar" style="margin-top: 10px;">
-        <button id="btnStart" class="btn btn-success" style="flex: 1;" onclick="startRunner()">▶ Start Live Run</button>
-        <button id="btnStop" class="btn btn-danger" style="flex: 1;" onclick="stopRunner()" disabled>■ Stop Run</button>
+      <div class="control-bar" style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 8px;">
+        <button id="btnStart" class="btn btn-success" onclick="startRunner()">▶ Start Live Run</button>
+        <button id="btnStop" class="btn btn-danger" onclick="stopRunner()" disabled style="background: rgba(245, 158, 11, 0.2); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.4);">■ Stop Run</button>
+        <button id="btnForceStop" class="btn" onclick="forceStopRunner()" style="background: #b91c1c; color: #ffffff; border: 1px solid #ef4444; font-weight: 700;">🛑 Force Stop</button>
       </div>
     </div>
 
@@ -1357,6 +1405,88 @@ HTML_PAGE = """<!DOCTYPE html>
       countEl.innerText = lines.length === 1 ? '1 URL Active' : (lines.length > 1 ? lines.length + ' URLs in Pool' : '0 URLs');
       countEl.style.color = lines.length > 0 ? '#10b981' : '#f59e0b';
     }
+    renderTargetUrlPills(lines);
+  }
+
+  function renderTargetUrlPills(lines) {
+    const pillsContainer = document.getElementById('targetUrlsPills');
+    if (!pillsContainer) return;
+    if (!lines || lines.length === 0) {
+      pillsContainer.innerHTML = '<div style="font-size: 11px; color: var(--muted); font-style: italic; padding: 4px 0;">No URLs currently in pool. Paste above or use + Add URL.</div>';
+      return;
+    }
+    pillsContainer.innerHTML = lines.map((url, idx) => `
+      <div style="display: flex; align-items: center; justify-content: space-between; background: #0f172a; border: 1px solid #1e293b; border-radius: 4px; padding: 4px 8px; font-family: 'JetBrains Mono', monospace; font-size: 11px;">
+        <span style="color: #38bdf8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 8px;" title="${escapeHtml(url)}">${escapeHtml(url)}</span>
+        <button onclick="removeUrlAt(${idx})" style="background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 3px; padding: 2px 6px; font-size: 10px; cursor: pointer; font-weight: 700; white-space: nowrap;" title="Remove this URL">❌ Remove</button>
+      </div>
+    `).join('');
+  }
+
+  function removeUrlAt(index) {
+    const el = document.getElementById('targetUrls');
+    if (!el) return;
+    let lines = el.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (index >= 0 && index < lines.length) {
+      const removed = lines.splice(index, 1)[0];
+      el.value = lines.join('\n');
+      updateTargetUrlsCount();
+      saveConfig(false);
+      showToast('Removed: ' + (removed.length > 30 ? removed.substring(0, 30) + '…' : removed));
+    }
+  }
+
+  async function clearAllUrls() {
+    if (!confirm('Are you sure you want to remove ALL URLs from the pool?')) return;
+    const el = document.getElementById('targetUrls');
+    if (el) el.value = '';
+    updateTargetUrlsCount();
+    await saveConfig(true);
+    showToast('All URLs cleared from pool!');
+  }
+
+  async function addSingleUrl() {
+    const input = document.getElementById('newUrlInput');
+    if (!input) return;
+    const val = input.value.trim();
+    if (!val) {
+      alert('Please enter a valid URL (e.g. https://loanraaj.com)');
+      return;
+    }
+    const el = document.getElementById('targetUrls');
+    if (!el) return;
+    let lines = el.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.includes(val)) {
+      alert('This URL is already in the pool!');
+      return;
+    }
+    lines.push(val);
+    el.value = lines.join('\n');
+    input.value = '';
+    updateTargetUrlsCount();
+    await saveConfig(true);
+    showToast('Added: ' + val);
+  }
+
+  async function forceStopRunner() {
+    const btn = document.getElementById('btnForceStop');
+    if (btn) {
+      btn.innerText = '🛑 Killing...';
+      btn.disabled = true;
+    }
+    try {
+      const res = await fetch('/api/force-stop', { method: 'POST' });
+      const data = await res.json();
+      showToast(data.msg || 'Force stopped!');
+    } catch (e) {
+      alert('Error during force stop: ' + e);
+    } finally {
+      if (btn) {
+        btn.innerText = '🛑 Force Stop';
+        btn.disabled = false;
+      }
+      fetchStatus();
+    }
   }
 
   async function loadConfig() {
@@ -1366,7 +1496,7 @@ HTML_PAGE = """<!DOCTYPE html>
       const cfg = data.config;
       
       let urls = [];
-      if (cfg.target && cfg.target.urls && Array.isArray(cfg.target.urls) && cfg.target.urls.length > 0) {
+      if (cfg.target && cfg.target.urls !== undefined && Array.isArray(cfg.target.urls)) {
         urls = cfg.target.urls;
       } else if (cfg.target && cfg.target.url) {
         urls = [cfg.target.url];
@@ -2156,8 +2286,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 if "urls" in payload and isinstance(payload["urls"], list):
                     clean_urls = [str(u).strip() for u in payload["urls"] if str(u).strip()]
                     cfg["target"]["urls"] = clean_urls
-                    if clean_urls:
-                        cfg["target"]["url"] = clean_urls[0]
+                    cfg["target"]["url"] = clean_urls[0] if clean_urls else ""
                 elif "url" in payload:
                     u = str(payload["url"]).strip()
                     cfg["target"]["url"] = u
@@ -2263,6 +2392,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/stop":
             ok, msg = RUNNER.stop()
+            self._send_json({"ok": ok, "msg": msg})
+            return
+
+        if path == "/api/force-stop":
+            ok, msg = RUNNER.force_stop()
             self._send_json({"ok": ok, "msg": msg})
             return
 
