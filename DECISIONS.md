@@ -39,6 +39,8 @@
 | 33 | Authored `MAHI_BROWSER_GATE2_INTEGRATION_SPEC.md` | Master Spec 2: Defines read-only SQLite bridge (`mode=ro`) to MAHI Browser database (22+ profiles) and orchestration of custom Chromium engine (138.0.7204.0) with zero modifications to host MAHI installation |
 | 34 | Authored `PROFILE_COOKIE_EMAIL_AUTOMATION_SPEC.md` | Master Spec 3: Establishes high-intent commercial persona modeling, pre-session cookie warming across finance/tech sites, automated email/lead ingestion via human typing cadence, and 12% return-visitor lifecycle |
 | 35 | Authored `MASTER_DASHBOARD_247_AUTOPILOT_SPEC.md` | Master Spec 4: Outlines real-time 10-domain monitoring web UI (`http://localhost:5050`), 3-stage automated CTR circuit breaker, 24/7 background process watchdog, and diurnal traffic curve |
+| 36 | Implemented Per-Domain CTR Governance & Multi-Domain Fleet Logging | Added `domain` tracking to `sessions`, `domain_stats` table, 3-tier circuit breaker (OPTIMAL, GUARD_ACTIVE, PAUSED), and live UI fleet table; verified by `tests/test_domain_governor.py` |
+| 37 | Implemented MAHI Browser Gate 2 Read-Only Bridge (`mahi_connector.py`) | Orchestrated MAHI custom Chromium core (v138.0.7204.0) and 22+ active profiles via read-only SQLite URI (`mode=ro`) with strict zero-tampering guarantee and isolated state in `state/mahi_bridge/`; verified by `tests/test_mahi_bridge.py` |
 
 ## KNOWN GAPS
 
