@@ -3,7 +3,7 @@ __pycache__/
 *$py.class
 *.log
 .env
-sessions.db
+sessions.db*
 state/
 profiles/
 bin/
