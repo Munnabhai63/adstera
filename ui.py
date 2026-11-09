@@ -375,7 +375,7 @@ HTML_PAGE = """<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>QA Traffic Harness — Control Center</title>
+  <title>rechargekar.com — Adsterra Enterprise Fleet Controller</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -507,10 +507,13 @@ HTML_PAGE = """<!DOCTYPE html>
   <!-- Header -->
   <header>
     <div class="brand">
-      <div class="brand-logo">QA</div>
+      <div class="brand-logo" style="background: linear-gradient(135deg, #10b981, #06b6d4); font-weight: 800; font-size: 16px;">⚡ RK</div>
       <div>
-        <h1>Traffic Generator Dashboard</h1>
-        <div class="subtitle">Chromium Anti-Detect Traffic &amp; Impression Simulator</div>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h1 style="margin: 0; font-size: 22px;">rechargekar.com</h1>
+          <span style="background: rgba(16,185,129,0.15); color: #10b981; border: 1px solid rgba(16,185,129,0.3); font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 700; letter-spacing: 0.5px;">🌐 LIVE CLOUD HUB</span>
+        </div>
+        <div class="subtitle">Master Fleet Controller &bull; Adsterra 10-Domain Monetization Engine</div>
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 14px;">
