@@ -304,6 +304,37 @@ async def _run_browser_checks(cfg: dict) -> None:
             if label == "proxy_a":
                 print(f"  [12] PASS — Hardware Peripherals & Battery Status API (devs={hw_res['devCount']}, battery={hw_res['battery_level']}, [native code] masked)")
 
+            # Check 13: WebAudio & AudioContext Stealth (Step 7)
+            audio_res = await page.evaluate("""() => {
+                const results = {};
+                if (typeof AudioBuffer !== 'undefined' && AudioBuffer.prototype.getChannelData) {
+                    results.gcdNative = AudioBuffer.prototype.getChannelData.toString() === 'function getChannelData() { [native code] }';
+                }
+                if (typeof AudioContext !== 'undefined' && AudioContext.prototype.getOutputTimestamp) {
+                    results.gotNative = AudioContext.prototype.getOutputTimestamp.toString() === 'function getOutputTimestamp() { [native code] }';
+                    try {
+                        const actx = new (window.AudioContext || window.webkitAudioContext)();
+                        const ts = actx.getOutputTimestamp();
+                        const buf = actx.createBuffer(1, 512, 44100);
+                        const data = buf.getChannelData(0);
+                        actx.close();
+                        results.hasCtxTime = typeof ts.contextTime === 'number';
+                        results.hasPerfTime = typeof ts.performanceTime === 'number';
+                        let sum = 0;
+                        for (let i = 0; i < data.length; i++) sum += data[i];
+                        results.audioSum = sum.toFixed(8);
+                    } catch(e) {
+                        results.error = e.toString();
+                    }
+                }
+                return results;
+            }""")
+            assert audio_res.get("gcdNative", True), f"[13] FAIL ({label}) — AudioBuffer.getChannelData not [native code]"
+            assert audio_res.get("gotNative", True), f"[13] FAIL ({label}) — AudioContext.getOutputTimestamp not [native code]"
+            assert audio_res.get("hasCtxTime") and audio_res.get("hasPerfTime"), f"[13] FAIL ({label}) — getOutputTimestamp invalid"
+            if label == "proxy_a":
+                print(f"  [13] PASS — WebAudio & AudioContext Stealth (getChannelData & getOutputTimestamp [native code] masked, seed={audio_res.get('audioSum')})")
+
             await context.close()
 
         # Check 11 cross-seed check: different proxies yield different canvas outputs

@@ -602,17 +602,65 @@ def init_script(fp: Fingerprint) -> str:
   patchReadPixels(WebGLRenderingContext);
   if (typeof WebGL2RenderingContext !== 'undefined') patchReadPixels(WebGL2RenderingContext);
 
-  // ── audio context jitter ──────────────────────────────────────────────────
+  // ── audio context jitter (Step 7: WebAudio / AudioContext stealth) ──────
   const _audioJitter = {fp.audio_seed};
-  if (typeof AudioBuffer !== 'undefined') {{
+  const _jitteredBuffers = new WeakSet();
+
+  if (typeof AudioBuffer !== 'undefined' && AudioBuffer.prototype) {{
     const origGetChannelData = AudioBuffer.prototype.getChannelData;
-    AudioBuffer.prototype.getChannelData = function(channel) {{
-      const data = origGetChannelData.call(this, channel);
-      for (let i = 0; i < data.length; i++) {{
-        data[i] += _audioJitter * (((i * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff - 0.5);
-      }}
-      return data;
-    }};
+    if (origGetChannelData) {{
+      AudioBuffer.prototype.getChannelData = _makeNative(function(channel) {{
+        const data = origGetChannelData.call(this, channel);
+        if (!_jitteredBuffers.has(this)) {{
+          for (let i = 0; i < data.length; i++) {{
+            data[i] += _audioJitter * (((i * 1664525 + 1013904223) & 0x7fffffff) / 0x7fffffff - 0.5);
+          }}
+          _jitteredBuffers.add(this);
+        }}
+        return data;
+      }}, 'getChannelData');
+    }}
+  }}
+
+  const _patchAudioContext = (ctxProto) => {{
+    if (!ctxProto || !ctxProto.prototype || !ctxProto.prototype.getOutputTimestamp) return;
+    const origGot = ctxProto.prototype.getOutputTimestamp;
+    ctxProto.prototype.getOutputTimestamp = _makeNative(function() {{
+      const ts = origGot.call(this);
+      const jitterFactor = (_audioJitter * 1000) % 0.005;
+      return {{
+        contextTime: (ts.contextTime || this.currentTime || 0) + jitterFactor,
+        performanceTime: (ts.performanceTime || performance.now()) + (jitterFactor * 1000),
+      }};
+    }}, 'getOutputTimestamp');
+  }};
+  if (typeof AudioContext !== 'undefined') _patchAudioContext(AudioContext);
+  if (typeof webkitAudioContext !== 'undefined') _patchAudioContext(webkitAudioContext);
+
+  if (typeof AnalyserNode !== 'undefined' && AnalyserNode.prototype) {{
+    const origGbfd = AnalyserNode.prototype.getByteFrequencyData;
+    if (origGbfd) {{
+      AnalyserNode.prototype.getByteFrequencyData = _makeNative(function(array) {{
+        origGbfd.call(this, array);
+        if (array && array.length > 0) {{
+          for (let i = 0; i < array.length; i += 7) {{
+            const noise = Math.floor(((_audioJitter * (i + 13)) % 1) * 3) - 1;
+            array[i] = Math.max(0, Math.min(255, array[i] + noise));
+          }}
+        }}
+      }}, 'getByteFrequencyData');
+    }}
+    const origGffd = AnalyserNode.prototype.getFloatFrequencyData;
+    if (origGffd) {{
+      AnalyserNode.prototype.getFloatFrequencyData = _makeNative(function(array) {{
+        origGffd.call(this, array);
+        if (array && array.length > 0) {{
+          for (let i = 0; i < array.length; i += 7) {{
+            array[i] += (_audioJitter * 0.01) * (((i * 214013 + 2531011) & 0x7fffffff) / 0x7fffffff - 0.5);
+          }}
+        }}
+      }}, 'getFloatFrequencyData');
+    }}
   }}
 }})();
 """

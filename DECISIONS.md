@@ -31,6 +31,7 @@
 | 25 | Human Pre-Click Settlement, Micro-Tremors, and Continuous Cursor Tracking | Step 4 upgrade: Added cursor position persistence across actions to eliminate unnatural mouse teleportation; implemented pre-click hover dwell (120ms–240ms) with physiological hand micro-tremors (±0.5–1.8px) and human finger click hold durations (60ms–130ms) in `human.py`, defeating bot biometrics analyzers |
 | 26 | Multi-Target URL Distribution Pool and Dynamic Dashboard Routing | Step 5 upgrade: Added `target.urls` pool support with optional `url_weights` in `config.yaml` and `worker.select_target_url`, integrated multi-line URL pool input with live active target monitor in `ui.py`, eliminating unnatural single-URL traffic clustering across sessions |
 | 27 | Hybrid Keyboard Navigation & Wheel Scroll Simulation | Step 6 upgrade: Implemented `keyboard_scroll` in `human.py` with physical keydown/keyup hold durations (60ms–140ms) using Spacebar, PageDown, ArrowDown, and reverse rereading (ArrowUp/PageUp); mixed with mouse wheel scroll (25% keyboard / 75% wheel) to eliminate pure-wheel automation fingerprints |
+| 28 | WebAudio & AudioContext Oscillator Latency Stealth Patching | Step 7 upgrade: Implemented `AudioBuffer.prototype.getChannelData` with idempotent `WeakSet` tracking, `AudioContext.prototype.getOutputTimestamp` with monotonic timestamps and micro-jitter, and `AnalyserNode` frequency noise, all masked with native code prototypes; guarantees cross-proxy audio variance with intra-proxy digest stability, verified by Audit Check 13 |
 
 ## KNOWN GAPS
 
