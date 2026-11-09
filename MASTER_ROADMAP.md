@@ -238,7 +238,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 - [x] **DB-4:** Test: `pytest tests/ -v` — all pass होने चाहिए
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -270,7 +270,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 - [x] **SEC-5:** `state/mahi_bridge/cookies/` → verify gitignored है
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -304,7 +304,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
       db.log(..., status=status)  # Always log, even on cancel
   ```
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -343,7 +343,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 - [x] **CFG-4:** Publishing schedule offset (30 min per domain group)
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -388,7 +388,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   # X-Forwarded-For, Via, X-Real-IP → present है → reject proxy
   ```
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -433,7 +433,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   // Add to getOutputTimestamp return value
   ```
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -469,7 +469,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   # 12% reject → find X button → scroll past banner → NOT silent accept
   ```
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -495,7 +495,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   Month 3+:  Gradually increase
   ```
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -557,7 +557,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   Internal links: 2-3 links to other domain articles
   ```
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -599,7 +599,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 - [x] **GATE-2:** Test gate with 5 sample articles
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -652,7 +652,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 - [x] **ADV-2:** 60% sessions → Real SERP journey, 40% → Direct/Social
   - Keywords: 60% from Google Trends, 30% niche, 10% brand
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -676,7 +676,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   actual_dwell = reading_time * rng.uniform(0.7, 1.3)
   ```
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
@@ -696,7 +696,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
       # Creates human-like reading heatmap
   ```
 
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Section verified & complete)
 
 ---
 
