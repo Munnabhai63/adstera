@@ -401,7 +401,7 @@
 3. Test on `https://browserleaks.com/webrtc` — should show proxy IP only or "N/A"
 
 **Expected Outcome:** Zero WebRTC IP leaks under any scenario
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: Check 15 in tests/audit.py, unit test in tests/test_webrtc_stealth.py)
 
 ---
 

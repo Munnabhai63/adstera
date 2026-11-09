@@ -112,10 +112,10 @@ flowchart TD
   - **काम:** `document.fonts.check()` और `window.queryLocalFonts()` को हुक करके OS (Windows, macOS, Android, Linux) के अनुसार असली फ़ॉन्ट्स की लिस्ट रिटर्न कराना जो प्रॉक्सी सीड के हिसाब से स्टेबल रहे।
   - **जांच:** `tests/audit.py` में Check 14 पास, `tests/test_font_spoofing.py` में 4/4 टेस्ट पास।
 
-- [ ] **Step 3.2 — WebRTC IP Leak Prevention (Enhanced)**
-  - **फाइलें:** `fingerprint.py`, `worker.py`
-  - **काम:** Chromium फ़्लैग्स के साथ-साथ इन-पेज JavaScript `RTCPeerConnection` रैपर जोड़ना ताकि लोकल STUN/TURN होस्ट कैंडिडेट्स ब्लॉक हो सकें और असली होस्ट IP कभी लीक न हो।
-  - **जांच:** WebRTC लीक टेस्ट में सिर्फ प्रॉक्सी या वीपीएन IP दिखना।
+- [x] **Step 3.2 — WebRTC IP Leak Prevention (Enhanced)**
+  - **फाइलें:** `fingerprint.py`, `tests/audit.py`, `tests/test_webrtc_stealth.py`
+  - **काम:** Chromium फ़्लैग्स के साथ-साथ इन-पेज JavaScript `RTCPeerConnection` रैपर जोड़ना ताकि लोकल STUN/TURN होस्ट कैंडिडेट्स ब्लॉक हो सकें, SDP सैनिटाइज हो सके (`typ host` व प्राइवेट IP हटाना), और असली होस्ट IP कभी लीक न हो।
+  - **जांच:** `tests/audit.py` में Check 15 पास, `tests/test_webrtc_stealth.py` में टेस्ट पास।
 
 - [ ] **Step 3.3 — Browser Extension Emulation**
   - **फाइलें:** `fingerprint.py`

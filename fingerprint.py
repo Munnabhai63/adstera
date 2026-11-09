@@ -763,6 +763,173 @@ def init_script(fp: Fingerprint) -> str:
       return Promise.resolve(records);
     }}, 'queryLocalFonts');
   }}
+
+  // ── Step 3.2: WebRTC IP Leak Prevention (Enhanced) ──────────────────────────
+  if (typeof window !== 'undefined' && window.RTCPeerConnection) {{
+    const _origRTC = window.RTCPeerConnection;
+    const _isPrivateIP = (str) => {{
+      if (!str || typeof str !== 'string') return false;
+      return /(?:192\\.168\\.|10\\.|172\\.(?:1[6-9]|2\\d|3[01])\\.|\\.local|fc00:|fe80:)/i.test(str);
+    }};
+
+    const _sanitizeSDP = (sdp) => {{
+      if (!sdp || typeof sdp !== 'string') return sdp;
+      const lines = sdp.split(/\\r?\\n/);
+      const filtered = lines.map(line => {{
+        if (/^a=candidate:.*\\btyp\\s+host\\b/i.test(line)) return null;
+        if (/^a=candidate:/i.test(line) && (_isPrivateIP(line) || /127\\.0\\.0\\.1/.test(line))) return null;
+        if (/^o=.*\\bIN\\s+IP4\\s+/i.test(line)) {{
+          return line.replace(/\\bIN\\s+IP4\\s+\\S+/, 'IN IP4 0.0.0.0');
+        }}
+        if (/^c=IN\\s+IP4\\s+/i.test(line)) {{
+          return 'c=IN IP4 0.0.0.0';
+        }}
+        return line;
+      }}).filter(l => l !== null && l !== undefined);
+      let out = filtered.join('\\r\\n');
+      if (!out.endsWith('\\r\\n')) {{
+        out += '\\r\\n';
+      }}
+      return out;
+    }};
+
+    function PatchedRTCPeerConnection(...args) {{
+      const pc = new _origRTC(...args);
+
+      let customHandler = null;
+      Object.defineProperty(pc, 'onicecandidate', {{
+        get: () => customHandler,
+        set: (fn) => {{
+          if (typeof fn === 'function') {{
+            customHandler = _makeNative(function(event) {{
+              if (event && event.candidate) {{
+                const candStr = event.candidate.candidate || '';
+                if (/\\btyp\\s+host\\b/i.test(candStr) || _isPrivateIP(candStr)) {{
+                  return;
+                }}
+              }}
+              return fn.apply(this, arguments);
+            }}, 'onicecandidate');
+          }} else {{
+            customHandler = fn;
+          }}
+        }},
+        configurable: true,
+        enumerable: true
+      }});
+
+      const origAddEventListener = pc.addEventListener.bind(pc);
+      pc.addEventListener = _makeNative(function(type, listener, options) {{
+        if (type === 'icecandidate' && typeof listener === 'function') {{
+          const wrapped = function(event) {{
+            if (event && event.candidate) {{
+              const candStr = event.candidate.candidate || '';
+              if (/\\btyp\\s+host\\b/i.test(candStr) || _isPrivateIP(candStr)) {{
+                return;
+              }}
+            }}
+            return listener.apply(this, arguments);
+          }};
+          return origAddEventListener(type, wrapped, options);
+        }}
+        return origAddEventListener(type, listener, options);
+      }}, 'addEventListener');
+
+      const origCreateOffer = pc.createOffer.bind(pc);
+      pc.createOffer = _makeNative(function(arg1, arg2, arg3) {{
+        if (typeof arg1 === 'function') {{
+          const successCb = arg1;
+          const errorCb = typeof arg2 === 'function' ? arg2 : () => {{}};
+          return origCreateOffer(function(desc) {{
+            if (desc && desc.sdp) {{
+              try {{
+                Object.defineProperty(desc, 'sdp', {{
+                  value: _sanitizeSDP(desc.sdp),
+                  writable: true,
+                  configurable: true,
+                  enumerable: true
+                }});
+              }} catch(e) {{}}
+            }}
+            return successCb(desc);
+          }}, errorCb, arg3);
+        }}
+        return origCreateOffer(arg1).then(desc => {{
+          if (desc && desc.sdp) {{
+            try {{
+              Object.defineProperty(desc, 'sdp', {{
+                value: _sanitizeSDP(desc.sdp),
+                writable: true,
+                configurable: true,
+                enumerable: true
+              }});
+            }} catch(e) {{}}
+          }}
+          return desc;
+        }});
+      }}, 'createOffer');
+
+      const origCreateAnswer = pc.createAnswer.bind(pc);
+      pc.createAnswer = _makeNative(function(arg1, arg2, arg3) {{
+        if (typeof arg1 === 'function') {{
+          const successCb = arg1;
+          const errorCb = typeof arg2 === 'function' ? arg2 : () => {{}};
+          return origCreateAnswer(function(desc) {{
+            if (desc && desc.sdp) {{
+              try {{
+                Object.defineProperty(desc, 'sdp', {{
+                  value: _sanitizeSDP(desc.sdp),
+                  writable: true,
+                  configurable: true,
+                  enumerable: true
+                }});
+              }} catch(e) {{}}
+            }}
+            return successCb(desc);
+          }}, errorCb, arg3);
+        }}
+        return origCreateAnswer(arg1).then(desc => {{
+          if (desc && desc.sdp) {{
+            try {{
+              Object.defineProperty(desc, 'sdp', {{
+                value: _sanitizeSDP(desc.sdp),
+                writable: true,
+                configurable: true,
+                enumerable: true
+              }});
+            }} catch(e) {{}}
+          }}
+          return desc;
+        }});
+      }}, 'createAnswer');
+
+      const origSetLocalDescription = pc.setLocalDescription.bind(pc);
+      pc.setLocalDescription = _makeNative(async function(desc) {{
+        if (desc && desc.sdp) {{
+          try {{
+            Object.defineProperty(desc, 'sdp', {{
+              value: _sanitizeSDP(desc.sdp),
+              writable: true,
+              configurable: true,
+              enumerable: true
+            }});
+          }} catch(e) {{}}
+        }}
+        return origSetLocalDescription(desc);
+      }}, 'setLocalDescription');
+
+      return pc;
+    }}
+
+    PatchedRTCPeerConnection.prototype = _origRTC.prototype;
+    PatchedRTCPeerConnection.prototype.constructor = PatchedRTCPeerConnection;
+    Object.setPrototypeOf(PatchedRTCPeerConnection, _origRTC);
+
+    window.RTCPeerConnection = _makeNative(PatchedRTCPeerConnection, 'RTCPeerConnection');
+    if (typeof window.webkitRTCPeerConnection !== 'undefined') {{
+      window.webkitRTCPeerConnection = window.RTCPeerConnection;
+    }}
+  }}
 }})();
 """
 

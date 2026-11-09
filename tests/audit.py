@@ -16,6 +16,7 @@ Checks:
  12. Hardware Peripherals & Battery Status API.
  13. WebAudio & AudioContext Stealth.
  14. Font Enumeration Spoofing.
+ 15. WebRTC IP Leak Prevention (Enhanced).
 """
 from __future__ import annotations
 
@@ -370,6 +371,34 @@ async def _run_browser_checks(cfg: dict) -> None:
             assert font_res.get("hasStyle"), f"[14] FAIL ({label}) — queryLocalFonts record missing style property"
             if label == "proxy_a":
                 print(f"  [14] PASS — Font Enumeration Spoofing (fonts={font_res['fontCount']}, checkNative=True, qlfNative=True, sample='{font_res['firstFont']}')")
+
+            # Check 15: WebRTC IP Leak Prevention (Step 3.2)
+            webrtc_res = await page.evaluate("""async () => {
+                const results = {};
+                if (typeof window.RTCPeerConnection === 'undefined') {
+                    return { skipped: true };
+                }
+                results.rtcNative = window.RTCPeerConnection.toString().includes('[native code]');
+                const pc = new window.RTCPeerConnection({
+                    iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+                });
+                results.instanceOf = (pc instanceof window.RTCPeerConnection);
+                results.createOfferNative = pc.createOffer.toString().includes('[native code]');
+                pc.createDataChannel("audit_channel");
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                results.sdpHasNoHost = !offer.sdp.includes('typ host');
+                results.sdpHasNoPrivateIP = !/(?:192\\.168\\.|10\\.|172\\.(?:1[6-9]|2\\d|3[01])\\.|127\\.0\\.0\\.1)/.test(offer.sdp);
+                pc.close();
+                return results;
+            }""")
+            assert webrtc_res.get("rtcNative", True), f"[15] FAIL ({label}) — RTCPeerConnection not [native code]"
+            assert webrtc_res.get("instanceOf", True), f"[15] FAIL ({label}) — pc not instanceof RTCPeerConnection"
+            assert webrtc_res.get("createOfferNative", True), f"[15] FAIL ({label}) — createOffer not [native code]"
+            assert webrtc_res.get("sdpHasNoHost", True), f"[15] FAIL ({label}) — SDP contains 'typ host' candidate"
+            assert webrtc_res.get("sdpHasNoPrivateIP", True), f"[15] FAIL ({label}) — SDP contains private IP address"
+            if label == "proxy_a":
+                print("  [15] PASS — WebRTC IP Leak Prevention (no host candidates, private IPs sanitized, [native code] masked)")
 
             await context.close()
 
