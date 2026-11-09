@@ -922,6 +922,49 @@ def get_latest_ecpm_weights() -> dict[str, float]:
     return {r["domain"]: float(r["weight"]) for r in rows}
 
 
+def get_daily_revenue_history(days: int = 30, fallback_cpm: float = 2.50) -> list[dict]:
+    """
+    Step 5.5: Return daily revenue breakdown for the last N days.
+    Combines daily impressions (multiplied by actual or estimated CPM) with CPA conversion payouts.
+    """
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT d.date,
+                   d.sessions,
+                   d.impressions,
+                   d.ad_clicks,
+                   COALESCE(
+                       (SELECT SUM(a.api_revenue) FROM adsterra_api_sync a WHERE a.date = d.date),
+                       (d.impressions * ? / 1000.0)
+                   ) AS ad_revenue,
+                   COALESCE(
+                       (SELECT SUM(c.payout_usd) FROM cpa_conversions c WHERE DATE(c.ts) = d.date AND c.status != 'rejected'),
+                       0.0
+                   ) AS cpa_revenue
+            FROM daily_stats d
+            WHERE d.date >= DATE('now', ?)
+            ORDER BY d.date ASC
+            """,
+            (fallback_cpm, f"-{days} days"),
+        ).fetchall()
+
+    history = []
+    for r in rows:
+        ad_rev = float(r["ad_revenue"] or 0.0)
+        cpa_rev = float(r["cpa_revenue"] or 0.0)
+        history.append({
+            "date": str(r["date"]),
+            "sessions": int(r["sessions"] or 0),
+            "impressions": int(r["impressions"] or 0),
+            "ad_clicks": int(r["ad_clicks"] or 0),
+            "ad_revenue": round(ad_rev, 4),
+            "cpa_revenue": round(cpa_rev, 4),
+            "total_revenue": round(ad_rev + cpa_rev, 4),
+        })
+    return history
+
+
 
 
 
