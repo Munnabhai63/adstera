@@ -12,4 +12,6 @@ stats.csv
 traces/
 scratch/
 telegram_link.py
+reports/*.json
+reports/*.txt
 

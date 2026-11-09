@@ -1017,6 +1017,33 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Step 7.2: Real-Time Revenue Analytics & 7-Day Forecast Card -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>📈 Real-Time Revenue Analytics & 7-Day Forecast</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="forecastMonthlyBadge" style="font-size: 11px; background: rgba(34, 197, 94, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3);">Projected 30d: Loading…</span>
+        <button class="btn btn-secondary" onclick="refreshAnalyticsCharts()" style="padding: 4px 10px; font-size: 11px;">🔄 Refresh Charts</button>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px;">
+      <!-- Hourly Impression & Traffic Bars -->
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 8px; border: 1px solid var(--border);">
+        <div style="font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">📊 Hourly Session & Impression Pace (Today)</div>
+        <div id="hourlyChartContainer" style="display: flex; align-items: flex-end; gap: 6px; height: 110px; padding: 8px 0; border-bottom: 1px solid var(--border);">
+          <div style="color: var(--muted); font-size: 11px; margin: auto;">Loading hourly pacing…</div>
+        </div>
+      </div>
+      <!-- 7-Day Projected Revenue -->
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 14px; border-radius: 8px; border: 1px solid var(--border);">
+        <div style="font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 8px;">🔮 Predictive Revenue Model (Next 7 Days)</div>
+        <div id="forecastContainer" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center;">
+          <div style="color: var(--muted); font-size: 11px; grid-column: span 7; padding: 20px 0;">Loading forecasts…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Unlimited Accounts & Warmed Cookie Pool Card (MD Spec 3 & 4) -->
   <div class="card">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -1988,17 +2015,62 @@ HTML_PAGE = """<!DOCTYPE html>
     }
   }
 
+  async function refreshAnalyticsCharts() {
+    try {
+      const res = await fetch('/api/analytics/charts');
+      const data = await res.json();
+      if (!data) return;
+
+      const monthlyBadge = document.getElementById('forecastMonthlyBadge');
+      if (monthlyBadge) monthlyBadge.textContent = 'Projected 30d: $' + (data.monthly_estimate_usd || 0).toFixed(2);
+
+      const hBox = document.getElementById('hourlyChartContainer');
+      if (hBox && data.hourly) {
+        if (data.hourly.length === 0) {
+          hBox.innerHTML = '<div style="color: var(--muted); font-size: 11px; margin: auto;">No sessions recorded today yet</div>';
+        } else {
+          const maxImps = Math.max(...data.hourly.map(h => h.impressions), 10);
+          hBox.innerHTML = data.hourly.map(h => {
+            const hPct = Math.max(12, Math.round((h.impressions / maxImps) * 85));
+            return `<div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+              <div style="font-size: 9px; color: #38bdf8;">${h.impressions}</div>
+              <div style="width: 100%; max-width: 20px; height: ${hPct}px; background: linear-gradient(180deg, #38bdf8 0%, #1e3a8a 100%); border-radius: 3px 3px 0 0;" title="${h.hour}: ${h.sessions} sessions, ${h.impressions} imps, ${h.clicks} clicks"></div>
+              <div style="font-size: 9px; color: var(--muted);">${h.hour.split(':')[0]}h</div>
+            </div>`;
+          }).join('');
+        }
+      }
+
+      const fBox = document.getElementById('forecastContainer');
+      if (fBox && data.forecast_7d) {
+        fBox.innerHTML = data.forecast_7d.map(f => `
+          <div style="background: rgba(30, 41, 59, 0.7); padding: 8px 4px; border-radius: 6px; border: 1px solid var(--border);">
+            <div style="font-size: 10px; color: var(--muted);">${f.day_name.substring(0, 3)}</div>
+            <div style="font-size: 12px; font-weight: 700; color: #4ade80; margin: 4px 0;">$${f.projected_usd.toFixed(2)}</div>
+            <div style="font-size: 9px; color: #94a3b8;">$${f.confidence_low.toFixed(1)}-$${f.confidence_high.toFixed(1)}</div>
+          </div>
+        `).join('');
+      }
+    } catch (e) {
+      console.debug('Analytics chart fetch error:', e);
+    }
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
   previewSerpQueries();
   fetchTelegramStatus();
   fetchFailoverStatus();
+  refreshAnalyticsCharts();
   setInterval(() => {
     fetchStatus();
     fetchTelegramStatus();
     fetchFailoverStatus();
   }, 3000);
+  setInterval(() => {
+    refreshAnalyticsCharts();
+  }, 10000);
 </script>
 
 </body>
@@ -2149,6 +2221,55 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "logs": RUNNER.get_logs(),
             }
             self._send_json(status_data)
+            return
+
+        if path == "/api/analytics/charts":
+            db.init()
+            with db._conn() as con:
+                hourly_rows = con.execute(
+                    """
+                    SELECT strftime('%H:00', ts, 'localtime') AS hour_slot,
+                           COUNT(*) AS sessions,
+                           SUM(impressions) AS imps,
+                           SUM(ad_clicks) AS clicks
+                    FROM sessions
+                    WHERE DATE(ts, 'localtime') = DATE('now', 'localtime')
+                    GROUP BY hour_slot
+                    ORDER BY hour_slot ASC
+                    """
+                ).fetchall()
+                domain_rows = con.execute(
+                    """
+                    SELECT domain, COUNT(*) AS sessions, SUM(impressions) AS imps, SUM(ad_clicks) AS clicks
+                    FROM sessions
+                    WHERE DATE(ts, 'localtime') = DATE('now', 'localtime')
+                    GROUP BY domain
+                    ORDER BY imps DESC
+                    """
+                ).fetchall()
+
+            from revenue_forecast import RevenueForecaster
+            try:
+                forecaster = RevenueForecaster().fit()
+                forecast_7d = forecaster.forecast_next_7_days()
+                monthly_est = forecaster.forecast_monthly_estimate()
+            except Exception as fe:
+                forecast_7d = []
+                monthly_est = 0.0
+
+            payload = {
+                "hourly": [
+                    {"hour": r["hour_slot"], "sessions": int(r["sessions"] or 0), "impressions": int(r["imps"] or 0), "clicks": int(r["clicks"] or 0)}
+                    for r in hourly_rows
+                ],
+                "domains": [
+                    {"domain": r["domain"], "sessions": int(r["sessions"] or 0), "impressions": int(r["imps"] or 0), "clicks": int(r["clicks"] or 0)}
+                    for r in domain_rows
+                ],
+                "forecast_7d": forecast_7d,
+                "monthly_estimate_usd": monthly_est,
+            }
+            self._send_json(payload)
             return
 
         if path == "/api/adsterra/sync":
