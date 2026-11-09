@@ -117,10 +117,10 @@ flowchart TD
   - **काम:** Chromium फ़्लैग्स के साथ-साथ इन-पेज JavaScript `RTCPeerConnection` रैपर जोड़ना ताकि लोकल STUN/TURN होस्ट कैंडिडेट्स ब्लॉक हो सकें, SDP सैनिटाइज हो सके (`typ host` व प्राइवेट IP हटाना), और असली होस्ट IP कभी लीक न हो।
   - **जांच:** `tests/audit.py` में Check 15 पास, `tests/test_webrtc_stealth.py` में टेस्ट पास।
 
-- [ ] **Step 3.3 — Browser Extension Emulation**
-  - **फाइलें:** `fingerprint.py`
-  - **काम:** असली यूज़र्स के ब्राउज़र में एक्सटेंशन्स (जैसे uBlock Origin, LastPass, Google Docs) होते हैं। `window.chrome.runtime.sendMessage` को रियलिस्टिक एक्सटेंशन आईडी रिस्पॉन्स के साथ मॉक करना।
-  - **जांच:** एक्सटेंशन डिटेक्शन स्क्रिप्ट्स को पॉजिटिव सिग्नेचर मिलना।
+- [x] **Step 3.3 — Browser Extension Emulation**
+  - **फाइलें:** `fingerprint.py`, `tests/audit.py`, `tests/test_extension_emulation.py`
+  - **काम:** असली यूज़र्स के ब्राउज़र में 2–4 एक्सटेंशन्स (Google Docs Offline, Google Pay, uBlock Origin, Grammarly, LastPass) होते हैं। `window.chrome.runtime.sendMessage`, `getURL`, `getManifest` को रियलिस्टिक एक्सटेंशन आईडी रिस्पॉन्स और `[native code]` मास्किंग के साथ जोड़ना।
+  - **जांच:** `tests/audit.py` में Check 16 पास, `tests/test_extension_emulation.py` में 3/3 टेस्ट पास।
 
 - [ ] **Step 3.4 — TLS / JA3 Fingerprint Diversification**
   - **फाइलें:** `fingerprint.py`, `worker.py`

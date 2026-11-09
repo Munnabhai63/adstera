@@ -17,6 +17,7 @@ Checks:
  13. WebAudio & AudioContext Stealth.
  14. Font Enumeration Spoofing.
  15. WebRTC IP Leak Prevention (Enhanced).
+ 16. Browser Extension Emulation.
 """
 from __future__ import annotations
 
@@ -399,6 +400,29 @@ async def _run_browser_checks(cfg: dict) -> None:
             assert webrtc_res.get("sdpHasNoPrivateIP", True), f"[15] FAIL ({label}) — SDP contains private IP address"
             if label == "proxy_a":
                 print("  [15] PASS — WebRTC IP Leak Prevention (no host candidates, private IPs sanitized, [native code] masked)")
+
+            # Check 16: Browser Extension Emulation (Step 3.3)
+            ext_res = await page.evaluate("""async () => {
+                const results = {};
+                if (typeof window.chrome !== 'undefined' && window.chrome.runtime) {
+                    results.hasRuntime = true;
+                    if (window.chrome.runtime.sendMessage) {
+                        results.sendMsgNative = window.chrome.runtime.sendMessage.toString().includes('[native code]');
+                    }
+                    if (window.chrome.runtime.getURL) {
+                        results.getURLNative = window.chrome.runtime.getURL.toString().includes('[native code]');
+                        results.urlValid = window.chrome.runtime.getURL('test').startsWith('chrome-extension://');
+                    }
+                }
+                return results;
+            }""")
+            assert ext_res.get("hasRuntime"), f"[16] FAIL ({label}) — window.chrome.runtime missing"
+            if not fp.is_mobile:
+                assert ext_res.get("sendMsgNative"), f"[16] FAIL ({label}) — chrome.runtime.sendMessage not [native code]"
+                assert ext_res.get("getURLNative"), f"[16] FAIL ({label}) — chrome.runtime.getURL not [native code]"
+                assert ext_res.get("urlValid"), f"[16] FAIL ({label}) — chrome.runtime.getURL invalid format"
+            if label == "proxy_a":
+                print(f"  [16] PASS — Browser Extension Emulation (extensions={len(fp.extensions)}, runtime API [native code] masked)")
 
             await context.close()
 

@@ -427,7 +427,7 @@
 4. Add to `navigator.plugins` count accordingly
 
 **Expected Outcome:** Bot detection sites see "extensions detected" = realistic profile
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: Check 16 in tests/audit.py, unit tests in tests/test_extension_emulation.py)
 
 ---
 

@@ -84,6 +84,7 @@ class Fingerprint:
     canvas_seed: int
     audio_seed: float
     fonts: list[str] = field(default_factory=list)
+    extensions: list[dict] = field(default_factory=list)
 
     @property
     def digest(self) -> str:
@@ -161,6 +162,50 @@ def _generate_fonts(platform: str, is_mobile: bool, rng: _SeededRng) -> list[str
     return selected
 
 
+# ── Step 3.3: Browser Extension Signatures ────────────────────────────────────
+_DESKTOP_EXTENSIONS = [
+    {
+        "id": "ghbmnnjldmmeejimcflloakocagkodme",
+        "name": "Google Docs Offline",
+        "version": "1.61.4",
+    },
+    {
+        "id": "nmmhkkegccagdldgiimedpiccmgmieda",
+        "name": "Google Pay / Web Store Payments",
+        "version": "1.0.0.6",
+    },
+    {
+        "id": "cjpalhdlnbpafiamejdnhcphjbkeiagm",
+        "name": "uBlock Origin",
+        "version": "1.58.0",
+    },
+    {
+        "id": "kbfnbcaeplbcioakkpcpgfkobkghlhen",
+        "name": "Grammarly",
+        "version": "14.1165.0",
+    },
+    {
+        "id": "hdokiejnpimakedhajhdlcegeplioahd",
+        "name": "LastPass",
+        "version": "4.120.0",
+    },
+]
+
+
+def _generate_extensions(is_mobile: bool, rng: _SeededRng) -> list[dict]:
+    """Return deterministic set of realistic installed extensions for desktop Chrome."""
+    if is_mobile:
+        return []
+    base = [_DESKTOP_EXTENSIONS[0]]  # Google Docs Offline default in Chrome
+    pool = _DESKTOP_EXTENSIONS[1:]
+    k = rng.randint(1, len(pool))
+    shuffled = list(pool)
+    for i in range(len(shuffled) - 1, 0, -1):
+        j = rng.randint(0, i)
+        shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
+    return base + shuffled[:k]
+
+
 def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
     """
     Build a fully deterministic Fingerprint from the proxy's sha256 seed.
@@ -207,6 +252,9 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
     # Step 3.1: Seeded platform fonts
     fonts = _generate_fonts(platform, is_mobile, rng)
 
+    # Step 3.3: Seeded browser extensions
+    extensions = _generate_extensions(is_mobile, rng)
+
     # Languages: primary locale + English fallback
     primary = proxy.geo.locale
     langs = [primary] if primary == "en-US" else [primary, "en-US", "en"]
@@ -232,6 +280,7 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
         canvas_seed=canvas_seed,
         audio_seed=audio_seed,
         fonts=fonts,
+        extensions=extensions,
     )
 
 
@@ -459,13 +508,85 @@ def init_script(fp: Fingerprint) -> str:
     configurable: true,
   }});
 
-  // ── chrome object ──────────────────────────────────────────────────────────
+  // ── chrome object & Step 3.3: Extension Emulation ──────────────────────────
   if (!window.chrome) {{ window.chrome = {{}}; }}
-  window.chrome.runtime = {{
-    connect: () => ({{ onDisconnect: {{ addListener: () => {{}} }}, postMessage: () => {{}} }}),
-    sendMessage: () => {{}},
-    id: undefined,
-  }};
+  const _installedExtensions = {json.dumps(fp.extensions)};
+  const _installedExtIds = new Set(_installedExtensions.map(e => e.id));
+
+  if (!{json.dumps(fp.is_mobile)}) {{
+    window.chrome.runtime = {{
+      id: undefined,
+      OnInstalledReason: {{ CHROME_UPDATE: 'chrome_update', INSTALL: 'install', SHARED_MODULE_UPDATE: 'shared_module_update', UPDATE: 'update' }},
+      OnRestartRequiredReason: {{ APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' }},
+      PlatformArch: {{ ARM: 'arm', ARM64: 'arm64', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' }},
+      PlatformNaclArch: {{ ARM: 'arm', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' }},
+      PlatformOs: {{ ANDROID: 'android', CROS: 'cros', LINUX: 'linux', MAC: 'mac', OPENBSD: 'openbsd', WIN: 'win' }},
+      RequestUpdateCheckStatus: {{ NO_UPDATE: 'no_update', THROTTLED: 'throttled', UPDATE_AVAILABLE: 'update_available' }},
+      getURL: _makeNative(function(path) {{
+        return 'chrome-extension://' + (_installedExtensions[0] ? _installedExtensions[0].id : 'ghbmnnjldmmeejimcflloakocagkodme') + '/' + (path || '').replace(/^\\//, '');
+      }}, 'getURL'),
+      getManifest: _makeNative(function() {{
+        return {{
+          manifest_version: 3,
+          name: _installedExtensions[0] ? _installedExtensions[0].name : 'Google Docs Offline',
+          version: _installedExtensions[0] ? _installedExtensions[0].version : '1.61.4'
+        }};
+      }}, 'getManifest'),
+      sendMessage: _makeNative(function(targetId, message, options, responseCallback) {{
+        let cb = typeof options === 'function' ? options : responseCallback;
+        const extId = typeof targetId === 'string' ? targetId : '';
+        const isInstalled = _installedExtIds.has(extId);
+
+        if (isInstalled) {{
+          if (typeof cb === 'function') {{
+            setTimeout(() => {{
+              window.chrome.runtime.lastError = undefined;
+              cb({{ status: 'ok', version: '3.0.0' }});
+            }}, 5);
+          }}
+          return Promise.resolve({{ status: 'ok', version: '3.0.0' }});
+        }} else {{
+          if (typeof cb === 'function') {{
+            setTimeout(() => {{
+              window.chrome.runtime.lastError = {{ message: 'Could not establish connection. Receiving end does not exist.' }};
+              cb(undefined);
+            }}, 5);
+          }}
+          return Promise.reject(new Error('Could not establish connection. Receiving end does not exist.'));
+        }}
+      }}, 'sendMessage'),
+      connect: _makeNative(function(targetId, connectInfo) {{
+        const extId = typeof targetId === 'string' ? targetId : '';
+        const isInstalled = _installedExtIds.has(extId);
+        return {{
+          name: connectInfo ? connectInfo.name || '' : '',
+          sender: {{ id: extId }},
+          onDisconnect: {{
+            addListener: _makeNative(function(fn) {{
+              if (!isInstalled && typeof fn === 'function') {{
+                setTimeout(() => fn({{ error: {{ message: 'Could not establish connection.' }} }}), 5);
+              }}
+            }}, 'addListener'),
+            removeListener: _makeNative(function() {{}}, 'removeListener'),
+            hasListener: _makeNative(function() {{ return false; }}, 'hasListener'),
+          }},
+          onMessage: {{
+            addListener: _makeNative(function() {{}}, 'addListener'),
+            removeListener: _makeNative(function() {{}}, 'removeListener'),
+            hasListener: _makeNative(function() {{ return false; }}, 'hasListener'),
+          }},
+          postMessage: _makeNative(function() {{}}, 'postMessage'),
+          disconnect: _makeNative(function() {{}}, 'disconnect'),
+        }};
+      }}, 'connect'),
+    }};
+  }} else {{
+    window.chrome.runtime = {{
+      id: undefined,
+      connect: () => ({{ onDisconnect: {{ addListener: () => {{}} }}, postMessage: () => {{}} }}),
+      sendMessage: () => {{}},
+    }};
+  }}
   window.chrome.app = {{
     isInstalled: false,
     InstallState: {{ DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' }},
