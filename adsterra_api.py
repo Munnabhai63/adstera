@@ -258,7 +258,7 @@ class AdsterraApiClient:
         reconciled = []
 
         # Read local domain stats for comparison
-        local_summary = {d["domain"]: d for d in db.all_domains_summary()}
+        local_summary = {d["domain"]: d for d in db.all_domains_summary(date_str=target_date)}
 
         # If live API returns specific domain IDs, match them with our active domains
         for item in items:

@@ -631,17 +631,28 @@ def check_domain_safety(domain: str, max_ctr: float = 0.050, warning_ctr: float 
         }
 
 
-def all_domains_summary(default_cpm: float = 4.50, configured_domains: list | None = None) -> list[dict]:
+def all_domains_summary(default_cpm: float = 4.50, configured_domains: list | None = None, date_str: str | None = None) -> list[dict]:
     """Return aggregated today metrics for all tracked domains, merging configured domains."""
     with _conn() as con:
-        rows = con.execute(
-            """
-            SELECT domain, sessions, ad_clicks, impressions
-            FROM domain_stats
-            WHERE date = date('now')
-            ORDER BY sessions DESC
-            """
-        ).fetchall()
+        if date_str:
+            rows = con.execute(
+                """
+                SELECT domain, sessions, ad_clicks, impressions
+                FROM domain_stats
+                WHERE date = ?
+                ORDER BY sessions DESC
+                """,
+                (date_str,),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT domain, sessions, ad_clicks, impressions
+                FROM domain_stats
+                WHERE date = date('now')
+                ORDER BY sessions DESC
+                """
+            ).fetchall()
 
     summary = []
     seen_domains = set()
