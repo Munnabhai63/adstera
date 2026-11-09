@@ -263,15 +263,99 @@ async def keyboard_scroll(
     return int(abs(y_after - y_before))
 
 
-async def scroll_page(
+async def get_reading_anchors(page: Page) -> list[dict]:
+    """
+    Extract substantive readable content elements (<p>, <h2>, <h3>, <li>, <blockquote>, <article>)
+    with their vertical positions, dimensions, and character counts to model an eye-tracking heatmap.
+    """
+    script = """() => {
+        const selectors = ['p', 'h1', 'h2', 'h3', 'h4', 'blockquote', 'li', 'article', 'section', '.meta', '[class*="article"]'];
+        const elements = document.querySelectorAll(selectors.join(','));
+        const anchors = [];
+        const seenTops = new Set();
+        
+        elements.forEach(el => {
+            const rect = el.getBoundingClientRect();
+            const text = (el.innerText || el.textContent || '').trim();
+            // Filter out empty, tiny, or hidden elements
+            if (rect.height < 10 || rect.width < 50 || text.length < 15) return;
+            const style = window.getComputedStyle(el);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') return;
+
+            const top = Math.round(rect.top + window.scrollY);
+            const band = Math.round(top / 20) * 20;
+            if (seenTops.has(band)) return;
+            seenTops.add(band);
+
+            anchors.push({
+                tag: el.tagName.toLowerCase(),
+                top: top,
+                left: Math.round(rect.left),
+                width: Math.round(rect.width),
+                height: Math.round(rect.height),
+                char_count: text.length,
+            });
+        });
+
+        anchors.sort((a, b) => a.top - b.top);
+        return anchors;
+    }"""
+    try:
+        res = await _safe_eval(page, script, default=[])
+        return res if isinstance(res, list) else []
+    except Exception:
+        return []
+
+
+def calculate_reading_pause(char_count: int, rng: Optional[random.Random] = None) -> float:
+    """
+    Calculate realistic human reading fixation dwell (in seconds) based on character density.
+    Scales smoothly from quick skims (1.2s) to deep paragraph comprehension (5.5s–6.5s).
+    """
+    if rng is None:
+        rng = random.Random()
+    if char_count <= 40:
+        return float(rng.uniform(1.2, 2.2))
+    elif char_count <= 200:
+        return float(rng.uniform(2.2, 3.8))
+    else:
+        scaled = 3.5 + min(2.5, (char_count - 200) / 180.0)
+        return float(scaled * rng.uniform(0.92, 1.18))
+
+
+async def reading_cursor_follow(
     page: Page,
+    anchor: dict,
     rng: Optional[random.Random] = None,
 ) -> None:
     """
-    Scroll through the page in human-like chunks with hybrid navigation.
-    Mixes smooth mouse wheel easing (75%) with keyboard navigation (25% - Spacebar, PageDown, ArrowDown).
-    Pause duration: 1.2–6.0 s per chunk.
-    18% chance of partial scroll-back (rereading paragraphs via wheel or ArrowUp).
+    Simulate unconscious mouse tracking / margin gaze alignment while a human reads a text block.
+    Moves the cursor smoothly toward the anchor's readable boundary.
+    """
+    if rng is None:
+        rng = random.Random()
+    vp = page.viewport_size or {"width": 1280, "height": 800}
+    current_scrollY = await _safe_eval(page, "() => window.scrollY", 0)
+    
+    screen_y = anchor["top"] - current_scrollY
+    if 0 <= screen_y <= vp["height"] - 40:
+        target_x = max(40.0, min(vp["width"] - 60.0, float(anchor["left"] + rng.uniform(20, min(anchor.get("width", 200), 250)))))
+        target_y = max(40.0, min(vp["height"] - 40.0, float(screen_y + rng.uniform(10, min(anchor.get("height", 40), 50)))))
+        await move_mouse(page, target_x, target_y, rng)
+
+
+async def scroll_page_content_aware(
+    page: Page,
+    rng: Optional[random.Random] = None,
+    speed_multiplier: float = 1.0,
+) -> None:
+    """
+    Smart Content-Aware Reading Heatmap Scrolling (Step 8).
+    - Traverses the page by identifying text blocks (<p>, <h2>, <h3>, <li>).
+    - Pauses dynamically according to character count.
+    - 30% chance of cursor reading follow.
+    - 18%–25% chance of smart scroll-back on dense sections.
+    - Uses hybrid navigation (75% eased mouse wheel, 25% keyboard Space/PageDown).
     """
     if rng is None:
         rng = random.Random()
@@ -282,57 +366,89 @@ async def scroll_page(
     if total <= 0:
         return
 
+    # Extract content anchors
+    anchors = await get_reading_anchors(page)
     current_y = await _safe_eval(page, "() => window.scrollY", 0)
+    anchor_idx = 0
 
     while current_y < total:
-        # 25% chance of keyboard scroll, 75% chance of mouse wheel scroll
+        # Identify next anchor below current viewport top
+        target_anchor = None
+        while anchor_idx < len(anchors):
+            if anchors[anchor_idx]["top"] > current_y + 40:
+                target_anchor = anchors[anchor_idx]
+                anchor_idx += 1
+                break
+            anchor_idx += 1
+
+        # 25% keyboard scroll, 75% mouse wheel scroll
         use_keyboard = rng.random() < 0.25
 
         if use_keyboard:
-            # Keyboard navigation: Spacebar, PageDown, or ArrowDown
             scrolled_dist = await keyboard_scroll(page, direction="down", rng=rng)
-            current_y = await _safe_eval(page, "() => window.scrollY", current_y + 100)
+            current_y = await _safe_eval(page, "() => window.scrollY", current_y + 120)
             if scrolled_dist <= 0:
-                # Fallback if key didn't move viewport
-                chunk = rng.randint(180, 520)
+                chunk = rng.randint(180, 480)
                 try:
                     await page.mouse.wheel(0, chunk)
                 except Exception:
                     break
                 current_y = min(current_y + chunk, total)
         else:
-            # Mouse wheel scroll with quadratic ease-out substeps
-            chunk = rng.randint(180, 520)
-            substeps = rng.randint(8, 18)
+            chunk = rng.randint(180, 480)
+            substeps = rng.randint(8, 16)
             for s in range(substeps):
                 t = (s + 1) / substeps
-                ease = 1 - (1 - t) ** 2  # ease-out quad
+                ease = 1 - (1 - t) ** 2
                 partial = int(chunk * ease / substeps)
                 if partial > 0:
                     try:
                         await page.mouse.wheel(0, partial)
                     except Exception:
                         break
-                await asyncio.sleep(rng.uniform(0.03, 0.09))
+                await asyncio.sleep(rng.uniform(0.02, 0.06))
             current_y = await _safe_eval(page, "() => window.scrollY", current_y + chunk)
 
-        # Natural reading dwell pause
-        pause = rng.uniform(1.2, 6.0)
+        # Dynamic reading dwell pause based on content in view
+        if target_anchor:
+            pause = calculate_reading_pause(target_anchor["char_count"], rng) * speed_multiplier
+            # 30% chance of cursor reading alignment
+            if rng.random() < 0.30:
+                try:
+                    await reading_cursor_follow(page, target_anchor, rng)
+                except Exception:
+                    pass
+        else:
+            pause = rng.uniform(1.2, 4.0) * speed_multiplier
+
         await asyncio.sleep(pause)
 
-        # 18% chance of a partial scroll-back (rereading)
-        if rng.random() < 0.18:
+        # 18%–25% chance of partial scroll-back (rereading)
+        if rng.random() < 0.20:
             back_key = rng.random() < 0.30
             if back_key:
                 await keyboard_scroll(page, direction="up", rng=rng)
             else:
-                back = rng.randint(60, 200)
+                back = rng.randint(60, 180)
                 try:
                     await page.mouse.wheel(0, -back)
                 except Exception:
                     pass
-            await asyncio.sleep(rng.uniform(0.5, 1.5))
+            await asyncio.sleep(rng.uniform(0.5, 1.4) * speed_multiplier)
             current_y = await _safe_eval(page, "() => window.scrollY", current_y)
+
+    # Terminal footer dwell (1.5s - 3.0s)
+    await asyncio.sleep(rng.uniform(1.5, 3.0) * speed_multiplier)
+
+
+async def scroll_page(
+    page: Page,
+    rng: Optional[random.Random] = None,
+) -> None:
+    """
+    Scroll through the page with Step 8 Smart Content-Aware Reading Heatmap.
+    """
+    await scroll_page_content_aware(page, rng=rng, speed_multiplier=1.0)
 
 
 async def idle_drift(

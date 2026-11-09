@@ -32,6 +32,7 @@
 | 26 | Multi-Target URL Distribution Pool and Dynamic Dashboard Routing | Step 5 upgrade: Added `target.urls` pool support with optional `url_weights` in `config.yaml` and `worker.select_target_url`, integrated multi-line URL pool input with live active target monitor in `ui.py`, eliminating unnatural single-URL traffic clustering across sessions |
 | 27 | Hybrid Keyboard Navigation & Wheel Scroll Simulation | Step 6 upgrade: Implemented `keyboard_scroll` in `human.py` with physical keydown/keyup hold durations (60ms–140ms) using Spacebar, PageDown, ArrowDown, and reverse rereading (ArrowUp/PageUp); mixed with mouse wheel scroll (25% keyboard / 75% wheel) to eliminate pure-wheel automation fingerprints |
 | 28 | WebAudio & AudioContext Oscillator Latency Stealth Patching | Step 7 upgrade: Implemented `AudioBuffer.prototype.getChannelData` with idempotent `WeakSet` tracking, `AudioContext.prototype.getOutputTimestamp` with monotonic timestamps and micro-jitter, and `AnalyserNode` frequency noise, all masked with native code prototypes; guarantees cross-proxy audio variance with intra-proxy digest stability, verified by Audit Check 13 |
+| 29 | Smart Content-Aware Reading Heatmap & Natural Scroll Mechanics | Step 8 upgrade: Implemented `get_reading_anchors()`, density-scaled `calculate_reading_pause()` (1.2s–6.5s), `reading_cursor_follow()`, and `scroll_page_content_aware()` with 20% re-reading scroll-backs and footer glance dwell, eliminating linear blind scroll patterns; verified by `tests/test_step8.py` |
 
 ## KNOWN GAPS
 
