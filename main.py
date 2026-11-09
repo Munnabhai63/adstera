@@ -62,6 +62,9 @@ def _diurnal_rate(cfg: dict) -> float:
 async def _session_loop(cfg: dict, pool: ProxyPool, playwright, browser) -> None:
     """
     Main session dispatch loop. Respects daily_cap, diurnal curve, and concurrency.
+    SCHED-1: Microsecond-precision RNG seed to prevent correlated concurrent sessions.
+    SCHED-2: Atomic in-flight counter to prevent daily cap overshoot.
+    SCHED-3: Exponential backoff on pool exhaustion (max 30 min).
     """
     daily_cap = cfg["scheduler"]["daily_cap"]
     jitter_s = cfg["scheduler"]["jitter_seconds"]
@@ -69,18 +72,28 @@ async def _session_loop(cfg: dict, pool: ProxyPool, playwright, browser) -> None
     sem = asyncio.Semaphore(concurrency)
 
     active_tasks: set[asyncio.Task] = set()
+    _in_flight: int = 0          # SCHED-2: atomic in-flight session counter
+    _exhaustion_count: int = 0   # SCHED-3: consecutive pool-exhausted events
 
     async def run_one(proxy) -> None:
-        rng = random.Random(int.from_bytes(proxy.fingerprint_seed[:4], "big") ^ int(time.time()))
+        nonlocal _in_flight
+        # SCHED-1: Microsecond seed XOR'd with object identity — unique per concurrent session
+        rng = random.Random(
+            int.from_bytes(proxy.fingerprint_seed[:4], "big")
+            ^ int(time.time() * 1_000_000)
+            ^ id(proxy)
+        )
         async with sem:
             await worker.run_session(playwright, browser, proxy, cfg, rng)
         pool.release(proxy)
+        _in_flight -= 1
 
     while not _SHUTDOWN.is_set():
-        # Daily cap check (from DB)
+        # SCHED-2: Atomic cap check — done_today + in_flight >= daily_cap → skip
         done_today = db.today()
-        if done_today >= daily_cap:
-            logger.info("Daily cap (%d) reached. Stopping.", daily_cap)
+        if done_today + _in_flight >= daily_cap:
+            logger.info("Daily cap (%d) reached (done=%d, in_flight=%d). Stopping.",
+                        daily_cap, done_today, _in_flight)
             break
 
         # Rate calculation
@@ -96,9 +109,17 @@ async def _session_loop(cfg: dict, pool: ProxyPool, playwright, browser) -> None
         # Try to acquire a proxy
         proxy = await pool.acquire()
         if proxy is None:
-            logger.info("Pool exhausted — sleeping 60s before retry")
-            await asyncio.sleep(60)
+            _exhaustion_count += 1
+            # SCHED-3: Exponential backoff — 60s, 120s, 240s, 480s … max 1800s (30 min)
+            wait = min(60 * (2 ** min(_exhaustion_count - 1, 4)), 1800)
+            logger.info("Pool exhausted (attempt %d) — sleeping %ds before retry",
+                        _exhaustion_count, wait)
+            await asyncio.sleep(wait)
             continue
+        _exhaustion_count = 0  # Reset on successful acquire
+
+        # SCHED-2: Increment in-flight counter before task starts
+        _in_flight += 1
 
         # Launch session task
         task = asyncio.create_task(run_one(proxy))

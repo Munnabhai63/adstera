@@ -70,6 +70,13 @@ class Proxy:
         return f"{self.host}:{self.port}"
 
     @property
+    def safe_id(self) -> str:
+        """Safe identifier — never includes username:password. Safe to log."""
+        if self.port <= 0:
+            return f"mobile:{self.host}"
+        return f"{self.host}:{self.port}"
+
+    @property
     def fingerprint_seed(self) -> bytes:
         return hashlib.sha256(self.proxy_id.encode()).digest()
 
@@ -189,10 +196,10 @@ async def _lookup_geo(proxy: Proxy, timeout: float = 8.0) -> GeoInfo:
                 locale=_locale_for_country(data.get("country", "US")),
                 asn_name=asn_name,
             )
-            logger.debug("Geo for %s: %s / %s / %s", proxy.proxy_id, geo.country, geo.city, geo.asn_name)
+            logger.debug("Geo for %s: %s / %s / %s", proxy.safe_id, geo.country, geo.city, geo.asn_name)
             return geo
     except Exception as exc:
-        logger.debug("Geo lookup failed for %s: %s — using fallback", proxy.proxy_id, exc)
+        logger.debug("Geo lookup failed for %s: %s — using fallback", proxy.safe_id, exc)
 
     return _fallback_geo(proxy.host)
 

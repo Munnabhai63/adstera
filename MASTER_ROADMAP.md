@@ -214,7 +214,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 **Files:** `db.py`
 **Why:** SQLite concurrent locks + UTC/IST bug daily cap break कर रहे हैं
 
-- [ ] **DB-1:** WAL mode enable (5 min fix)
+- [x] **DB-1:** WAL mode enable (5 min fix)
   ```python
   # db.py → _init_db() में add:
   con.execute("PRAGMA journal_mode=WAL")
@@ -223,20 +223,20 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   con.execute("PRAGMA busy_timeout=5000")
   ```
 
-- [ ] **DB-2:** UTC vs IST fix — timestamps consistent करो
+- [x] **DB-2:** UTC vs IST fix — timestamps consistent करो
   ```sql
   -- sessions table DDL में change करो:
   ts TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes'))
   ```
 
-- [ ] **DB-3:** Index add करो hot query columns पर
+- [x] **DB-3:** Index add करो hot query columns पर
   ```sql
   CREATE INDEX IF NOT EXISTS idx_sessions_ts ON sessions(ts);
   CREATE INDEX IF NOT EXISTS idx_sessions_domain_ts ON sessions(domain, ts);
   CREATE INDEX IF NOT EXISTS idx_sessions_proxy_ts ON sessions(proxy_id, ts);
   ```
 
-- [ ] **DB-4:** Test: `pytest tests/ -v` — all pass होने चाहिए
+- [x] **DB-4:** Test: `pytest tests/ -v` — all pass होने चाहिए
 
 **Completion Checkbox:** `[ ]`
 
@@ -246,16 +246,16 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 **Files:** `pool.py`, `.gitignore`
 **Why:** Proxy credentials logs में print हो सकते हैं
 
-- [ ] **SEC-1:** `Proxy.safe_id` property add करो `pool.py` में:
+- [x] **SEC-1:** `Proxy.safe_id` property add करो `pool.py` में:
   ```python
   @property
   def safe_id(self) -> str:
       return f"{self.host}:{self.port}"  # No username:password
   ```
 
-- [ ] **SEC-2:** सभी logger calls → `proxy.proxy_id` को `proxy.safe_id` से replace करो
+- [x] **SEC-2:** सभी logger calls → `proxy.proxy_id` को `proxy.safe_id` से replace करो
 
-- [ ] **SEC-3:** `.gitignore` verify — ये lines exist होनी चाहिए:
+- [x] **SEC-3:** `.gitignore` verify — ये lines exist होनी चाहिए:
   ```
   state/mahi_bridge/
   state/*.json
@@ -266,9 +266,9 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   reports/*.txt
   ```
 
-- [ ] **SEC-4:** `git status --short` run करो — कोई sensitive file staged तो नहीं?
+- [x] **SEC-4:** `git status --short` run करो — कोई sensitive file staged तो नहीं?
 
-- [ ] **SEC-5:** `state/mahi_bridge/cookies/` → verify gitignored है
+- [x] **SEC-5:** `state/mahi_bridge/cookies/` → verify gitignored है
 
 **Completion Checkbox:** `[ ]`
 
@@ -277,7 +277,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 ### ⚡ 1.3 — Scheduler Fixes
 **Files:** `main.py`
 
-- [ ] **SCHED-1:** RNG seed fix — microseconds precision:
+- [x] **SCHED-1:** RNG seed fix — microseconds precision:
   ```python
   rng = random.Random(
       int.from_bytes(proxy.fingerprint_seed[:4], "big")
@@ -286,18 +286,18 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   )
   ```
 
-- [ ] **SCHED-2:** Daily cap atomic check — in-flight sessions count करो
+- [x] **SCHED-2:** Daily cap atomic check — in-flight sessions count करो
   ```python
   # Global counter: _in_flight += 1 before session, -= 1 after
   # Check: done_today + _in_flight >= daily_cap → skip
   ```
 
-- [ ] **SCHED-3:** Pool exhaustion → exponential backoff:
+- [x] **SCHED-3:** Pool exhaustion → exponential backoff:
   ```python
   wait = min(60 * (2 ** min(exhaustion_count - 1, 4)), 1800)  # max 30 min
   ```
 
-- [ ] **SCHED-4:** Graceful shutdown → always write final `status` to DB:
+- [x] **SCHED-4:** Graceful shutdown → always write final `status` to DB:
   ```python
   # worker.py → try/finally block:
   finally:
@@ -312,9 +312,9 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 **Files:** `config.yaml`
 **Why:** Uniform CTR + same referrer = bot cluster fingerprint
 
-- [ ] **CFG-1:** `asiafilm.org` → domains list से REMOVE करो (critical!)
+- [x] **CFG-1:** `asiafilm.org` → domains list से REMOVE करो (critical!)
 
-- [ ] **CFG-2:** Per-domain CTR targets — अलग-अलग:
+- [x] **CFG-2:** Per-domain CTR targets — अलग-अलग:
   ```yaml
   domain_ctr_targets:
     loanraaj.com:    {target: 0.040, variance: 0.015}  # Finance = higher
@@ -329,7 +329,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
     tazarokda.com:   {target: 0.022, variance: 0.009}
   ```
 
-- [ ] **CFG-3:** Per-domain referrer mix — अलग-अलग:
+- [x] **CFG-3:** Per-domain referrer mix — अलग-अलग:
   ```yaml
   # Finance domains (loan): Google heavy
   loanraaj.com:  [Google:55%, YouTube:15%, Direct:30%]
@@ -341,7 +341,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   tazabhav.com:  [Google:60%, Direct:40%]
   ```
 
-- [ ] **CFG-4:** Publishing schedule offset (30 min per domain group)
+- [x] **CFG-4:** Publishing schedule offset (30 min per domain group)
 
 **Completion Checkbox:** `[ ]`
 

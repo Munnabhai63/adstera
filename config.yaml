@@ -46,51 +46,112 @@ target:
     url: https://loanraaj.com
     weight: 1.0
     target_cpm: 6.5
+    target_ctr: 0.040
+    ctr_variance: 0.015
+    referrer_weights:
+      google: 0.55
+      youtube: 0.15
+      direct: 0.30
   - domain: rechargetak.com
     niche: Mobile Recharge & Cashback Offers
     url: https://rechargetak.com
     weight: 1.0
     target_cpm: 4.5
+    target_ctr: 0.050
+    ctr_variance: 0.020
+    referrer_weights:
+      google: 0.40
+      telegram: 0.20
+      whatsapp: 0.15
+      direct: 0.25
   - domain: rechargepur.com
     niche: Bill Pay, UPI Deals & Rewards
     url: https://rechargepur.com
     weight: 1.0
     target_cpm: 4.5
+    target_ctr: 0.048
+    ctr_variance: 0.018
+    referrer_weights:
+      google: 0.40
+      telegram: 0.20
+      whatsapp: 0.15
+      direct: 0.25
   - domain: tazaloan.com
     niche: Instant Cash Loans & Salary Advance
     url: https://tazaloan.com
     weight: 1.0
     target_cpm: 7.5
+    target_ctr: 0.045
+    ctr_variance: 0.018
+    referrer_weights:
+      google: 0.55
+      youtube: 0.15
+      direct: 0.30
   - domain: loankiseva.com
     niche: MSME & Business Loan Schemes
     url: https://loankiseva.com
     weight: 1.0
     target_cpm: 6.0
+    target_ctr: 0.038
+    ctr_variance: 0.012
+    referrer_weights:
+      google: 0.58
+      youtube: 0.12
+      direct: 0.30
   - domain: karzseva.com
     niche: Debt Relief & Credit Repair
     url: https://karzseva.com
     weight: 1.0
     target_cpm: 8.5
+    target_ctr: 0.030
+    ctr_variance: 0.010
+    referrer_weights:
+      google: 0.60
+      youtube: 0.10
+      direct: 0.30
   - domain: loantau.com
     niche: Rural Credit & Gold Loans
     url: https://loantau.com
     weight: 1.0
     target_cpm: 5.5
+    target_ctr: 0.042
+    ctr_variance: 0.016
+    referrer_weights:
+      google: 0.55
+      youtube: 0.15
+      direct: 0.30
   - domain: tazabhav.com
     niche: Live Gold/Silver Rates & Financial Markets
     url: https://tazabhav.com
     weight: 1.0
     target_cpm: 5.5
+    target_ctr: 0.020
+    ctr_variance: 0.008
+    referrer_weights:
+      google: 0.60
+      direct: 0.40
   - domain: tazarokda.com
     niche: Stock Trading & Wealth Building
     url: https://tazarokda.com
     weight: 1.0
     target_cpm: 7.0
+    target_ctr: 0.022
+    ctr_variance: 0.009
+    referrer_weights:
+      google: 0.60
+      direct: 0.40
   - domain: rechargekar.com
     niche: DTH & Utility Wallet Cashbacks
     url: https://rechargekar.com
     weight: 1.0
     target_cpm: 4.5
+    target_ctr: 0.045
+    ctr_variance: 0.015
+    referrer_weights:
+      google: 0.42
+      telegram: 0.18
+      whatsapp: 0.15
+      direct: 0.25
 session:
   page_depth_min: 1
   page_depth_max: 3

@@ -448,6 +448,7 @@ async def run_session(
 
     context: BrowserContext | None = None
     t0 = time.time()
+    _session_logged = False  # SCHED-4: guard to ensure exactly-once DB write
 
     try:
         # Build context options
@@ -716,27 +717,54 @@ async def run_session(
                 await context.close()
             except Exception:
                 pass
+        # SCHED-4: Fallback DB write on CancelledError/SIGTERM — always log final status
+        if not _session_logged:
+            try:
+                result["dwell"] = max(result.get("dwell", 0.0), time.time() - t0)
+                result.setdefault("status", "cancelled")
+                db.log_session(
+                    proxy_id=result["proxy_id"],
+                    ua=result["ua"],
+                    referrer=result["referrer"],
+                    dwell=result["dwell"],
+                    pages=result["pages"],
+                    ad_clicks=result["ad_clicks"],
+                    impressions=result["impressions"],
+                    status=result["status"],
+                    domain=target_domain,
+                    error_reason=result.get("error_reason", "cancelled"),
+                    geo_country=result.get("geo_country", ""),
+                    geo_tier=result.get("geo_tier", ""),
+                    ad_network=result.get("ad_network", "adsterra"),
+                    variant_id=result.get("variant_id", "default"),
+                )
+                _session_logged = True
+                logger.debug("SCHED-4: Emergency DB write on cancelled session %s", result["proxy_id"])
+            except Exception as db_exc:
+                logger.error("SCHED-4: Emergency DB write failed: %s", db_exc)
 
     # Clamp dwell to configured bounds
     result["dwell"] = max(cfg["target"]["min_dwell"], result["dwell"])
 
-    # Log to DB
-    db.log_session(
-        proxy_id=result["proxy_id"],
-        ua=result["ua"],
-        referrer=result["referrer"],
-        dwell=result["dwell"],
-        pages=result["pages"],
-        ad_clicks=result["ad_clicks"],
-        impressions=result["impressions"],
-        status=result["status"],
-        domain=target_domain,
-        error_reason=result.get("error_reason", ""),
-        geo_country=result.get("geo_country", ""),
-        geo_tier=result.get("geo_tier", ""),
-        ad_network=result.get("ad_network", "adsterra"),
-        variant_id=result.get("variant_id", "default"),
-    )
+    # SCHED-4: Log to DB — _session_logged flag prevents double-write
+    if not _session_logged:
+        db.log_session(
+            proxy_id=result["proxy_id"],
+            ua=result["ua"],
+            referrer=result["referrer"],
+            dwell=result["dwell"],
+            pages=result["pages"],
+            ad_clicks=result["ad_clicks"],
+            impressions=result["impressions"],
+            status=result["status"],
+            domain=target_domain,
+            error_reason=result.get("error_reason", ""),
+            geo_country=result.get("geo_country", ""),
+            geo_tier=result.get("geo_tier", ""),
+            ad_network=result.get("ad_network", "adsterra"),
+            variant_id=result.get("variant_id", "default"),
+        )
+        _session_logged = True
 
     # Layer 4: Real-time Circuit Breaker evaluation & Telegram alert dispatch
     try:

@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     geo_tier    TEXT    DEFAULT '',
     ad_network  TEXT    DEFAULT 'adsterra',
     variant_id  TEXT    DEFAULT 'default',
-    ts          TEXT    NOT NULL DEFAULT (datetime('now'))
+    ts          TEXT    NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes'))
 );
 
 CREATE TABLE IF NOT EXISTS daily_stats (
@@ -153,16 +153,31 @@ def _conn():
 
 
 def init() -> None:
-    """Create tables if they don't exist, enable WAL mode, and run incremental schema migrations."""
+    """Create tables if they don't exist, enable WAL mode (DB-1), IST timestamps (DB-2),
+    and indexes (DB-3). Run incremental schema migrations."""
     with _conn() as con:
-        # Enable Write-Ahead Logging (WAL) for high-concurrency read/write
-        try:
-            con.execute("PRAGMA journal_mode=WAL;")
-            con.execute("PRAGMA synchronous=NORMAL;")
-        except Exception:
-            pass
+        # DB-1: Full WAL + performance PRAGMAs — no more lock errors at concurrency=6
+        con.execute("PRAGMA journal_mode=WAL")
+        con.execute("PRAGMA synchronous=NORMAL")
+        con.execute("PRAGMA cache_size=10000")
+        con.execute("PRAGMA busy_timeout=5000")
+        con.execute("PRAGMA temp_store=MEMORY")
+
         con.executescript(_DDL)
-        # Incremental migration: Ensure 'domain' column exists on legacy sessions table
+
+        # DB-3: Indexes on hot query columns — fast queries at scale
+        con.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_sessions_ts
+                ON sessions(ts);
+            CREATE INDEX IF NOT EXISTS idx_sessions_domain_ts
+                ON sessions(domain, ts);
+            CREATE INDEX IF NOT EXISTS idx_sessions_proxy_ts
+                ON sessions(proxy_id, ts);
+            CREATE INDEX IF NOT EXISTS idx_sessions_status
+                ON sessions(status);
+        """)
+
+        # Incremental migration: Ensure columns exist on legacy sessions table
         cur = con.execute("PRAGMA table_info(sessions)")
         cols = [c[1] for c in cur.fetchall()]
         if "domain" not in cols:
@@ -183,7 +198,7 @@ def init() -> None:
         if "variant_id" not in cols:
             con.execute("ALTER TABLE sessions ADD COLUMN variant_id TEXT DEFAULT 'default'")
             logger.info("Migrated sessions table: added 'variant_id' column.")
-    logger.debug("DB initialised at %s", _DB_PATH)
+    logger.debug("DB initialised at %s (WAL+IST+indexed)", _DB_PATH)
 
 
 def log_push_event(
