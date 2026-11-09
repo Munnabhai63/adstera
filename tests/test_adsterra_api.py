@@ -1,0 +1,86 @@
+"""
+tests/test_adsterra_api.py — Verification suite for Pillar 1 (Adsterra API Client & Reconciliation).
+"""
+
+import pytest
+import sqlite3
+import datetime
+from adsterra_api import AdsterraApiClient
+import db
+
+
+@pytest.fixture(autouse=True)
+def init_test_db():
+    db.init()
+    yield
+
+
+def test_client_initialization_defaults():
+    client = AdsterraApiClient(api_key="")
+    assert client.is_mock_mode() is True
+    assert len(client.configured_domains) >= 1
+    assert "loanraaj.com" in client.configured_domains
+
+
+def test_mock_stats_generation():
+    client = AdsterraApiClient(api_key="mock_test_key")
+    stats = client._generate_mock_stats("2026-11-09", "2026-11-09")
+    
+    assert stats["status"] == "ok"
+    assert len(stats["items"]) == len(client.configured_domains)
+
+    for item in stats["items"]:
+        assert item["impressions"] > 0
+        assert item["clicks"] > 0
+        assert 3.0 <= item["ctr"] <= 6.0
+        assert item["cpm"] >= 4.50
+        assert item["revenue"] > 0.0
+
+
+def test_sync_and_reconciliation_persistence():
+    client = AdsterraApiClient()
+    today_str = datetime.date.today().isoformat()
+    reconciled = client.sync_now(force_mock=True)
+
+    assert len(reconciled) == len(client.configured_domains)
+    first = reconciled[0]
+    assert "sync_id" in first
+    assert first["sync_id"] > 0
+    assert first["domain"] in client.configured_domains
+    assert first["status"] in ("ALIGNED", "DISCREPANCY_DETECTED")
+
+    # Verify directly from SQLite table
+    db_rows = db.get_latest_adsterra_sync(first["domain"], limit=5)
+    assert len(db_rows) >= 1
+    assert db_rows[0]["domain"] == first["domain"]
+    assert db_rows[0]["api_revenue"] == first["api_revenue"]
+
+
+def test_discrepancy_calculation():
+    # Setup local stats in db
+    test_dom = "tazaloan.com"
+    today_str = datetime.date.today().isoformat()
+
+    with db._conn() as con:
+        con.execute(
+            """
+            INSERT OR REPLACE INTO domain_stats (domain, date, sessions, ad_clicks, impressions)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (test_dom, today_str, 150, 6, 160),
+        )
+
+    client = AdsterraApiClient()
+    reconciled = client.sync_now(force_mock=True)
+    taza_rec = next(r for r in reconciled if r["domain"] == test_dom)
+
+    # Discrepancy = (API - Local) / Local * 100
+    expected_disc = round(((taza_rec["api_impressions"] - 160) / 160) * 100.0, 2)
+    assert taza_rec["discrepancy_pct"] == expected_disc
+    assert taza_rec["local_impressions"] == 160
+
+
+def test_custom_api_key_override():
+    client = AdsterraApiClient(api_key="real_production_token_123456789")
+    assert client.api_key == "real_production_token_123456789"
+    assert client.is_mock_mode() is False

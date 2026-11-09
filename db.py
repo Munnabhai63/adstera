@@ -42,6 +42,20 @@ CREATE TABLE IF NOT EXISTS domain_stats (
     impressions INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (domain, date)
 );
+
+CREATE TABLE IF NOT EXISTS adsterra_api_sync (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain            TEXT NOT NULL,
+    date              TEXT NOT NULL,
+    api_impressions   INTEGER NOT NULL,
+    api_clicks        INTEGER NOT NULL,
+    api_ctr           REAL NOT NULL,
+    api_cpm           REAL NOT NULL,
+    api_revenue       REAL NOT NULL,
+    local_impressions INTEGER NOT NULL,
+    discrepancy_pct   REAL NOT NULL,
+    synced_at         TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -366,5 +380,64 @@ def export_stats_csv(filepath: str = "stats.csv", cpm_rate: float = 2.50) -> str
             f"${metrics['revenue']:.2f}",
         ])
     return str(target_file)
+
+
+def record_adsterra_sync(
+    domain: str,
+    date: str,
+    api_impressions: int,
+    api_clicks: int,
+    api_ctr: float,
+    api_cpm: float,
+    api_revenue: float,
+    local_impressions: int,
+    discrepancy_pct: float,
+) -> int:
+    """Record an Adsterra API sync row comparing API data to local stats."""
+    with _conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO adsterra_api_sync (
+                domain, date, api_impressions, api_clicks, api_ctr, api_cpm,
+                api_revenue, local_impressions, discrepancy_pct
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                domain,
+                date,
+                int(api_impressions),
+                int(api_clicks),
+                float(api_ctr),
+                float(api_cpm),
+                float(api_revenue),
+                int(local_impressions),
+                float(discrepancy_pct),
+            ),
+        )
+        return int(cur.lastrowid)
+
+
+def get_latest_adsterra_sync(domain: str | None = None, limit: int = 20) -> list[dict]:
+    """Retrieve the most recent Adsterra API sync reconciliation rows."""
+    with _conn() as con:
+        if domain:
+            rows = con.execute(
+                """
+                SELECT * FROM adsterra_api_sync
+                WHERE domain = ?
+                ORDER BY id DESC LIMIT ?
+                """,
+                (domain, limit),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT * FROM adsterra_api_sync
+                ORDER BY id DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
 
 

@@ -777,6 +777,39 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Pillar 1: Adsterra Real-Time Stats API Sync & Reconciliation Card -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span><span>📡</span> Pillar 1: Adsterra Real-Time Stats API Sync & Audit</span>
+      <div>
+        <button id="btnSyncAdsterra" class="btn btn-secondary" onclick="syncAdsterraApi()" style="padding: 4px 12px; font-size: 0.85rem;">🔄 Sync Adsterra API</button>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
+      Direct integration with Adsterra Publisher Stats API (<code>https://api3.adsterratools.com/v1/statistic.json</code>) reconciling live API impressions &amp; clicks against local database counts.
+    </div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Date</th>
+            <th>API Imps</th>
+            <th>API Clicks</th>
+            <th>API CTR</th>
+            <th>API eCPM</th>
+            <th>API Revenue</th>
+            <th>Local Imps</th>
+            <th>Discrepancy</th>
+          </tr>
+        </thead>
+        <tbody id="adsterraSyncTbody">
+          <tr><td colspan="9" style="text-align: center; color: var(--muted);">Click "Sync Adsterra API" to fetch latest reconciliation data...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Unlimited Accounts & Warmed Cookie Pool Card (MD Spec 3 & 4) -->
   <div class="card">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -1000,6 +1033,11 @@ HTML_PAGE = """<!DOCTYPE html>
         }).join('');
       } else if (accTbody) {
         accTbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--muted);">No accounts loaded yet</td></tr>';
+      }
+
+      // Update Adsterra API sync table
+      if (data.adsterra_sync && data.adsterra_sync.length > 0) {
+        renderAdsterraSync(data.adsterra_sync);
       }
 
       // Update sessions table
@@ -1363,6 +1401,48 @@ HTML_PAGE = """<!DOCTYPE html>
     }
   }
 
+  async function syncAdsterraApi() {
+    const btn = document.getElementById('btnSyncAdsterra');
+    if (btn) btn.innerText = '⏳ Syncing...';
+    try {
+      const res = await fetch('/api/adsterra/sync', { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        renderAdsterraSync(data.records);
+        showToast('Adsterra API Synced: ' + data.synced_count + ' domains reconciled!');
+      } else {
+        alert('Adsterra Sync error: ' + (data.error || 'Unknown'));
+      }
+    } catch (e) {
+      alert('Network error syncing Adsterra API: ' + e);
+    } finally {
+      if (btn) btn.innerText = '🔄 Sync Adsterra API';
+    }
+  }
+
+  function renderAdsterraSync(records) {
+    const tbody = document.getElementById('adsterraSyncTbody');
+    if (!tbody || !records || records.length === 0) return;
+    tbody.innerHTML = records.map(r => {
+      const disc = r.discrepancy_pct || 0;
+      const isOk = Math.abs(disc) < 15.0;
+      const discColor = isOk ? '#34d399' : '#fbbf24';
+      return `
+        <tr>
+          <td><strong style="color: #f8fafc;">${r.domain}</strong></td>
+          <td>${r.date}</td>
+          <td>${r.api_impressions}</td>
+          <td><strong>${r.api_clicks}</strong></td>
+          <td><span style="color: #38bdf8;">${r.api_ctr.toFixed(2)}%</span></td>
+          <td>$${r.api_cpm.toFixed(2)}</td>
+          <td><strong style="color: #34d399;">$${r.api_revenue.toFixed(3)}</strong></td>
+          <td>${r.local_impressions}</td>
+          <td><span style="font-weight: 600; color: ${discColor};">${disc > 0 ? '+' : ''}${disc.toFixed(1)}%</span></td>
+        </tr>
+      `;
+    }).join('');
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
@@ -1469,9 +1549,17 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "ua_stats": ua_provider.get_stats(),
                 "active_ua": read_active_ua(),
                 "recent_sessions": db.last_sessions(20),
+                "adsterra_sync": db.get_latest_adsterra_sync(limit=10),
                 "logs": RUNNER.get_logs(),
             }
             self._send_json(status_data)
+            return
+
+        if path == "/api/adsterra/sync":
+            from adsterra_api import AdsterraApiClient
+            client = AdsterraApiClient()
+            records = client.sync_now()
+            self._send_json({"status": "ok", "synced_count": len(records), "records": records})
             return
 
         if path == "/api/accounts":
@@ -1537,6 +1625,16 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": True, "account": acc.to_dict()})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/adsterra/sync":
+            try:
+                from adsterra_api import AdsterraApiClient
+                client = AdsterraApiClient()
+                records = client.sync_now()
+                self._send_json({"status": "ok", "synced_count": len(records), "records": records})
+            except Exception as e:
+                self._send_json({"status": "error", "error": str(e)}, 500)
             return
 
         if path == "/api/config":
