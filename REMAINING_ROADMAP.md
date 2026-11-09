@@ -142,7 +142,7 @@
 7. Check Telegram — you should receive a test message
 
 **Expected Outcome:** Live Telegram alerts for CTR warnings, revenue milestones, proxy pool alerts
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified live against user's real bot `@Liveadsterabot` with test alert and heartbeat HTTP 200 OK)
 
 ---
 

@@ -927,7 +927,7 @@ HTML_PAGE = """<!DOCTYPE html>
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
       <span>📱 Pillar 4: 24/7 Telegram Revenue & Circuit Breaker Bot</span>
       <div style="display: flex; gap: 8px; align-items: center;">
-        <span id="telegramBadge" style="font-size: 11px; background: rgba(34, 197, 94, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3);">@adsterra_domain_alerts_bot</span>
+        <span id="telegramBadge" style="font-size: 11px; background: rgba(34, 197, 94, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3);">@Liveadsterabot</span>
         <button id="btnTgTest" class="btn btn-secondary" onclick="sendTelegramTestAlert()" style="padding: 4px 10px; font-size: 11px;">⚡ Send Test Ping</button>
         <button id="btnTgHeartbeat" class="btn btn-secondary" onclick="sendTelegramHeartbeat()" style="padding: 4px 10px; font-size: 11px;">📊 Push Heartbeat</button>
       </div>
@@ -2406,9 +2406,27 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
 # ── Entrypoint ──────────────────────────────────────────────────────────────────
 
+def _start_background_sync_worker() -> None:
+    """Daemon thread that auto-syncs official Adsterra Stats API every 15 minutes."""
+    import threading
+    def _loop():
+        while True:
+            time.sleep(900)  # 15 minutes
+            try:
+                from adsterra_api import AdsterraApiClient
+                client = AdsterraApiClient()
+                if not client.is_mock_mode():
+                    client.sync_now()
+            except Exception:
+                pass
+    t = threading.Thread(target=_loop, daemon=True, name="AdsterraApiAutoSync")
+    t.start()
+
+
 def run_server(port: int = 5050, host: str = "127.0.0.1") -> None:
     server_address = (host, port)
     httpd = ThreadingHTTPServer(server_address, UIRequestHandler)
+    _start_background_sync_worker()
     print("\n" + "="*60)
     print(f">> QA Control Dashboard running at: http://{host}:{port}")
     print("="*60 + "\n")
