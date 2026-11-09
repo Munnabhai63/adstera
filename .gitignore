@@ -9,4 +9,7 @@ profiles/
 bin/
 .pytest_cache/
 stats.csv
+traces/
+scratch/
+telegram_link.py
 

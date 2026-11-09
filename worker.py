@@ -24,6 +24,7 @@ import nav
 import persist
 from pool import Proxy
 import push_manager as push_mod
+import session_tracer as tracer_mod
 
 logger = logging.getLogger(__name__)
 
@@ -439,6 +440,10 @@ async def run_session(
 
         context = await browser.new_context(**context_kwargs)
 
+        # Step 5.1: Start session trace recording (only saves on degraded status)
+        tracer = tracer_mod.build_from_config(cfg, proxy.proxy_id)
+        await tracer.start(context)
+
         # Restore cookies for return visits
         is_return = rng.random() < cfg["session"]["return_visit_prob"]
         if is_return and persist.has_state(proxy.proxy_id):
@@ -657,7 +662,14 @@ async def run_session(
         result["dwell"] = max(result["dwell"], time.time() - t0)
     finally:
         _record_active_ua(proxy.proxy_id, fp, active=False)
+        # Step 5.1: Stop trace — saves file only if session was degraded
         if context:
+            try:
+                saved_trace = await tracer.stop(context, status=result.get("status", "ok"))
+                if saved_trace:
+                    logger.warning("Degraded session trace saved → %s", saved_trace.name)
+            except Exception:
+                pass
             try:
                 await context.close()
             except Exception:
