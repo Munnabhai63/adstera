@@ -123,6 +123,18 @@ CREATE TABLE IF NOT EXISTS cpa_conversions (
     status          TEXT    NOT NULL DEFAULT 'submitted',
     ts              TEXT    DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS competitor_intel (
+    id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+    url                 TEXT    NOT NULL,
+    domain              TEXT    NOT NULL,
+    detected_networks   TEXT    NOT NULL,
+    ad_unit_count       INTEGER NOT NULL DEFAULT 0,
+    word_count          INTEGER NOT NULL DEFAULT 0,
+    ad_density          REAL    NOT NULL DEFAULT 0.0,
+    top_keywords        TEXT    NOT NULL DEFAULT '[]',
+    scanned_at          TEXT    NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -963,6 +975,71 @@ def get_daily_revenue_history(days: int = 30, fallback_cpm: float = 2.50) -> lis
             "total_revenue": round(ad_rev + cpa_rev, 4),
         })
     return history
+
+
+def record_competitor_intel(
+    url: str,
+    domain: str,
+    detected_networks: list[str] | str,
+    ad_unit_count: int,
+    word_count: int,
+    ad_density: float,
+    top_keywords: list[str] | str,
+) -> int:
+    """Record competitor ad intelligence analysis into SQLite."""
+    import json
+    init()
+    net_str = json.dumps(detected_networks) if isinstance(detected_networks, list) else str(detected_networks)
+    kw_str = json.dumps(top_keywords) if isinstance(top_keywords, list) else str(top_keywords)
+
+    with _conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO competitor_intel (url, domain, detected_networks, ad_unit_count, word_count, ad_density, top_keywords, scanned_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """,
+            (url, domain, net_str, ad_unit_count, word_count, ad_density, kw_str),
+        )
+        return int(cur.lastrowid or 0)
+
+
+def get_competitor_intel(limit: int = 10) -> list[dict]:
+    """Retrieve recent competitor intelligence records."""
+    import json
+    init()
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT id, url, domain, detected_networks, ad_unit_count, word_count, ad_density, top_keywords, scanned_at
+            FROM competitor_intel
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+
+    out = []
+    for r in rows:
+        try:
+            nets = json.loads(r["detected_networks"])
+        except Exception:
+            nets = [r["detected_networks"]]
+        try:
+            kws = json.loads(r["top_keywords"])
+        except Exception:
+            kws = [r["top_keywords"]]
+        out.append({
+            "id": r["id"],
+            "url": r["url"],
+            "domain": r["domain"],
+            "detected_networks": nets,
+            "ad_unit_count": r["ad_unit_count"],
+            "word_count": r["word_count"],
+            "ad_density": round(float(r["ad_density"] or 0.0), 2),
+            "top_keywords": kws,
+            "scanned_at": r["scanned_at"],
+        })
+    return out
 
 
 
