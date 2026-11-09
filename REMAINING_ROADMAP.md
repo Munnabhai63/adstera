@@ -543,7 +543,7 @@
 4. Dashboard shows real-time eCPM comparison chart
 
 **Expected Outcome:** Traffic automatically shifts to best-paying domain, revenue +20-40%
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: ecpm_feedback.py with 60/40 rebalancing, ecpm_history in db.py, geo_router integration, tests/test_ecpm_feedback.py passing 5/5)
 
 ---
 

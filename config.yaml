@@ -214,3 +214,8 @@ geo_routing:
   - https://rechargepur.com
   - https://rechargekar.com
   - https://loantau.com
+
+ecpm_feedback:
+  enabled: true
+  top_earner_share: 0.60
+  sync_interval_min: 15

@@ -41,6 +41,22 @@ def classify_geo_tier(country: Optional[str], custom_tier1: Optional[list[str]] 
         return "tier3"
 
 
+def _get_dynamic_weights_for_urls(urls: list[str]) -> list[float]:
+    from urllib.parse import urlparse
+    try:
+        from ecpm_feedback import EcpmFeedbackEngine
+        engine = EcpmFeedbackEngine()
+        weights_map = engine.get_active_weights()
+    except Exception:
+        weights_map = {}
+
+    weights = []
+    for u in urls:
+        host = urlparse(u).netloc.split(":")[0].lower().strip()
+        weights.append(weights_map.get(host, 1.0))
+    return weights
+
+
 def select_geo_target(
     cfg: dict,
     proxy_country: Optional[str],
@@ -48,7 +64,7 @@ def select_geo_target(
 ) -> tuple[str, str]:
     """
     Select target URL and return (url, tier).
-    If geo_routing is enabled, selects from tier-specific targets.
+    If geo_routing is enabled, selects from tier-specific targets using dynamic eCPM weights.
     Otherwise falls back to standard target pool.
     """
     geo_cfg = cfg.get("geo_routing", {})
@@ -66,7 +82,8 @@ def select_geo_target(
     if pool and isinstance(pool, list):
         clean_pool = [u.strip() for u in pool if isinstance(u, str) and u.strip()]
         if clean_pool:
-            selected_url = rng.choice(clean_pool)
+            weights = _get_dynamic_weights_for_urls(clean_pool)
+            selected_url = rng.choices(clean_pool, weights=weights, k=1)[0]
             logger.info(
                 "GeoRouter: Routed [%s (%s)] -> %s",
                 proxy_country or "UNKNOWN",
@@ -88,7 +105,9 @@ def _select_standard_target(cfg: dict, rng: random.Random) -> str:
             weights = target_cfg.get("url_weights")
             if weights and isinstance(weights, list) and len(weights) == len(clean_pool):
                 return rng.choices(clean_pool, weights=weights, k=1)[0]
-            return rng.choice(clean_pool)
+            # Use dynamic eCPM weights if no static weights provided
+            dyn_weights = _get_dynamic_weights_for_urls(clean_pool)
+            return rng.choices(clean_pool, weights=dyn_weights, k=1)[0]
     return target_cfg.get("url", "https://loanraaj.com")
 
 

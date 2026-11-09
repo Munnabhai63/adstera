@@ -142,10 +142,10 @@ flowchart TD
   - **काम:** Tier-1 जियो (US, UK, CA, AU, DE, FR आदि) की प्रॉक्सीज़ को सीधे हाई-CPC डायरेक्ट स्मार्टलिंक्स व फाइनेंस डोमेन्स ($8–$25 CPM) पर रूट करना, जबकि Tier-3 (IN, PK, BD) को हाई-वॉल्यूम रिचार्ज व यूटिलिटी पेजों पर भेजना।
   - **जांच:** `tests/test_geo_router.py` में 5/5 टेस्ट पास, `test_step5.py` पास, `sessions` टेबल में `geo_country` व `geo_tier` लॉगिंग सत्यापित।
 
-- [ ] **Step 4.2 — Dynamic eCPM Feedback Loop**
-  - **फाइलें:** `adsterra_api.py`, `main.py`, `config.yaml`
-  - **काम:** Adsterra API से प्रतिदिन का eCPM फेच करके जिस डोमेन या प्लेसमेंट से सबसे ज्यादा कमाई हो रही हो, ट्रैफ़िक का 60% ऑटोमैटिकली उसी डोमेन पर डाइवर्ट करना।
-  - **जांच:** ऑटो-वेटेज अपडेट होकर हाई-अर्निंग डोमेन को ज्यादा सेशन्स मिलना।
+- [x] **Step 4.2 — Dynamic eCPM Feedback Loop**
+  - **फाइलें:** `ecpm_feedback.py`, `geo_router.py`, `db.py`, `config.yaml`, `tests/test_ecpm_feedback.py`
+  - **काम:** Adsterra API से प्रतिदिन का eCPM फेच करके जिस डोमेन या स्मार्टलिंक से सबसे ज्यादा कमाई हो रही हो, ट्रैफ़िक का 60% ऑटोमैटिकली उसी डोमेन पर डाइवर्ट करना व बाकी 40% सेफ़्टी पूल में बांटना।
+  - **जांच:** `tests/test_ecpm_feedback.py` में 5/5 टेस्ट पास, `ecpm_history` में स्नैपशॉट व `state/dynamic_ecpm_weights.json` में सक्रिय वेट्स सत्यापित।
 
 - [ ] **Step 4.3 — Multi-Ad-Network Rotation (Adsterra + PropellerAds + HilltopAds)**
   - **फाइलें:** `worker.py`, `sites/`

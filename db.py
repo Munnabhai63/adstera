@@ -82,6 +82,16 @@ CREATE TABLE IF NOT EXISTS alert_logs (
     sent_live   INTEGER NOT NULL DEFAULT 0,
     ts          TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS ecpm_history (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain      TEXT NOT NULL,
+    ecpm        REAL NOT NULL DEFAULT 0.0,
+    impressions INTEGER NOT NULL DEFAULT 0,
+    revenue     REAL NOT NULL DEFAULT 0.0,
+    weight      REAL NOT NULL DEFAULT 1.0,
+    synced_at   TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -603,6 +613,40 @@ def get_alert_summary_today() -> dict:
         "SUCCESS": counts.get("SUCCESS", 0),
         "total": sum(counts.values()),
     }
+
+
+def record_ecpm_snapshot(snapshots: list[dict]) -> None:
+    """Insert domain eCPM and weight snapshots into ecpm_history (Step 4.2)."""
+    with _conn() as con:
+        for s in snapshots:
+            con.execute(
+                """
+                INSERT INTO ecpm_history (domain, ecpm, impressions, revenue, weight)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    s.get("domain", "").lower().strip(),
+                    float(s.get("ecpm", 0.0)),
+                    int(s.get("impressions", 0)),
+                    float(s.get("revenue", 0.0)),
+                    float(s.get("weight", 1.0)),
+                ),
+            )
+
+
+def get_latest_ecpm_weights() -> dict[str, float]:
+    """Return dictionary of {domain: weight} from the most recent ecpm_history entries."""
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT domain, weight FROM ecpm_history
+            WHERE id IN (
+                SELECT MAX(id) FROM ecpm_history GROUP BY domain
+            )
+            """
+        ).fetchall()
+    return {r["domain"]: float(r["weight"]) for r in rows}
+
 
 
 
