@@ -548,6 +548,13 @@ async def run_session(
         domain=target_domain,
     )
 
+    # Layer 4: Real-time Circuit Breaker evaluation & Telegram alert dispatch
+    try:
+        from alert_bot import check_and_trigger_circuit_breaker
+        check_and_trigger_circuit_breaker(target_domain)
+    except Exception:
+        pass
+
     try:
         cpm_rate = float(cfg.get("target", {}).get("cpm_rate", 2.50))
         db.export_stats_csv("stats.csv", cpm_rate)

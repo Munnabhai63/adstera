@@ -69,6 +69,16 @@ CREATE TABLE IF NOT EXISTS lead_conversions (
     bounty_est      REAL NOT NULL DEFAULT 2.50,
     ts              TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS alert_logs (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    alert_type  TEXT NOT NULL,
+    level       TEXT NOT NULL,
+    domain      TEXT DEFAULT '',
+    message     TEXT NOT NULL,
+    sent_live   INTEGER NOT NULL DEFAULT 0,
+    ts          TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -525,6 +535,60 @@ def today_leads_summary() -> dict:
         "today_leads": total,
         "estimated_bounty": round(bounty, 2),
     }
+
+
+def record_alert_log(
+    alert_type: str,
+    level: str,
+    message: str,
+    domain: str = "",
+    sent_live: bool = False,
+) -> int:
+    """Record an alert notification event in alert_logs."""
+    with _conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO alert_logs (alert_type, level, domain, message, sent_live)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (alert_type, level, domain, message, 1 if sent_live else 0),
+        )
+        return int(cur.lastrowid)
+
+
+def get_recent_alerts(limit: int = 25) -> list[dict]:
+    """Retrieve recent alert notifications."""
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT * FROM alert_logs
+            ORDER BY id DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_alert_summary_today() -> dict:
+    """Return count of alerts by level for today."""
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT level, COUNT(*) as count
+            FROM alert_logs
+            WHERE date(ts) = date('now')
+            GROUP BY level
+            """
+        ).fetchall()
+    counts = {r["level"]: r["count"] for r in rows}
+    return {
+        "INFO": counts.get("INFO", 0),
+        "WARNING": counts.get("WARNING", 0),
+        "CRITICAL": counts.get("CRITICAL", 0),
+        "SUCCESS": counts.get("SUCCESS", 0),
+        "total": sum(counts.values()),
+    }
+
 
 
 

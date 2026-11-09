@@ -872,6 +872,58 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Pillar 4: 24/7 Telegram Live Revenue & Circuit Breaker Bot Card -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>📱 Pillar 4: 24/7 Telegram Revenue & Circuit Breaker Bot</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="telegramBadge" style="font-size: 11px; background: rgba(34, 197, 94, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3);">@adsterra_domain_alerts_bot</span>
+        <button id="btnTgTest" class="btn btn-secondary" onclick="sendTelegramTestAlert()" style="padding: 4px 10px; font-size: 11px;">⚡ Send Test Ping</button>
+        <button id="btnTgHeartbeat" class="btn btn-secondary" onclick="sendTelegramHeartbeat()" style="padding: 4px 10px; font-size: 11px;">📊 Push Heartbeat</button>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
+      Autonomous push notification agent delivering 2-hour multi-domain yield heartbeats, instant CTR circuit breaker trips (4.4% warning / 5.0% emergency), and CPL lead bounties straight to your Telegram phone.
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px;">
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Alerts Today</div>
+        <div id="tgTotalAlerts" style="font-size: 1.1rem; font-weight: 700; color: #38bdf8;">0</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Heartbeats</div>
+        <div id="tgInfoAlerts" style="font-size: 1.1rem; font-weight: 700; color: #4ade80;">0</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">CTR Warnings (≥4.4%)</div>
+        <div id="tgWarnAlerts" style="font-size: 1.1rem; font-weight: 700; color: #facc15;">0</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Emergencies (≥5.0%)</div>
+        <div id="tgCritAlerts" style="font-size: 1.1rem; font-weight: 700; color: #f87171;">0</div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Type</th>
+            <th>Level</th>
+            <th>Domain</th>
+            <th>Notification Message Preview</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="telegramTbody">
+          <tr><td colspan="6" style="text-align: center; color: var(--muted);">No alerts dispatched yet today...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Unlimited Accounts & Warmed Cookie Pool Card (MD Spec 3 & 4) -->
   <div class="card">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -1576,11 +1628,105 @@ HTML_PAGE = """<!DOCTYPE html>
     `).join('');
   }
 
+  async function fetchTelegramStatus() {
+    try {
+      const res = await fetch('/api/telegram/status');
+      const data = await res.json();
+      if (data.success) {
+        const badge = document.getElementById('telegramBadge');
+        if (badge) {
+          if (data.configured) {
+            badge.style.background = 'rgba(34, 197, 94, 0.2)';
+            badge.style.color = '#4ade80';
+            badge.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+            badge.innerText = `🟢 Live: @${data.bot_username}`;
+          } else {
+            badge.style.background = 'rgba(250, 204, 21, 0.15)';
+            badge.style.color = '#facc15';
+            badge.style.borderColor = 'rgba(250, 204, 21, 0.3)';
+            badge.innerText = `🟡 Standby Mode: @${data.bot_username}`;
+          }
+        }
+        if (data.summary) {
+          const totEl = document.getElementById('tgTotalAlerts');
+          const infEl = document.getElementById('tgInfoAlerts');
+          const wrnEl = document.getElementById('tgWarnAlerts');
+          const crtEl = document.getElementById('tgCritAlerts');
+          if (totEl) totEl.innerText = data.summary.total || 0;
+          if (infEl) infEl.innerText = (data.summary.INFO || 0) + (data.summary.SUCCESS || 0);
+          if (wrnEl) wrnEl.innerText = data.summary.WARNING || 0;
+          if (crtEl) crtEl.innerText = data.summary.CRITICAL || 0;
+        }
+        renderTelegramAlerts(data.recent_alerts || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function renderTelegramAlerts(alerts) {
+    const tbody = document.getElementById('telegramTbody');
+    if (!tbody) return;
+    if (alerts.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--muted);">No alerts dispatched yet today...</td></tr>';
+      return;
+    }
+    tbody.innerHTML = alerts.map(a => {
+      let levelColor = '#4ade80';
+      if (a.level === 'WARNING') levelColor = '#facc15';
+      if (a.level === 'CRITICAL') levelColor = '#f87171';
+      const cleanMsg = (a.message || '').replace(/<[^>]*>?/gm, '').substring(0, 75) + '…';
+      const statusBadge = a.sent_live ? '<span class="status-badge status-ok">LIVE SENT</span>' : '<span class="status-badge" style="background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid rgba(148, 163, 184, 0.3);">STANDBY LOG</span>';
+      return `
+        <tr>
+          <td style="font-size: 11px; color: var(--muted);">${a.ts}</td>
+          <td><strong style="color: #38bdf8;">${a.alert_type}</strong></td>
+          <td><span style="font-weight: 700; color: ${levelColor};">${a.level}</span></td>
+          <td><code>${a.domain || 'ALL FLEET'}</code></td>
+          <td style="font-size: 11px; color: #f1f5f9;">${cleanMsg}</td>
+          <td>${statusBadge}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function sendTelegramTestAlert() {
+    const btn = document.getElementById('btnTgTest');
+    if (btn) btn.innerText = '⏳ Sending…';
+    try {
+      const res = await fetch('/api/telegram/test', { method: 'POST' });
+      const data = await res.json();
+      await fetchTelegramStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '⚡ Send Test Ping';
+    }
+  }
+
+  async function sendTelegramHeartbeat() {
+    const btn = document.getElementById('btnTgHeartbeat');
+    if (btn) btn.innerText = '⏳ Pushing…';
+    try {
+      const res = await fetch('/api/telegram/heartbeat', { method: 'POST' });
+      const data = await res.json();
+      await fetchTelegramStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '📊 Push Heartbeat';
+    }
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
   previewSerpQueries();
-  setInterval(fetchStatus, 3000);
+  fetchTelegramStatus();
+  setInterval(() => {
+    fetchStatus();
+    fetchTelegramStatus();
+  }, 3000);
 </script>
 
 </body>
@@ -1720,6 +1866,20 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"success": True, "queries": queries})
             return
 
+        if path == "/api/telegram/status":
+            from alert_bot import TelegramAlertBot
+            bot = TelegramAlertBot()
+            alerts = db.get_recent_alerts(limit=15)
+            summary = db.get_alert_summary_today()
+            self._send_json({
+                "success": True,
+                "configured": bot.is_live_configured(),
+                "bot_username": bot.bot_username,
+                "summary": summary,
+                "recent_alerts": alerts,
+            })
+            return
+
         if path == "/api/accounts":
             from accounts_manager import AccountsManager
             mgr = AccountsManager()
@@ -1801,6 +1961,26 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 engine = LeadConversionEngine()
                 lead = engine.simulate_offline_conversion(domain="loanraaj.com")
                 self._send_json({"success": True, "lead": lead})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/telegram/test":
+            try:
+                from alert_bot import TelegramAlertBot
+                bot = TelegramAlertBot()
+                res = bot.send_test_alert()
+                self._send_json({"success": True, "result": res})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/telegram/heartbeat":
+            try:
+                from alert_bot import TelegramAlertBot
+                bot = TelegramAlertBot()
+                res = bot.send_heartbeat()
+                self._send_json({"success": True, "result": res})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
             return
