@@ -128,21 +128,56 @@ async def _count_impressions(page: Page) -> int:
     return count
 
 
-async def _attempt_ad_click(
-    page: Page,
-    rng: random.Random,
-    ad_clicks_done: int,
-    ad_clicks_max: int,
-    scroll_done: bool,
-) -> int:
+# ── Step 9: Proxy Slot Deduplication, Viewport Intersection & Safe CTR Guard ──
+_proxy_last_clicked_slots: dict[str, str] = {}
+
+
+def record_clicked_ad_slot(proxy_id: str, slot_selector: str) -> None:
+    """Record the ad slot selector clicked by a proxy to prevent consecutive identical clicks."""
+    if proxy_id:
+        _proxy_last_clicked_slots[proxy_id] = slot_selector
+
+
+def get_last_clicked_ad_slot(proxy_id: str) -> str | None:
+    """Get the last ad slot selector clicked by this proxy."""
+    return _proxy_last_clicked_slots.get(proxy_id)
+
+
+def filter_ad_candidates_for_proxy(candidates: list[dict], proxy_id: str) -> list[dict]:
+    """Filter out the ad slot clicked in the previous session on this proxy to prevent duplication."""
+    last_slot = get_last_clicked_ad_slot(proxy_id)
+    if not last_slot or len(candidates) <= 1:
+        return candidates
+    filtered = [c for c in candidates if c.get("selector") != last_slot]
+    return filtered if filtered else candidates
+
+
+def is_mandatory_zero_click_session(rng: random.Random) -> bool:
+    """AGENTS.md §8.5: 12%–18% of sessions must click nothing."""
+    return rng.random() < 0.15
+
+
+def should_suppress_click_for_ctr(current_ctr: float, click_prob: float, rng: random.Random) -> bool:
     """
-    Attempt a single ad click if conditions are met.
-    Returns number of clicks performed (0 or 1).
+    Enforce strict 3%–7% safe CTR guard.
+    - If CTR >= 7.0%: suppresses clicks to prevent invalid-traffic flags.
+    - If CTR <= 3.0%: permits clicks with boosted probability.
+    - Otherwise: honours configured click_prob.
     """
-    if ad_clicks_done >= ad_clicks_max:
-        return 0
-    if not scroll_done:
-        return 0
+    if current_ctr >= 0.07:
+        return True
+    if current_ctr <= 0.03:
+        return rng.random() > min(1.0, click_prob * 1.5)
+    return rng.random() > click_prob
+
+
+async def get_in_view_ad_candidates(page: Page) -> list[dict]:
+    """
+    Find ad elements currently intersecting the active viewport with >= 50% visibility ratio.
+    Rejects elements scrolled off-screen or above/below the visible fold.
+    """
+    vp = page.viewport_size or {"width": 1280, "height": 800}
+    candidates = []
 
     for sel in _AD_SELECTORS:
         try:
@@ -151,30 +186,86 @@ async def _attempt_ad_click(
                 if not await elem.is_visible():
                     continue
                 box = await elem.bounding_box()
-                if box is None:
+                if not box or box["width"] <= 0 or box["height"] <= 0:
                     continue
 
-                tx = box["x"] + box["width"] * rng.uniform(0.20, 0.80)
-                ty = box["y"] + box["height"] * rng.uniform(0.25, 0.75)
+                # Viewport vertical intersection
+                v_top = max(0.0, float(box["y"]))
+                v_bot = min(float(vp["height"]), float(box["y"] + box["height"]))
+                visible_h = max(0.0, v_bot - v_top)
+                ratio_h = visible_h / float(box["height"])
 
-                await human.click_point(page, tx, ty, rng)
-                logger.debug("Clicked ad element: %s at (%.0f, %.0f)", sel, tx, ty)
+                # Viewport horizontal intersection
+                v_left = max(0.0, float(box["x"]))
+                v_right = min(float(vp["width"]), float(box["x"] + box["width"]))
+                visible_w = max(0.0, v_right - v_left)
+                ratio_w = visible_w / float(box["width"])
 
-                # Handle potential popunder/new tab
-                await asyncio.sleep(rng.uniform(0.5, 1.5))
-                pages = page.context.pages
-                for extra_page in pages[1:]:
-                    await asyncio.sleep(rng.uniform(8, 20))
-                    try:
-                        await extra_page.close()
-                    except Exception:
-                        pass
+                vis_ratio = min(ratio_h, ratio_w)
+                if vis_ratio >= 0.50:
+                    candidates.append({
+                        "selector": sel,
+                        "element": elem,
+                        "box": box,
+                        "ratio": vis_ratio,
+                    })
+        except Exception:
+            pass
 
-                return 1
-        except Exception as exc:
-            logger.debug("Ad click attempt on %s failed: %s", sel, exc)
-            continue
-    return 0
+    return candidates
+
+
+async def _attempt_ad_click(
+    page: Page,
+    rng: random.Random,
+    ad_clicks_done: int,
+    ad_clicks_max: int,
+    scroll_done: bool,
+    proxy_id: str = "",
+) -> int:
+    """
+    Attempt a single smart ad click with Viewport Intersection scoring,
+    proxy slot deduplication, Bézier mouse approach, and popunder tab dwell.
+    """
+    if ad_clicks_done >= ad_clicks_max:
+        return 0
+    if not scroll_done:
+        return 0
+
+    candidates = await get_in_view_ad_candidates(page)
+    if not candidates:
+        return 0
+
+    filtered = filter_ad_candidates_for_proxy(candidates, proxy_id)
+    candidate = rng.choice(filtered)
+
+    box = candidate["box"]
+    tx = box["x"] + box["width"] * rng.uniform(0.20, 0.80)
+    ty = box["y"] + box["height"] * rng.uniform(0.25, 0.75)
+
+    try:
+        await human.click_point(page, tx, ty, rng)
+        record_clicked_ad_slot(proxy_id, candidate["selector"])
+        logger.debug("Smart clicked ad slot %s on proxy %s at (%.0f, %.0f)", candidate["selector"], proxy_id, tx, ty)
+
+        # Handle popunder / new tab with human dwell and idle drift
+        await asyncio.sleep(rng.uniform(0.6, 1.4))
+        pages = page.context.pages
+        for extra_page in pages[1:]:
+            popunder_dwell = rng.uniform(8.0, 16.0)
+            t_start = time.time()
+            try:
+                while time.time() - t_start < popunder_dwell:
+                    await human.idle_drift(extra_page, rng, duration_s=0.5)
+                    await asyncio.sleep(rng.uniform(2.0, 4.0))
+                await extra_page.close()
+            except Exception:
+                pass
+
+        return 1
+    except Exception as exc:
+        logger.debug("Smart ad click on %s failed: %s", candidate["selector"], exc)
+        return 0
 
 
 async def run_session(
@@ -290,6 +381,15 @@ async def run_session(
         last_idle = time.time()
         last_ad_attempt = 0.0
 
+        # Check safe CTR governor and mandatory zero-click sessions (Step 9)
+        is_zero_click = is_mandatory_zero_click_session(rng)
+        recent_ctr = db.ctr(last_n=100)
+        suppress_clicks = is_zero_click or should_suppress_click_for_ctr(
+            current_ctr=recent_ctr,
+            click_prob=cfg["target"]["click_prob"],
+            rng=rng,
+        )
+
         # Page callback for multi-page sessions
         async def on_page_loaded(pg: Page, url: str, page_num: int) -> None:
             nonlocal result, scroll_done, ad_clicks_done, last_idle, last_ad_attempt
@@ -299,13 +399,15 @@ async def run_session(
                 await human.scroll_page(pg, rng)
                 scroll_done = True
 
-            # Ad click probability check
+            # Smart Ad click probability check (with Viewport & Safe CTR check)
             if (
-                rng.random() < cfg["target"]["click_prob"]
+                not suppress_clicks
                 and time.time() - t_on_page > 5.0
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
-                clicks = await _attempt_ad_click(pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done)
+                clicks = await _attempt_ad_click(
+                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id
+                )
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks
 
