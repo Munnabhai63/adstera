@@ -219,6 +219,37 @@ class SerpSynthesizer:
         else:
             return f"https://www.google.com/search?q={encoded_q}&oq={encoded_q}&sourceid=chrome&ie=UTF-8"
 
+    def build_social_referrer_url(
+        self,
+        domain: str,
+        platform: Optional[str] = None,
+        rng: Optional[random.Random] = None,
+    ) -> str:
+        """
+        Step 6.2: Build realistic social media referrer URL with authentic routing hashes.
+        Platforms: facebook, twitter, reddit, youtube, quora.
+        """
+        r = rng or random.Random()
+        platforms = ["facebook", "twitter", "reddit", "youtube", "quora"]
+        chosen_platform = platform.lower() if platform else r.choice(platforms)
+        target_domain = domain.lower().replace("https://", "").replace("http://", "").strip("/")
+
+        if chosen_platform == "facebook":
+            return f"https://l.facebook.com/l.php?u=https%3A%2F%2F{target_domain}%2F&h=AT{r.randint(100000, 999999)}"
+        elif chosen_platform == "twitter":
+            import string
+            t_hash = "".join(r.choices(string.ascii_letters + string.digits, k=8))
+            return f"https://t.co/{t_hash}"
+        elif chosen_platform == "reddit":
+            sub = "loans" if "loan" in target_domain else "personalfinance"
+            return f"https://www.reddit.com/r/{sub}/"
+        elif chosen_platform == "youtube":
+            return "https://www.youtube.com/"
+        elif chosen_platform == "quora":
+            topic = "Personal-Finance" if "loan" in target_domain else "Telecommunications"
+            return f"https://www.quora.com/topic/{topic}"
+        return "https://www.facebook.com/"
+
     async def navigate_via_serp(
         self,
         page: Any,

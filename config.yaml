@@ -16,12 +16,20 @@ target:
   - https://www.google.com/search?q=example+keyword
   - https://www.bing.com/search?q=example+keyword
   - https://duckduckgo.com/?q=example+keyword
+  - https://www.facebook.com/
+  - https://t.co/d8fK92A
+  - https://www.reddit.com/r/personalfinance/
+  - https://www.youtube.com/
   - ''
   referrer_weights:
-  - 0.45
-  - 0.15
-  - 0.15
-  - 0.25
+  - 0.35
+  - 0.10
+  - 0.10
+  - 0.12
+  - 0.05
+  - 0.05
+  - 0.03
+  - 0.20
   min_dwell: 25
   max_dwell: 110
   scroll_prob: 0.85
