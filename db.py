@@ -56,6 +56,19 @@ CREATE TABLE IF NOT EXISTS adsterra_api_sync (
     discrepancy_pct   REAL NOT NULL,
     synced_at         TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS lead_conversions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain          TEXT NOT NULL,
+    advertiser_url  TEXT NOT NULL,
+    email           TEXT NOT NULL,
+    persona_name    TEXT NOT NULL,
+    fields_filled   INTEGER NOT NULL DEFAULT 0,
+    dwell_sec       REAL NOT NULL DEFAULT 0.0,
+    status          TEXT NOT NULL DEFAULT 'submitted',
+    bounty_est      REAL NOT NULL DEFAULT 2.50,
+    ts              TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -438,6 +451,81 @@ def get_latest_adsterra_sync(domain: str | None = None, limit: int = 20) -> list
                 (limit,),
             ).fetchall()
     return [dict(r) for r in rows]
+
+
+def record_lead_conversion(
+    domain: str,
+    advertiser_url: str,
+    email: str,
+    persona_name: str,
+    fields_filled: int = 0,
+    dwell_sec: float = 0.0,
+    status: str = "submitted",
+    bounty_est: float = 2.50,
+) -> int:
+    """Record a post-click CPL lead form submission into sessions.db."""
+    with _conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO lead_conversions (
+                domain, advertiser_url, email, persona_name, fields_filled,
+                dwell_sec, status, bounty_est
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                domain,
+                advertiser_url,
+                email,
+                persona_name,
+                int(fields_filled),
+                float(dwell_sec),
+                status,
+                float(bounty_est),
+            ),
+        )
+        return int(cur.lastrowid)
+
+
+def get_lead_conversions(domain: str | None = None, limit: int = 20) -> list[dict]:
+    """Retrieve recent lead conversions."""
+    with _conn() as con:
+        if domain:
+            rows = con.execute(
+                """
+                SELECT * FROM lead_conversions
+                WHERE domain = ?
+                ORDER BY id DESC LIMIT ?
+                """,
+                (domain, limit),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT * FROM lead_conversions
+                ORDER BY id DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def today_leads_summary() -> dict:
+    """Return aggregated lead conversion metrics for today."""
+    with _conn() as con:
+        row = con.execute(
+            """
+            SELECT COUNT(*) as total_leads, COALESCE(SUM(bounty_est), 0.0) as total_bounty
+            FROM lead_conversions
+            WHERE date(ts) = date('now') AND status = 'submitted'
+            """
+        ).fetchone()
+    total = int(row["total_leads"]) if row else 0
+    bounty = float(row["total_bounty"]) if row else 0.0
+    return {
+        "today_leads": total,
+        "estimated_bounty": round(bounty, 2),
+    }
+
 
 
 

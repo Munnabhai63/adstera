@@ -224,6 +224,7 @@ async def _attempt_ad_click(
     ad_clicks_max: int,
     scroll_done: bool,
     proxy_id: str = "",
+    domain: str = "loanraaj.com",
 ) -> int:
     """
     Attempt a single smart ad click with Viewport Intersection scoring,
@@ -250,19 +251,29 @@ async def _attempt_ad_click(
         record_clicked_ad_slot(proxy_id, candidate["selector"])
         logger.debug("Smart clicked ad slot %s on proxy %s at (%.0f, %.0f)", candidate["selector"], proxy_id, tx, ty)
 
-        # Handle popunder / new tab with human dwell and idle drift
+        # Handle popunder / new tab with human dwell and Pillar 2 lead conversion
         await asyncio.sleep(rng.uniform(0.6, 1.4))
         pages = page.context.pages
         for extra_page in pages[1:]:
-            popunder_dwell = rng.uniform(8.0, 16.0)
-            t_start = time.time()
             try:
-                while time.time() - t_start < popunder_dwell:
-                    await human.idle_drift(extra_page, rng, duration_s=0.5)
-                    await asyncio.sleep(rng.uniform(2.0, 4.0))
-                await extra_page.close()
-            except Exception:
-                pass
+                from lead_engine import LeadConversionEngine
+                engine = LeadConversionEngine()
+                if engine.should_attempt_conversion(rng=rng):
+                    logger.info("Pillar 2: Attempting CPL lead form conversion on %s", extra_page.url)
+                    await engine.fill_and_submit_lead(page=extra_page, domain=domain, rng=rng)
+                else:
+                    popunder_dwell = rng.uniform(8.0, 16.0)
+                    t_start = time.time()
+                    while time.time() - t_start < popunder_dwell:
+                        await human.idle_drift(extra_page, rng, duration_s=0.5)
+                        await asyncio.sleep(rng.uniform(2.0, 4.0))
+            except Exception as le_exc:
+                logger.debug("Lead Engine execution notice: %s", le_exc)
+            finally:
+                try:
+                    await extra_page.close()
+                except Exception:
+                    pass
 
         return 1
     except Exception as exc:
@@ -446,7 +457,7 @@ async def run_session(
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
                 clicks = await _attempt_ad_click(
-                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id
+                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain
                 )
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks

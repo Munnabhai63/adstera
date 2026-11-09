@@ -810,6 +810,38 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Pillar 2: High-Payout CPL/CPA Lead Engine Card -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>💰 Pillar 2: High-Payout CPL/CPA Post-Click Lead Engine</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="leadsCountBadge" style="font-size: 11px; background: rgba(34, 197, 94, 0.15); color: #22c55e; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3);">0 Leads ($0.00 Bounty)</span>
+        <button id="btnSimulateLead" class="btn btn-secondary" onclick="simulateLeadConversion()" style="padding: 4px 10px; font-size: 11px;">⚡ +1 CPL Lead Submission</button>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
+      Autonomous human form filler submitting authentic US persona details on advertiser landing pages ($1.50–$4.50 CPL conversion bounty).
+    </div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Persona Name</th>
+            <th>Email</th>
+            <th>Fields Filled</th>
+            <th>Dwell Time</th>
+            <th>Bounty</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id="leadsTbody">
+          <tr><td colspan="7" style="text-align: center; color: var(--muted);">No lead conversions recorded today...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Unlimited Accounts & Warmed Cookie Pool Card (MD Spec 3 & 4) -->
   <div class="card">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -1038,6 +1070,11 @@ HTML_PAGE = """<!DOCTYPE html>
       // Update Adsterra API sync table
       if (data.adsterra_sync && data.adsterra_sync.length > 0) {
         renderAdsterraSync(data.adsterra_sync);
+      }
+
+      // Update Pillar 2 Leads table
+      if (data.recent_leads && data.recent_leads.length > 0) {
+        renderLeads(data.recent_leads, data.today_leads);
       }
 
       // Update sessions table
@@ -1443,6 +1480,42 @@ HTML_PAGE = """<!DOCTYPE html>
     }).join('');
   }
 
+  async function simulateLeadConversion() {
+    showToast('Simulating post-click CPL lead form conversion…');
+    try {
+      const res = await fetch('/api/leads/simulate', { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.lead) {
+        showToast('CPL Lead Submitted! Bounty: +$' + data.lead.bounty_est.toFixed(2));
+        fetchStatus();
+      } else {
+        alert('Failed: ' + (data.error || 'Unknown error'));
+      }
+    } catch (e) {
+      alert('Network error simulating lead: ' + e);
+    }
+  }
+
+  function renderLeads(leads, summary) {
+    const badge = document.getElementById('leadsCountBadge');
+    if (badge && summary) {
+      badge.innerText = `${summary.today_leads || 0} Leads (+$${(summary.estimated_bounty || 0).toFixed(2)} Bounty)`;
+    }
+    const tbody = document.getElementById('leadsTbody');
+    if (!tbody || !leads || leads.length === 0) return;
+    tbody.innerHTML = leads.map(l => `
+      <tr>
+        <td><strong style="color: #38bdf8;">${l.domain}</strong></td>
+        <td>${l.persona_name}</td>
+        <td>${l.email}</td>
+        <td>${l.fields_filled} fields</td>
+        <td>${l.dwell_sec}s</td>
+        <td><strong style="color: #34d399;">+$${l.bounty_est.toFixed(2)}</strong></td>
+        <td><span class="status-badge status-ok">${l.status.toUpperCase()}</span></td>
+      </tr>
+    `).join('');
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
@@ -1550,6 +1623,8 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "active_ua": read_active_ua(),
                 "recent_sessions": db.last_sessions(20),
                 "adsterra_sync": db.get_latest_adsterra_sync(limit=10),
+                "today_leads": db.today_leads_summary(),
+                "recent_leads": db.get_lead_conversions(limit=8),
                 "logs": RUNNER.get_logs(),
             }
             self._send_json(status_data)
@@ -1560,6 +1635,12 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             client = AdsterraApiClient()
             records = client.sync_now()
             self._send_json({"status": "ok", "synced_count": len(records), "records": records})
+            return
+
+        if path == "/api/leads":
+            leads = db.get_lead_conversions(limit=20)
+            summary = db.today_leads_summary()
+            self._send_json({"success": True, "summary": summary, "leads": leads})
             return
 
         if path == "/api/accounts":
@@ -1635,6 +1716,16 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "ok", "synced_count": len(records), "records": records})
             except Exception as e:
                 self._send_json({"status": "error", "error": str(e)}, 500)
+            return
+
+        if path == "/api/leads/simulate":
+            try:
+                from lead_engine import LeadConversionEngine
+                engine = LeadConversionEngine()
+                lead = engine.simulate_offline_conversion(domain="loanraaj.com")
+                self._send_json({"success": True, "lead": lead})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
             return
 
         if path == "/api/config":
