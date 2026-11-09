@@ -8,6 +8,7 @@ import json
 import logging
 import random
 import time
+from urllib.parse import urlparse
 
 from pathlib import Path
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
@@ -286,6 +287,12 @@ async def run_session(
         start_url = "file:///" + start_url.replace("\\", "/")
     _record_active_ua(proxy.proxy_id, fp, active=True, target_url=start_url)
 
+    # Extract target domain for per-domain CTR governance
+    parsed_dom = urlparse(start_url).netloc
+    if ":" in parsed_dom:
+        parsed_dom = parsed_dom.split(":")[0]
+    target_domain = parsed_dom.lower() if parsed_dom else "loanraaj.com"
+
     # Referrer selection
     referrers = cfg["target"]["referrers"]
     weights = cfg["target"]["referrer_weights"]
@@ -294,6 +301,7 @@ async def run_session(
     result = {
         "proxy_id": proxy.proxy_id,
         "target_url": start_url,
+        "domain": target_domain,
         "ua": fp.user_agent,
         "referrer": referrer,
         "dwell": 0.0,
@@ -381,14 +389,26 @@ async def run_session(
         last_idle = time.time()
         last_ad_attempt = 0.0
 
-        # Check safe CTR governor and mandatory zero-click sessions (Step 9)
+        # Check safe CTR governor and mandatory zero-click sessions (Step 9 & MD Spec 1)
         is_zero_click = is_mandatory_zero_click_session(rng)
-        recent_ctr = db.ctr(last_n=100)
-        suppress_clicks = is_zero_click or should_suppress_click_for_ctr(
-            current_ctr=recent_ctr,
-            click_prob=cfg["target"]["click_prob"],
-            rng=rng,
+        recent_domain_ctr = db.domain_ctr(target_domain, last_n=100)
+        max_ctr_limit = float(cfg.get("target", {}).get("max_domain_ctr", 0.050))
+        domain_safety = db.check_domain_safety(target_domain, max_ctr=max_ctr_limit)
+
+        suppress_clicks = (
+            is_zero_click
+            or not domain_safety["allow_click"]
+            or should_suppress_click_for_ctr(
+                current_ctr=recent_domain_ctr,
+                click_prob=cfg["target"]["click_prob"],
+                rng=rng,
+            )
         )
+        if not domain_safety["allow_click"]:
+            logger.warning(
+                "Per-Domain CTR Circuit Breaker Active for %s: %s (Clicks Suppressed)",
+                target_domain, domain_safety["reason"]
+            )
 
         # Page callback for multi-page sessions
         async def on_page_loaded(pg: Page, url: str, page_num: int) -> None:
@@ -471,6 +491,7 @@ async def run_session(
         ad_clicks=result["ad_clicks"],
         impressions=result["impressions"],
         status=result["status"],
+        domain=target_domain,
     )
 
     try:

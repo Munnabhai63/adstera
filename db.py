@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     ad_clicks   INTEGER NOT NULL DEFAULT 0,
     impressions INTEGER NOT NULL DEFAULT 0,
     status      TEXT    NOT NULL DEFAULT 'ok',
+    domain      TEXT    NOT NULL DEFAULT 'loanraaj.com',
     ts          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -31,6 +32,15 @@ CREATE TABLE IF NOT EXISTS daily_stats (
     sessions    INTEGER NOT NULL DEFAULT 0,
     ad_clicks   INTEGER NOT NULL DEFAULT 0,
     impressions INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS domain_stats (
+    domain      TEXT    NOT NULL,
+    date        TEXT    NOT NULL,
+    sessions    INTEGER NOT NULL DEFAULT 0,
+    ad_clicks   INTEGER NOT NULL DEFAULT 0,
+    impressions INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (domain, date)
 );
 """
 
@@ -50,9 +60,15 @@ def _conn():
 
 
 def init() -> None:
-    """Create tables if they don't exist."""
+    """Create tables if they don't exist and run incremental schema migrations."""
     with _conn() as con:
         con.executescript(_DDL)
+        # Incremental migration: Ensure 'domain' column exists on legacy sessions table
+        cur = con.execute("PRAGMA table_info(sessions)")
+        cols = [c[1] for c in cur.fetchall()]
+        if "domain" not in cols:
+            con.execute("ALTER TABLE sessions ADD COLUMN domain TEXT NOT NULL DEFAULT 'loanraaj.com'")
+            logger.info("Migrated sessions table: added 'domain' column.")
     logger.debug("DB initialised at %s", _DB_PATH)
 
 
@@ -65,18 +81,21 @@ def log_session(
     ad_clicks: int = 0,
     impressions: int = 0,
     status: str = "ok",
+    domain: str = "loanraaj.com",
 ) -> int:
-    """Insert one session row and update daily_stats. Returns the new row id."""
+    """Insert one session row and update daily_stats and domain_stats. Returns the new row id."""
+    clean_domain = (domain or "loanraaj.com").lower().strip()
     with _conn() as con:
         cur = con.execute(
             """
-            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status),
+            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain),
         )
         row_id = cur.lastrowid
 
+        # Update global daily stats
         con.execute(
             """
             INSERT INTO daily_stats (date, sessions, ad_clicks, impressions)
@@ -87,6 +106,19 @@ def log_session(
                 impressions = impressions + excluded.impressions
             """,
             (ad_clicks, impressions),
+        )
+
+        # Update per-domain daily stats
+        con.execute(
+            """
+            INSERT INTO domain_stats (domain, date, sessions, ad_clicks, impressions)
+            VALUES (?, date('now'), 1, ?, ?)
+            ON CONFLICT(domain, date) DO UPDATE SET
+                sessions    = sessions + 1,
+                ad_clicks   = ad_clicks + excluded.ad_clicks,
+                impressions = impressions + excluded.impressions
+            """,
+            (clean_domain, ad_clicks, impressions),
         )
     return row_id
 
@@ -123,6 +155,131 @@ def ctr(last_n: int = 100) -> float:
     if not row or not row["imps"]:
         return 0.0
     return round(row["clicks"] / row["imps"], 4)
+
+
+def domain_today(domain: str) -> dict:
+    """Return metrics logged for a specific domain today."""
+    clean_domain = (domain or "loanraaj.com").lower().strip()
+    with _conn() as con:
+        row = con.execute(
+            """
+            SELECT sessions, ad_clicks, impressions
+            FROM domain_stats
+            WHERE domain = ? AND date = date('now')
+            """,
+            (clean_domain,),
+        ).fetchone()
+    if not row:
+        return {"domain": clean_domain, "sessions": 0, "clicks": 0, "impressions": 0, "ctr": 0.0}
+    
+    sessions = int(row["sessions"])
+    clicks = int(row["ad_clicks"])
+    imps = int(row["impressions"])
+    ctr_val = (clicks / imps * 100.0) if imps > 0 else 0.0
+    return {
+        "domain": clean_domain,
+        "sessions": sessions,
+        "clicks": clicks,
+        "impressions": imps,
+        "ctr": round(ctr_val, 2),
+    }
+
+
+def domain_ctr(domain: str, last_n: int = 100) -> float:
+    """Compute CTR specifically for a single domain over its last N sessions."""
+    clean_domain = (domain or "loanraaj.com").lower().strip()
+    with _conn() as con:
+        row = con.execute(
+            """
+            SELECT SUM(ad_clicks) AS clicks, SUM(impressions) AS imps
+            FROM (
+                SELECT ad_clicks, impressions 
+                FROM sessions 
+                WHERE domain = ? 
+                ORDER BY id DESC LIMIT ?
+            )
+            """,
+            (clean_domain, last_n),
+        ).fetchone()
+    if not row or not row["imps"]:
+        return 0.0
+    return round(row["clicks"] / row["imps"], 4)
+
+
+def check_domain_safety(domain: str, max_ctr: float = 0.050, warning_ctr: float = 0.044) -> dict:
+    """
+    Evaluates independent per-domain CTR against strict anti-IVT safety bounds.
+    - If CTR >= max_ctr (5.0%) and impressions >= 10: PAUSED (100% zero-click suppression).
+    - If CTR >= warning_ctr (4.4%) and impressions >= 10: GUARD_ACTIVE (suppress 80% of clicks).
+    - Otherwise: OPTIMAL (allow natural ad click evaluation).
+    """
+    import random
+    clean_domain = (domain or "loanraaj.com").lower().strip()
+    today_stats = domain_today(clean_domain)
+    imps = today_stats["impressions"]
+    clicks = today_stats["clicks"]
+    current_ctr = (clicks / imps) if imps > 0 else 0.0
+
+    if imps >= 10 and current_ctr >= max_ctr:
+        return {
+            "domain": clean_domain,
+            "status": "PAUSED",
+            "allow_click": False,
+            "current_ctr": round(current_ctr * 100.0, 2),
+            "reason": f"CTR {current_ctr * 100.0:.2f}% exceeds hard limit {max_ctr * 100.0:.1f}%",
+        }
+    elif imps >= 10 and current_ctr >= warning_ctr:
+        allow = random.random() < 0.20  # throttle 80% of attempts
+        return {
+            "domain": clean_domain,
+            "status": "GUARD_ACTIVE",
+            "allow_click": allow,
+            "current_ctr": round(current_ctr * 100.0, 2),
+            "reason": f"CTR {current_ctr * 100.0:.2f}% in warning zone (throttled)",
+        }
+    else:
+        return {
+            "domain": clean_domain,
+            "status": "OPTIMAL",
+            "allow_click": True,
+            "current_ctr": round(current_ctr * 100.0, 2),
+            "reason": "CTR in healthy green zone",
+        }
+
+
+def all_domains_summary(default_cpm: float = 4.50) -> list[dict]:
+    """Return aggregated today metrics for all tracked domains."""
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT domain, sessions, ad_clicks, impressions
+            FROM domain_stats
+            WHERE date = date('now')
+            ORDER BY sessions DESC
+            """
+        ).fetchall()
+
+    summary = []
+    for r in rows:
+        dom = r["domain"]
+        s = int(r["sessions"])
+        c = int(r["ad_clicks"])
+        i = int(r["impressions"])
+        ctr_val = (c / i * 100.0) if i > 0 else 0.0
+        safety = check_domain_safety(dom)
+        est_rev = round((i / 1000.0) * default_cpm + (c * 0.04), 2)
+        summary.append({
+            "domain": dom,
+            "sessions": s,
+            "impressions": i,
+            "clicks": c,
+            "ctr": round(ctr_val, 2),
+            "status": safety["status"],
+            "allow_click": safety["allow_click"],
+            "cpm": round(default_cpm, 2),
+            "estimated_revenue": est_rev,
+        })
+    return summary
 
 
 def last_sessions(n: int = 10) -> list[dict]:

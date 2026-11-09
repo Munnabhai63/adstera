@@ -23,6 +23,23 @@ target:
   target_clicks: 50
   target_revenue: 10.0
   cpm_rate: 2.5
+  max_domain_ctr: 0.050
+  domains:
+    - domain: "loanraaj.com"
+      niche: "Personal & Business Loans"
+      url: "https://loanraaj.com"
+      weight: 1.0
+      target_cpm: 5.50
+    - domain: "insurancenet.com"
+      niche: "Auto & Health Insurance"
+      url: "https://loanraaj.com"
+      weight: 0.8
+      target_cpm: 6.20
+    - domain: "cloudhoster.com"
+      niche: "Managed VPS & Cloud"
+      url: "https://loanraaj.com"
+      weight: 0.8
+      target_cpm: 4.80
 session:
   page_depth_min: 1
   page_depth_max: 3
