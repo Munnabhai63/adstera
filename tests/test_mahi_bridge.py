@@ -8,6 +8,14 @@ from pathlib import Path
 from mahi_connector import MahiConnector, MahiBridgeError, MAHI_SQLITE_PATH, MAHI_CHROME_EXE, MAHI_STATE_DIR
 
 
+# Skip MAHI bridge host-specific integration tests when running in environments without local MAHI installation (e.g. GitHub Actions CI)
+_probe = MahiConnector()
+pytestmark = pytest.mark.skipif(
+    not _probe.is_available(),
+    reason="MAHI Browser local installation required (Windows host only)"
+)
+
+
 @pytest.fixture
 def connector():
     return MahiConnector()

@@ -30,11 +30,15 @@ jobs:
         run: |
           playwright install chromium --with-deps
 
-      - name: Run Test Suite (58 Unit Tests)
+      - name: Run Test Suite
+        env:
+          CI: "true"
         run: |
           python -m pytest -v
 
       - name: Run Pre-Flight Invariant Audit
+        env:
+          CI: "true"
         run: |
           python tests/audit.py
 

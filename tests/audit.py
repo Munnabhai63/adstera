@@ -119,6 +119,9 @@ async def _run_browser_checks(cfg: dict) -> None:
     print(f"  [7] PASS — Canvas seeds differ across proxies: {fp_a1.canvas_seed} vs {fp_b.canvas_seed}")
 
     headless = cfg["browser"].get("headless", False)
+    # On CI environments (headless Linux runners), override to headless=True to avoid missing X11 display crash
+    if os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true":
+        headless = True
     slow_mo = cfg["browser"].get("slow_mo_ms", 40)
     canvas_results: dict[str, dict] = {}
 
