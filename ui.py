@@ -281,7 +281,8 @@ class RunnerManager:
             # 2. Terminate any lingering Chromium instances launched by this automation
             try:
                 import subprocess
-                subprocess.run(["taskkill", "/F", "/IM", "chrome.exe"], capture_output=True, timeout=5)
+                for p_name in ["chrome.exe", "headless_shell.exe"]:
+                    subprocess.run(["taskkill", "/F", "/IM", p_name], capture_output=True, timeout=5)
             except Exception:
                 pass
 
@@ -532,11 +533,12 @@ HTML_PAGE = """<!DOCTYPE html>
         <div class="subtitle">Master Fleet Controller &bull; Adsterra 10-Domain Monetization Engine</div>
       </div>
     </div>
-    <div style="display: flex; align-items: center; gap: 14px;">
+    <div style="display: flex; align-items: center; gap: 10px;">
       <div id="statusBadge" class="status-badge stopped">
         <span class="status-dot"></span>
         <span id="statusText">STOPPED</span>
       </div>
+      <button class="btn" onclick="forceStopRunner()" style="background: #b91c1c; color: #fff; border: 1px solid #ef4444; font-weight: 700; padding: 6px 14px; font-size: 12px; cursor: pointer;" title="Kill all running processes and browsers instantly">🛑 Force Stop All</button>
       <a href="/api/stats/csv" download="stats.csv" class="btn btn-secondary" style="text-decoration: none;">📥 Export CSV</a>
       <button class="btn btn-secondary" onclick="fetchStatus()">↻ Refresh</button>
     </div>
@@ -1399,7 +1401,7 @@ HTML_PAGE = """<!DOCTYPE html>
   function updateTargetUrlsCount() {
     const el = document.getElementById('targetUrls');
     if (!el) return;
-    const lines = el.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const lines = el.value.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
     const countEl = document.getElementById('targetUrlsCount');
     if (countEl) {
       countEl.innerText = lines.length === 1 ? '1 URL Active' : (lines.length > 1 ? lines.length + ' URLs in Pool' : '0 URLs');
@@ -1426,10 +1428,10 @@ HTML_PAGE = """<!DOCTYPE html>
   function removeUrlAt(index) {
     const el = document.getElementById('targetUrls');
     if (!el) return;
-    let lines = el.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    let lines = el.value.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
     if (index >= 0 && index < lines.length) {
       const removed = lines.splice(index, 1)[0];
-      el.value = lines.join('\n');
+      el.value = lines.join('\\n');
       updateTargetUrlsCount();
       saveConfig(false);
       showToast('Removed: ' + (removed.length > 30 ? removed.substring(0, 30) + '…' : removed));
@@ -1437,7 +1439,6 @@ HTML_PAGE = """<!DOCTYPE html>
   }
 
   async function clearAllUrls() {
-    if (!confirm('Are you sure you want to remove ALL URLs from the pool?')) return;
     const el = document.getElementById('targetUrls');
     if (el) el.value = '';
     updateTargetUrlsCount();
@@ -1455,13 +1456,13 @@ HTML_PAGE = """<!DOCTYPE html>
     }
     const el = document.getElementById('targetUrls');
     if (!el) return;
-    let lines = el.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    let lines = el.value.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
     if (lines.includes(val)) {
       alert('This URL is already in the pool!');
       return;
     }
     lines.push(val);
-    el.value = lines.join('\n');
+    el.value = lines.join('\\n');
     input.value = '';
     updateTargetUrlsCount();
     await saveConfig(true);
@@ -1502,7 +1503,7 @@ HTML_PAGE = """<!DOCTYPE html>
         urls = [cfg.target.url];
       }
       const targetUrlsEl = document.getElementById('targetUrls');
-      if (targetUrlsEl) targetUrlsEl.value = urls.join('\n');
+      if (targetUrlsEl) targetUrlsEl.value = urls.join('\\n');
       updateTargetUrlsCount();
 
       document.getElementById('minDwell').value = cfg.target.min_dwell || 25;
@@ -1533,7 +1534,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
   async function saveConfig(showNotification = true) {
     const rawUrls = (document.getElementById('targetUrls') ? document.getElementById('targetUrls').value : '') || '';
-    const urlsList = rawUrls.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const urlsList = rawUrls.split('\\n').map(l => l.trim()).filter(l => l.length > 0);
 
     const payload = {
       url: urlsList.length > 0 ? urlsList[0] : '',
@@ -1618,7 +1619,7 @@ HTML_PAGE = """<!DOCTYPE html>
       if (currentNetworkMode === 'proxy') {
         const pText = document.getElementById('proxiesText').value.trim();
         if (!pText) {
-          alert("⚠️ You are in '🌐 Proxies' mode, but no proxies are configured!\n\nEither paste your proxies into 'One proxy per line', or switch to the '📱 Mobile ADB IP' tab to run directly via your connected phone's mobile data.");
+          alert("⚠️ You are in '🌐 Proxies' mode, but no proxies are configured!\\n\\nEither paste your proxies into 'One proxy per line', or switch to the '📱 Mobile ADB IP' tab to run directly via your connected phone's mobile data.");
           if (btn) { btn.disabled = false; btn.innerText = '▶ Start Live Run'; }
           return;
         }
@@ -1627,7 +1628,7 @@ HTML_PAGE = """<!DOCTYPE html>
           const adbRes = await fetch('/api/adb/status');
           const adbData = await adbRes.json();
           if (!adbData.ok || !adbData.devices || adbData.devices.length === 0) {
-            alert("⚠️ No Android phone detected via USB debugging!\n\nPlease check:\n1. Mobile phone is plugged in via USB\n2. USB Tethering is turned ON in phone Settings\n3. USB Debugging is turned ON in Developer Options\n4. Check phone screen to allow USB debugging prompt");
+            alert("⚠️ No Android phone detected via USB debugging!\\n\\nPlease check:\\n1. Mobile phone is plugged in via USB\\n2. USB Tethering is turned ON in phone Settings\\n3. USB Debugging is turned ON in Developer Options\\n4. Check phone screen to allow USB debugging prompt");
             if (btn) { btn.disabled = false; btn.innerText = '▶ Start Live Run'; }
             return;
           }

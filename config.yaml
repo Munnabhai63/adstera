@@ -1,13 +1,11 @@
 target:
-  url: "https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449"
+  url: https://rechargetak.com
   urls:
-    - "https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804" # Adsterra Smartlink 1 (ID: 32152060 - auctionr)
-    - "https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035" # Adsterra Smartlink 2 (ID: 32152331 - asiafilm)
-    - "https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" # Adsterra Smartlink 3 (ID: 32170075 - asiafilm)
-    - "https://loanraaj.com"
-    - "https://rechargetak.com"
-    - "https://tazaloan.com"
-    - "https://karzseva.com"
+  - https://rechargetak.com
+  - https://tazaloan.com
+  - https://karzseva.com
+  - https://rechargepur.com
+  - https://loankiseva.com
   fixture: tests/fixtures/page.html
   referrers:
   - https://www.google.com/search?q=example+keyword
@@ -28,58 +26,58 @@ target:
   target_clicks: 50
   target_revenue: 10.0
   cpm_rate: 2.5
-  max_domain_ctr: 0.050
+  max_domain_ctr: 0.05
   domains:
-    - domain: "loanraaj.com"
-      niche: "Personal & Business Loans"
-      url: "https://loanraaj.com"
-      weight: 1.0
-      target_cpm: 6.50
-    - domain: "rechargetak.com"
-      niche: "Mobile Recharge & Cashback Offers"
-      url: "https://rechargetak.com"
-      weight: 1.0
-      target_cpm: 4.50
-    - domain: "rechargepur.com"
-      niche: "Bill Pay, UPI Deals & Rewards"
-      url: "https://rechargepur.com"
-      weight: 1.0
-      target_cpm: 4.50
-    - domain: "tazaloan.com"
-      niche: "Instant Cash Loans & Salary Advance"
-      url: "https://tazaloan.com"
-      weight: 1.0
-      target_cpm: 7.50
-    - domain: "loankiseva.com"
-      niche: "MSME & Business Loan Schemes"
-      url: "https://loankiseva.com"
-      weight: 1.0
-      target_cpm: 6.00
-    - domain: "karzseva.com"
-      niche: "Debt Relief & Credit Repair"
-      url: "https://karzseva.com"
-      weight: 1.0
-      target_cpm: 8.50
-    - domain: "loantau.com"
-      niche: "Rural Credit & Gold Loans"
-      url: "https://loantau.com"
-      weight: 1.0
-      target_cpm: 5.50
-    - domain: "tazabhav.com"
-      niche: "Live Gold/Silver Rates & Financial Markets"
-      url: "https://tazabhav.com"
-      weight: 1.0
-      target_cpm: 5.50
-    - domain: "tazarokda.com"
-      niche: "Stock Trading & Wealth Building"
-      url: "https://tazarokda.com"
-      weight: 1.0
-      target_cpm: 7.00
-    - domain: "rechargekar.com"
-      niche: "DTH & Utility Wallet Cashbacks"
-      url: "https://rechargekar.com"
-      weight: 1.0
-      target_cpm: 4.50
+  - domain: loanraaj.com
+    niche: Personal & Business Loans
+    url: https://loanraaj.com
+    weight: 1.0
+    target_cpm: 6.5
+  - domain: rechargetak.com
+    niche: Mobile Recharge & Cashback Offers
+    url: https://rechargetak.com
+    weight: 1.0
+    target_cpm: 4.5
+  - domain: rechargepur.com
+    niche: Bill Pay, UPI Deals & Rewards
+    url: https://rechargepur.com
+    weight: 1.0
+    target_cpm: 4.5
+  - domain: tazaloan.com
+    niche: Instant Cash Loans & Salary Advance
+    url: https://tazaloan.com
+    weight: 1.0
+    target_cpm: 7.5
+  - domain: loankiseva.com
+    niche: MSME & Business Loan Schemes
+    url: https://loankiseva.com
+    weight: 1.0
+    target_cpm: 6.0
+  - domain: karzseva.com
+    niche: Debt Relief & Credit Repair
+    url: https://karzseva.com
+    weight: 1.0
+    target_cpm: 8.5
+  - domain: loantau.com
+    niche: Rural Credit & Gold Loans
+    url: https://loantau.com
+    weight: 1.0
+    target_cpm: 5.5
+  - domain: tazabhav.com
+    niche: Live Gold/Silver Rates & Financial Markets
+    url: https://tazabhav.com
+    weight: 1.0
+    target_cpm: 5.5
+  - domain: tazarokda.com
+    niche: Stock Trading & Wealth Building
+    url: https://tazarokda.com
+    weight: 1.0
+    target_cpm: 7.0
+  - domain: rechargekar.com
+    niche: DTH & Utility Wallet Cashbacks
+    url: https://rechargekar.com
+    weight: 1.0
+    target_cpm: 4.5
 session:
   page_depth_min: 1
   page_depth_max: 3
@@ -138,7 +136,7 @@ cmp:
 browser:
   headless: false
   slow_mo_ms: 40
-  engine: "mahi"
+  engine: mahi
   use_mahi_profiles: true
   block_resources:
   - font
@@ -146,43 +144,34 @@ browser:
 network:
   mode: mobile_tether
   airplane_mode_wait: 4
-
-# ==============================================================================
-# 5 ADVANCED ENTERPRISE PILLARS CONFIGURATION
-# ==============================================================================
-
 adsterra_api:
   enabled: true
-  api_key: "23f635cd7b6e6709533dfe45f6ac0f94"
-  endpoint: "https://api3.adsterratools.com/publisher/stats.json"
+  api_key: 23f635cd7b6e6709533dfe45f6ac0f94
+  endpoint: https://api3.adsterratools.com/publisher/stats.json
   sync_interval_min: 15
-
 lead_engine:
   enabled: true
-  conversion_prob: 0.10
+  conversion_prob: 0.1
   max_leads_per_day: 50
   min_post_click_dwell: 25
   max_post_click_dwell: 45
   typing_delay_min_ms: 60
   typing_delay_max_ms: 220
-
 serp:
   enabled: true
-  organic_prob: 0.40
-  search_engine: "google"
+  organic_prob: 0.4
+  search_engine: google
   max_serp_scroll_depth: 3
-
 telegram:
   enabled: true
-  bot_token: "9153118554:AAFfheV-T-3-uM1lF39aDv2LqKKvvGHWnQc"
-  chat_id: "5812452868"
+  bot_token: 9153118554:AAFfheV-T-3-uM1lF39aDv2LqKKvvGHWnQc
+  chat_id: '5812452868'
   heartbeat_hours: 2
   alert_on_ctr_threshold: 0.045
-  emergency_ctr_pause: 0.050
-
+  emergency_ctr_pause: 0.05
 failover:
   enabled: false
-  primary_transport: "adb_mobile"
-  fallback_transport: "residential_proxy"
+  primary_transport: adb_mobile
+  fallback_transport: residential_proxy
   latency_threshold_ms: 1500
   recovery_check_interval_min: 10

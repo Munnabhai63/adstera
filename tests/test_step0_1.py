@@ -88,7 +88,7 @@ def test_worker_fallback_recovery_on_bad_url():
         cfg_bad["target"]["max_dwell"] = 4
         
         rng = random.Random(99)
-        proxy = Proxy(host="127.0.0.1", port=8080)
+        proxy = Proxy(host="direct", port=0)
         
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
