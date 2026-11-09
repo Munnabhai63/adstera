@@ -103,7 +103,9 @@ async def main():
         
         print(f"    --> Finished typing in {t_elapsed:.2f}s (~{len(search_query)/t_elapsed:.1f} chars/sec)")
         print(f"    --> Cognitive hesitations: {res['hesitations']} | Typos corrected: {res['typos_corrected']}")
-        await page.evaluate(f"() => {{ document.getElementById('status-typing').innerHTML = 'Status: <span class=\"highlight\">Typing Complete ({t_elapsed:.1f}s, {res[\"hesitations\"]} hesitations)</span>'; }}")
+        hes_count = res["hesitations"]
+        status_html = f"Status: <span class='highlight'>Typing Complete ({t_elapsed:.1f}s, {hes_count} hesitations)</span>"
+        await page.evaluate("(text) => { document.getElementById('status-typing').innerHTML = text; }", status_html)
 
         await asyncio.sleep(1.0)
 
