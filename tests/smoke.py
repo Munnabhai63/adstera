@@ -76,6 +76,7 @@ async def test_five_sessions(cfg: dict) -> list[dict]:
             headless=headless,
             slow_mo=slow_mo,
             args=[
+                "--disable-features=WebRtcHideLocalIpsWithMdns",
                 "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
                 "--webrtc-ip-handling-policy=disable_non_proxied_udp",
                 "--disable-blink-features=AutomationControlled",
@@ -112,8 +113,15 @@ def test_db_rows(cfg: dict, results: list[dict]) -> None:
         assert row["ua"], f"Empty UA in session row: {row}"
         assert 20 <= row["dwell"] <= 120, f"Dwell out of range: {row['dwell']}"
         referrers = cfg["target"]["referrers"]
-        assert row["referrer"] in referrers, (
-            f"Referrer not in configured list: {row['referrer']!r}"
+        is_valid_ref = (
+            row["referrer"] in referrers
+            or "google." in row["referrer"]
+            or "bing." in row["referrer"]
+            or "duckduckgo." in row["referrer"]
+            or row["referrer"] == ""
+        )
+        assert is_valid_ref, (
+            f"Referrer not in configured list or organic search: {row['referrer']!r}"
         )
         checked += 1
     assert checked >= 1, "No DB rows found for smoke run"

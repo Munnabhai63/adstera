@@ -70,6 +70,36 @@ async def navigate_internal(
     )
     await asyncio.sleep(rng.uniform(0.3, 0.8))
 
+    # BHV-1: Attempt authentic DOM link click to generate real Sec-Fetch-User: ?1 user activation
+    try:
+        parsed_target = urlparse(target)
+        target_path = parsed_target.path or "/"
+        links_elems = await page.query_selector_all("a[href]")
+        matched_elem = None
+        for elem in links_elems:
+            href_val = await elem.get_attribute("href")
+            if href_val and (href_val == target or href_val == target_path or href_val.endswith(target_path)):
+                if await elem.is_visible():
+                    matched_elem = elem
+                    break
+
+        if matched_elem:
+            await matched_elem.scroll_into_view_if_needed()
+            await asyncio.sleep(rng.uniform(0.2, 0.4))
+            box = await matched_elem.bounding_box()
+            if box:
+                cx = box["x"] + box["width"] * rng.uniform(0.2, 0.8)
+                cy = box["y"] + box["height"] * rng.uniform(0.25, 0.75)
+                await human.move_mouse(page, cx, cy, rng)
+                await asyncio.sleep(rng.uniform(0.1, 0.25))
+                async with page.expect_navigation(timeout=timeout_ms, wait_until="domcontentloaded"):
+                    await page.mouse.click(cx, cy)
+                logger.debug("BHV-1: Real DOM link clicked -> %s (Sec-Fetch-User: ?1)", page.url)
+                return page.url
+    except Exception as click_err:
+        logger.debug("BHV-1 DOM link click fallback: %s", click_err)
+
+    # Fallback to page.goto if element wasn't physically clickable
     try:
         async with page.expect_navigation(timeout=timeout_ms, wait_until="domcontentloaded"):
             await page.goto(target, timeout=timeout_ms, wait_until="domcontentloaded")

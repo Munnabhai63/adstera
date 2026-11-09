@@ -53,9 +53,15 @@ def _diurnal_rate(cfg: dict) -> float:
     base_per_hour = cfg["scheduler"]["sessions_per_hour"]
 
     factor = diurnal[hour] * weekday_scale[weekday]
-    # ±20% random variance
-    jitter = random.uniform(0.8, 1.2)
-    rate_per_hour = base_per_hour * factor * jitter
+    # STAT-1: Organic traffic chaos (5% dead hour, 3% mini viral spike, 92% normal variance)
+    chaos_roll = random.random()
+    if chaos_roll < 0.05:
+        chaos_factor = random.uniform(0.15, 0.35)  # Dead hour / lull
+    elif chaos_roll < 0.08:
+        chaos_factor = random.uniform(1.8, 3.2)   # Mini viral spike
+    else:
+        chaos_factor = random.uniform(0.85, 1.15) # Normal organic variance
+    rate_per_hour = base_per_hour * factor * chaos_factor
     return max(0.0, rate_per_hour) / 3600.0  # sessions/second
 
 
@@ -210,6 +216,7 @@ async def main() -> None:
         "headless": headless,
         "slow_mo": slow_mo,
         "args": [
+            "--disable-features=WebRtcHideLocalIpsWithMdns",
             "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
             "--webrtc-ip-handling-policy=disable_non_proxied_udp",
             "--disable-blink-features=AutomationControlled",

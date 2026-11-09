@@ -401,6 +401,29 @@ async def _run_browser_checks(cfg: dict) -> None:
             if label == "proxy_a":
                 print("  [15] PASS — WebRTC IP Leak Prevention (no host candidates, private IPs sanitized, [native code] masked)")
 
+            # Check 17: Window Dimensions & Screen Coordinate Coherence (FP-3 / LEAK-07)
+            win_dims = await page.evaluate("""() => ({
+                outerWidth: window.outerWidth,
+                outerHeight: window.outerHeight,
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight,
+                screenX: window.screenX,
+                screenY: window.screenY
+            })""")
+            assert win_dims["outerWidth"] >= win_dims["innerWidth"], f"[17] FAIL ({label}) — outerWidth < innerWidth"
+            assert win_dims["outerHeight"] >= win_dims["innerHeight"], f"[17] FAIL ({label}) — outerHeight < innerHeight"
+            if label == "proxy_a":
+                print(f"  [17] PASS — Window Outer Dimensions Coherence (outer={win_dims['outerWidth']}x{win_dims['outerHeight']})")
+
+            # Check 18: Webdriver Property Descriptor Cleanup (FP-5 / LEAK-20)
+            wd_desc = await page.evaluate("""() => {
+                const navVal = navigator.webdriver;
+                return { navVal: navVal === undefined ? 'undefined' : String(navVal) };
+            }""")
+            assert wd_desc["navVal"] in ('undefined', 'None', 'false'), f"[18] FAIL ({label}) — navigator.webdriver truthy: {wd_desc['navVal']}"
+            if label == "proxy_a":
+                print("  [18] PASS — Webdriver Property Descriptor Scrubbed (falsy)")
+
             # Check 16: Browser Extension Emulation (Step 3.3)
             ext_res = await page.evaluate("""async () => {
                 const results = {};

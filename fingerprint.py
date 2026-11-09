@@ -425,11 +425,29 @@ def init_script(fp: Fingerprint) -> str:
 
     return f"""
 (function() {{
-  // ── webdriver ──────────────────────────────────────────────────────────────
-  Object.defineProperty(navigator, 'webdriver', {{
-    get: () => undefined,
-    configurable: true,
-  }});
+  // ── webdriver (FP-5) ────────────────────────────────────────────────────────
+  try {{
+    delete navigator.webdriver;
+  }} catch (e) {{}}
+  const _protoNav = Object.getPrototypeOf(navigator);
+  if (_protoNav) {{
+    try {{
+      Object.defineProperty(_protoNav, 'webdriver', {{
+        get: () => undefined,
+        set: undefined,
+        configurable: true,
+        enumerable: false,
+      }});
+    }} catch (e) {{}}
+  }}
+  try {{
+    Object.defineProperty(navigator, 'webdriver', {{
+      get: () => undefined,
+      set: undefined,
+      configurable: true,
+      enumerable: false,
+    }});
+  }} catch (e) {{}}
 
   // ── platform / vendor ──────────────────────────────────────────────────────
   Object.defineProperty(navigator, 'platform',   {{ get: () => {json.dumps(fp.platform)}, configurable: true }});
@@ -513,17 +531,26 @@ def init_script(fp: Fingerprint) -> str:
     Object.defineProperty(p, 'length',   {{ get: () => 0 }});
     return p;
   }};
+  // FP-4: Modern Chrome 120+ Plugin list (internal-pdf-viewer, no deprecated NaCl)
   const plugins = [
-    fakePlugin('Chrome PDF Plugin',      'internal-pdf-viewer',  'Portable Document Format'),
-    fakePlugin('Chrome PDF Viewer',      'mhjfbmdgcfjbbpaeojofohoefgiehjai', ''),
-    fakePlugin('Native Client',          'internal-nacl-plugin',  'Native Client'),
+    fakePlugin('PDF Viewer',             'internal-pdf-viewer',  'Portable Document Format'),
+    fakePlugin('Chrome PDF Viewer',      'internal-pdf-viewer',  'Portable Document Format'),
+    fakePlugin('Chromium PDF Viewer',    'internal-pdf-viewer',  'Portable Document Format'),
+    fakePlugin('Microsoft Edge PDF Viewer', 'internal-pdf-viewer', 'Portable Document Format'),
+    fakePlugin('WebKit built-in PDF',    'internal-pdf-viewer',  'Portable Document Format'),
   ];
   Object.defineProperty(navigator, 'plugins', {{
     get: () => plugins,
     configurable: true,
   }});
   Object.defineProperty(navigator, 'mimeTypes', {{
-    get: () => ({{ length: 2, 0: {{ type: 'application/pdf' }}, 1: {{ type: 'application/x-nacl' }} }}),
+    get: () => ({{
+      length: 2,
+      0: {{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
+      1: {{ type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
+      'application/pdf': {{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
+      'text/pdf': {{ type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
+    }}),
     configurable: true,
   }});
 
@@ -651,11 +678,21 @@ def init_script(fp: Fingerprint) -> str:
   patchWebGL(WebGLRenderingContext);
   if (typeof WebGL2RenderingContext !== 'undefined') patchWebGL(WebGL2RenderingContext);
 
-  // ── screen ────────────────────────────────────────────────────────────────
+  // ── screen & window outer dimensions (FP-3 / LEAK-07) ─────────────────────
   Object.defineProperty(screen, 'colorDepth',   {{ get: () => 24, configurable: true }});
   Object.defineProperty(screen, 'pixelDepth',   {{ get: () => 24, configurable: true }});
   Object.defineProperty(screen, 'availHeight',  {{ get: () => {screen_avail_height}, configurable: true }});
   Object.defineProperty(screen, 'availWidth',   {{ get: () => {fp.viewport_width},   configurable: true }});
+
+  // window outer dimensions and screen offset spoof
+  const _outerW = {fp.viewport_width} + {16 if not fp.is_mobile else 0};
+  const _outerH = {fp.viewport_height} + {85 if not fp.is_mobile else 0};
+  Object.defineProperty(window, 'outerWidth',  {{ get: () => _outerW, configurable: true }});
+  Object.defineProperty(window, 'outerHeight', {{ get: () => _outerH, configurable: true }});
+  Object.defineProperty(window, 'screenX',     {{ get: () => {100 if not fp.is_mobile else 0}, configurable: true }});
+  Object.defineProperty(window, 'screenY',     {{ get: () => {100 if not fp.is_mobile else 0}, configurable: true }});
+  Object.defineProperty(window, 'screenLeft',  {{ get: () => {100 if not fp.is_mobile else 0}, configurable: true }});
+  Object.defineProperty(window, 'screenTop',   {{ get: () => {100 if not fp.is_mobile else 0}, configurable: true }});
 
   // ── connection ────────────────────────────────────────────────────────────
   if (navigator.connection) {{
@@ -815,8 +852,9 @@ def init_script(fp: Fingerprint) -> str:
   patchReadPixels(WebGLRenderingContext);
   if (typeof WebGL2RenderingContext !== 'undefined') patchReadPixels(WebGL2RenderingContext);
 
-  // ── audio context jitter (Step 7: WebAudio / AudioContext stealth) ──────
-  const _audioJitter = {fp.audio_seed};
+  // ── audio context jitter (FP-6: Seeded proxy base + session-level salt) ─────
+  const _sessionSalt = (Date.now() % 1000) * 0.0000001;
+  const _audioJitter = {fp.audio_seed} + _sessionSalt;
   const _jitteredBuffers = new WeakSet();
 
   if (typeof AudioBuffer !== 'undefined' && AudioBuffer.prototype) {{

@@ -95,11 +95,22 @@ async def handle(
                         await asyncio.sleep(rng.uniform(0.5, 1.2))
                         return True
 
-                # Fallback: click accept anyway (banner was found but no reject button)
-                await human.click_element(page, sel, rng)
-                logger.debug("CMP: no reject button found, accepted by fallback")
-                await asyncio.sleep(rng.uniform(0.5, 1.2))
-                return True
+                # BHV-6: Reject path — try close button (X), or scroll past banner without accepting
+                close_selectors = ["[aria-label*='close']", "[aria-label*='Close']", ".close", "button.dismiss", "a.dismiss"]
+                dismissed = False
+                for csel in close_selectors:
+                    celem = await page.query_selector(csel)
+                    if celem and await celem.is_visible():
+                        await human.click_element(page, csel, rng)
+                        logger.debug("CMP: dismissed banner via close button %s", csel)
+                        await asyncio.sleep(rng.uniform(0.5, 1.2))
+                        dismissed = True
+                        return True
+                if not dismissed:
+                    # User scrolled past banner without giving consent
+                    logger.debug("CMP: BHV-6 reject active, ignoring banner without accepting")
+                    await asyncio.sleep(rng.uniform(0.5, 1.0))
+                    return True
 
         except Exception as exc:
             logger.debug("CMP selector %s error: %s", sel, exc)

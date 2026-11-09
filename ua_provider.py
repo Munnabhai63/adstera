@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -155,16 +156,56 @@ def init(auto_sync: bool = True) -> None:
             logger.warning("Initial useragent.in sync failed, using built-in pool: %s", exc)
 
 
+def _filter_recent_uas(ua_list: list[str], min_chrome_version: int = 118) -> list[str]:
+    """
+    FP-2: Filter out stale User-Agents.
+    Only keep modern browsers (Chrome >= min_chrome_version, Safari >= 16, Firefox >= 115).
+    """
+    clean = []
+    for ua in ua_list:
+        m = re.search(r"Chrome/(\d+)", ua)
+        if m:
+            if int(m.group(1)) >= min_chrome_version:
+                clean.append(ua)
+            continue
+        m_fx = re.search(r"Firefox/(\d+)", ua)
+        if m_fx and int(m_fx.group(1)) >= 115:
+            clean.append(ua)
+            continue
+        m_saf = re.search(r"Version/(\d+).*Safari", ua)
+        if m_saf and int(m_saf.group(1)) >= 16:
+            clean.append(ua)
+            continue
+    return clean if clean else ua_list
+
+
+def get_matching_ua(chrome_major: str, is_mobile: bool = False) -> str:
+    """
+    FP-1: Return a User-Agent that exactly matches the Chromium major version running.
+    Prevents UA <-> Browser version mismatch (LEAK-05).
+    """
+    pool = get_mobile_uas() if is_mobile else get_desktop_uas()
+    target_pattern = f"Chrome/{chrome_major}."
+    for ua in pool:
+        if target_pattern in ua:
+            return ua
+    if is_mobile:
+        return f"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_major}.0.0.0 Mobile Safari/537.36"
+    return f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_major}.0.0.0 Safari/537.36"
+
+
 def get_desktop_uas() -> list[str]:
-    """Return all available desktop User-Agents."""
+    """Return all available desktop User-Agents filtered for modern versions (FP-2)."""
     init(auto_sync=True)
-    return _desktop_pool if _desktop_pool else _FALLBACK_DESKTOP
+    pool = _desktop_pool if _desktop_pool else _FALLBACK_DESKTOP
+    return _filter_recent_uas(pool, min_chrome_version=118)
 
 
 def get_mobile_uas() -> list[str]:
-    """Return all available mobile/tablet User-Agents."""
+    """Return all available mobile/tablet User-Agents filtered for modern versions (FP-2)."""
     init(auto_sync=True)
-    return _mobile_pool if _mobile_pool else _FALLBACK_MOBILE
+    pool = _mobile_pool if _mobile_pool else _FALLBACK_MOBILE
+    return _filter_recent_uas(pool, min_chrome_version=118)
 
 
 def get_stats() -> dict:

@@ -354,7 +354,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 ### 🌐 2.1 — Network Layer (4 Leaks)
 
-- [ ] **NET-1:** `ip_quality.py` बनाओ — IP Reputation Pre-Filter
+- [x] **NET-1:** `ip_quality.py` बनाओ — IP Reputation Pre-Filter
   ```python
   # IPQualityScore API (free: 5000 checks/month)
   async def check_ip(ip: str) -> bool:
@@ -365,7 +365,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   # pool.py → proxy add करने से पहले check करो
   ```
 
-- [ ] **NET-2:** DNS leak fix — ip-api.com rate limit fallback chain:
+- [x] **NET-2:** DNS leak fix — ip-api.com rate limit fallback chain:
   ```python
   apis = [
       f"http://ip-api.com/json/{host}?fields=...",
@@ -375,14 +375,14 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   # Rate limit hit → SKIP proxy (never default to wrong geo)
   ```
 
-- [ ] **NET-3:** WebRTC browser-level fix — `worker.py` launch args:
+- [x] **NET-3:** WebRTC browser-level fix — `worker.py` launch args:
   ```python
   "--disable-features=WebRtcHideLocalIpsWithMdns",
   "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
   "--webrtc-ip-handling-policy=disable_non_proxied_udp",
   ```
 
-- [ ] **NET-4:** Proxy header leak check — pool health check में:
+- [x] **NET-4:** Proxy header leak check — pool health check में:
   ```python
   # httpbin.org/headers से verify करो
   # X-Forwarded-For, Via, X-Real-IP → present है → reject proxy
@@ -394,19 +394,19 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 ### 🪪 2.2 — Fingerprint Layer (6 Fixes)
 
-- [ ] **FP-1:** UA ↔ Browser version sync — `worker.py`:
+- [x] **FP-1:** UA ↔ Browser version sync — `worker.py`:
   ```python
   chrome_major = browser.version.split(".")[0]  # e.g., "130"
   ua = get_matching_ua(chrome_major, is_mobile)  # Match version
   ```
 
-- [ ] **FP-2:** Stale UA filter — `ua_provider.py`:
+- [x] **FP-2:** Stale UA filter — `ua_provider.py`:
   ```python
   # Chrome < v118 → reject from pool
   _filter_recent_uas(ua_list, min_chrome_version=118)
   ```
 
-- [ ] **FP-3:** `window.outerWidth/Height/screenX/Y` spoof — `fingerprint.py`:
+- [x] **FP-3:** `window.outerWidth/Height/screenX/Y` spoof — `fingerprint.py`:
   ```javascript
   Object.defineProperty(window, 'outerWidth', {get: () => viewport_w + rand(0,20)});
   Object.defineProperty(window, 'outerHeight', {get: () => viewport_h + rand(68,95)});
@@ -414,20 +414,20 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   Object.defineProperty(window, 'screenY', {get: () => rand(0,50)});
   ```
 
-- [ ] **FP-4:** Realistic Chrome plugins list (exact Chrome 130+):
+- [x] **FP-4:** Realistic Chrome plugins list (exact Chrome 130+):
   ```javascript
   // PDF Viewer, Chrome PDF Viewer, Chromium PDF Viewer,
   // Microsoft Edge PDF Viewer, WebKit built-in PDF
   ```
 
-- [ ] **FP-5:** `navigator.webdriver` — full property descriptor cleanup:
+- [x] **FP-5:** `navigator.webdriver` — full property descriptor cleanup:
   ```javascript
   const proto = Object.getPrototypeOf(navigator);
   if (proto) Object.defineProperty(proto, 'webdriver',
       {get: undefined, configurable: true, enumerable: false});
   ```
 
-- [ ] **FP-6:** AudioContext — session-level salt (not just proxy-level):
+- [x] **FP-6:** AudioContext — session-level salt (not just proxy-level):
   ```javascript
   const SESSION_SALT = {unique_float_per_session};
   // Add to getOutputTimestamp return value
@@ -439,32 +439,32 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 ### 🎭 2.3 — Behavior Layer (6 Fixes)
 
-- [ ] **BHV-1:** `nav.py` → `page.goto()` → actual DOM click:
+- [x] **BHV-1:** `nav.py` → `page.goto()` → actual DOM click:
   ```python
   # Find element → human.move_mouse() → elem.click()
   # Creates Sec-Fetch-User: ?1 (user gesture) instead of ?0
   ```
 
-- [ ] **BHV-2:** `human.py` → Fitts's Law velocity profile:
+- [x] **BHV-2:** `human.py` → Fitts's Law velocity profile:
   ```python
   # Slow start (0-20% path): 20-50ms/step
   # Fast middle (20-80%): 5-15ms/step
   # Slow end (80-100%): 15-40ms/step (precision approach)
   ```
 
-- [ ] **BHV-3:** Keyboard events during dwell (25% chance):
+- [x] **BHV-3:** Keyboard events during dwell (25% chance):
   ```python
   await page.keyboard.press(rng.choice(["End","Home","PageDown","ArrowDown"]))
   ```
 
-- [ ] **BHV-4:** Tab switch pattern — per 30s dwell, 1-2 switches (2-8s away)
+- [x] **BHV-4:** Tab switch pattern — per 30s dwell, 1-2 switches (2-8s away)
 
-- [ ] **BHV-5:** Ad click timing → Lognormal distribution:
+- [x] **BHV-5:** Ad click timing → Lognormal distribution:
   ```python
   click_wait = max(8, rng.lognormvariate(mu=3.2, sigma=0.8))  # mean ~25s
   ```
 
-- [ ] **BHV-6:** `cmp.py` Reject path fix:
+- [x] **BHV-6:** `cmp.py` Reject path fix:
   ```python
   # 12% reject → find X button → scroll past banner → NOT silent accept
   ```
@@ -475,19 +475,19 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 ### 📈 2.4 — Statistical Layer (3 Fixes)
 
-- [ ] **STAT-1:** Organic traffic chaos:
+- [x] **STAT-1:** Organic traffic chaos:
   ```python
   # 5% chance: "dead hour" → 0.1-0.3x normal rate
   # 3% chance: "viral spike" → 2-4x normal rate
   ```
 
-- [ ] **STAT-2:** Dwell time → Lognormal distribution:
+- [x] **STAT-2:** Dwell time → Lognormal distribution:
   ```python
   dwell = math.exp(rng.gauss(math.log(45), 0.7))
   dwell = max(20, min(dwell, 240))
   ```
 
-- [ ] **STAT-3:** Revenue Ramp Schedule — NEVER sudden spike:
+- [x] **STAT-3:** Revenue Ramp Schedule — NEVER sudden spike:
   ```
   Week 1-2:   50 sessions/day   (observe only)
   Week 3-4:  150 sessions/day   (if no flags)
@@ -506,7 +506,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   या: सब Cloudflare Pages पर → CF origin hide करता है (best option)
   ```
 
-- [ ] **INFRA-2:** `persist.py` → State TTL = 7 days:
+- [x] **INFRA-2:** `persist.py` → State TTL = 7 days:
   ```python
   age_days = (time.time() - path.stat().st_mtime) / 86400
   if age_days > 7: path.unlink(); return False
@@ -514,7 +514,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 - [ ] **INFRA-3:** Sessions.db → monthly archive rotation
 
-- [ ] **INFRA-4:** `audit.py` → Check #17 add: Proxy header leak test
+- [x] **INFRA-4:** `audit.py` → Check #17 add: Proxy header leak test
 
 **Completion Checkbox:** `[ ]`
 

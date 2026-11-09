@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import math
 import random
 import time
 from urllib.parse import urlparse
@@ -26,6 +27,7 @@ import persist
 from pool import Proxy
 import push_manager as push_mod
 import session_tracer as tracer_mod
+import ua_provider
 
 logger = logging.getLogger(__name__)
 
@@ -361,6 +363,15 @@ async def run_session(
         if "use_fixture" in kwargs:
             use_fixture = kwargs["use_fixture"]
     fp = fp_mod.build(proxy)
+    # FP-1: Match UA to running browser major version (LEAK-05 fix)
+    try:
+        if browser and hasattr(browser, "version"):
+            b_ver = browser.version
+            if b_ver:
+                chrome_major = b_ver.split(".")[0]
+                fp.user_agent = ua_provider.get_matching_ua(chrome_major, fp.is_mobile)
+    except Exception as ua_err:
+        logger.debug("FP-1 UA sync notice: %s", ua_err)
     proxy_country = proxy.geo.country if getattr(proxy, "geo", None) else None
     if use_fixture:
         start_url = cfg["target"]["fixture"]
@@ -588,11 +599,12 @@ async def run_session(
         # Count impressions on page load
         result["impressions"] = await _count_impressions(page)
 
-        # Session dwell: target dwell time
+        # Session dwell: target dwell time (STAT-2 lognormal distribution)
         min_dwell = cfg["target"]["min_dwell"]
         max_dwell = cfg["target"]["max_dwell"]
-        # Right-skewed dwell: use beta distribution approximation
-        dwell_target = min_dwell + (max_dwell - min_dwell) * (rng.betavariate(1.5, 4.0))
+        # STAT-2: Authentic right-skewed human article reading time
+        dwell_target = math.exp(rng.gauss(math.log(52.0), 0.65))
+        dwell_target = max(float(min_dwell), min(dwell_target, float(max_dwell)))
 
         scroll_done = False
         ad_clicks_done = 0
@@ -645,10 +657,11 @@ async def run_session(
                 await human.scroll_page(pg, rng)
                 scroll_done = True
 
-            # Smart Ad click probability check (with Viewport & Safe CTR check)
+            # Smart Ad click probability check (BHV-5 lognormal delay + Viewport & Safe CTR check)
+            ad_min_wait = max(6.5, rng.lognormvariate(2.8, 0.6))  # BHV-5 lognormal click delay (mean ~20-25s)
             if (
                 not suppress_clicks
-                and time.time() - t_on_page > 5.0
+                and time.time() - t_on_page > ad_min_wait
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
                 clicks = await _attempt_ad_click(
@@ -682,9 +695,18 @@ async def run_session(
                 # Step 10: Multi-step idle fidgets with micro-drifts
                 await human.simulate_bored_idle_fidgets(page, rng, count=rng.randint(1, 3))
 
-            # Step 10: Occasional focus blur (bored visitor tab inattention simulation)
-            if rng.random() < 0.15:
-                await human.simulate_tab_blur(page, rng)
+                # BHV-3: 25% chance of keyboard scrolling/reading interactions during dwell
+                if rng.random() < 0.25:
+                    kb_key = rng.choice(["ArrowDown", "PageDown", "ArrowDown", "PageUp", "ArrowUp", "Space"])
+                    try:
+                        await page.keyboard.press(kb_key)
+                        await asyncio.sleep(rng.uniform(0.3, 0.7))
+                    except Exception:
+                        pass
+
+            # BHV-4: Realistic visitor tab inattention (glancing away 2-6s per 30s dwell)
+            if rng.random() < 0.28:
+                await human.simulate_tab_blur(page, rng, duration_s=rng.uniform(2.0, 6.0))
 
         result["dwell"] = time.time() - t_on_page
 
@@ -720,7 +742,7 @@ async def run_session(
         # SCHED-4: Fallback DB write on CancelledError/SIGTERM — always log final status
         if not _session_logged:
             try:
-                result["dwell"] = max(result.get("dwell", 0.0), time.time() - t0)
+                result["dwell"] = max(float(cfg.get("target", {}).get("min_dwell", 25.0)), result.get("dwell", 0.0), time.time() - t0)
                 result.setdefault("status", "cancelled")
                 db.log_session(
                     proxy_id=result["proxy_id"],

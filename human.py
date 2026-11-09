@@ -102,7 +102,14 @@ async def move_mouse(
 
     for i, (px, py) in enumerate(path):
         await page.mouse.move(px, py)
-        delay_ms = rng.uniform(8, 30)
+        # BHV-2: Fitts's Law velocity profile (acceleration -> ballistic flight -> deceleration)
+        pct = i / steps
+        if pct < 0.20:
+            delay_ms = rng.uniform(20, 48)  # Acceleration phase
+        elif pct < 0.80:
+            delay_ms = rng.uniform(6, 16)   # Ballistic flight phase
+        else:
+            delay_ms = rng.uniform(16, 42)  # Precision landing / deceleration phase
         await asyncio.sleep(delay_ms / 1000)
         if i == pause_at:
             await asyncio.sleep(rng.uniform(0.15, 0.6))

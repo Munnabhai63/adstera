@@ -168,24 +168,67 @@ def _parse_proxy_line(line: str) -> Optional[Proxy]:
     return None
 
 
+def _country_code_to_name(code: str) -> str:
+    _c_map = {
+        "US": "United States",
+        "GB": "United Kingdom",
+        "UK": "United Kingdom",
+        "CA": "Canada",
+        "AU": "Australia",
+        "DE": "Germany",
+        "FR": "France",
+        "ES": "Spain",
+        "IT": "Italy",
+        "NL": "Netherlands",
+        "PL": "Poland",
+        "BR": "Brazil",
+        "IN": "India",
+    }
+    return _c_map.get(code.upper(), code)
+
+
+async def check_proxy_header_leak(proxy: Proxy, timeout: float = 6.0) -> bool:
+    """
+    NET-4: Verify proxy does not leak identifying headers (X-Forwarded-For, Via, X-Real-IP, etc.).
+    Returns True if proxy is clean (no leaks), False if leaky.
+    """
+    if proxy.port <= 0:
+        return True
+    try:
+        transport = httpx.AsyncHTTPTransport(proxy=proxy.server_url)
+        async with httpx.AsyncClient(transport=transport, timeout=timeout) as client:
+            resp = await client.get("https://httpbin.org/headers")
+            if resp.status_code == 200:
+                headers = {k.lower(): v for k, v in resp.json().get("headers", {}).items()}
+                leak_headers = ["x-forwarded-for", "via", "x-real-ip", "cf-connecting-ip", "true-client-ip"]
+                for h in leak_headers:
+                    if h in headers:
+                        logger.warning("NET-4: Proxy %s rejected due to leaked header '%s'", proxy.safe_id, h)
+                        return False
+        return True
+    except Exception as exc:
+        logger.debug("NET-4 check skipped/failed for %s: %s", proxy.safe_id, exc)
+        return True
+
+
 async def _lookup_geo(proxy: Proxy, timeout: float = 8.0) -> GeoInfo:
     """
-    Attempt a geo lookup through the proxy via ip-api.com JSON endpoint.
-    Falls back to the hardcoded table on any error.
+    NET-2: 3-API fallback chain for geo lookup through proxy.
+    Chain: ip-api.com -> ipinfo.io -> freeipapi.com -> fallback_geo
     """
+    proxy_url = proxy.server_url if proxy.port > 0 else None
+
+    def _make_client() -> httpx.AsyncClient:
+        if proxy_url:
+            transport = httpx.AsyncHTTPTransport(proxy=proxy_url)
+            return httpx.AsyncClient(transport=transport, timeout=timeout)
+        return httpx.AsyncClient(timeout=timeout)
+
+    # API 1: ip-api.com
     try:
-        proxy_url = proxy.server_url
-        auth = None
-        if proxy.username:
-            auth = (proxy.username, proxy.password or "")
-
-        transport = httpx.AsyncHTTPTransport(proxy=proxy_url)  # type: ignore[arg-type]
-        async with httpx.AsyncClient(transport=transport, timeout=timeout) as client:
-            resp = await client.get(
-                "http://ip-api.com/json/?fields=status,country,regionName,city,timezone,query,org"
-            )
+        async with _make_client() as client:
+            resp = await client.get("http://ip-api.com/json/?fields=status,country,regionName,city,timezone,query,org")
             data = resp.json()
-
         if data.get("status") == "success":
             asn_name = data.get("org", "")
             geo = GeoInfo(
@@ -196,10 +239,52 @@ async def _lookup_geo(proxy: Proxy, timeout: float = 8.0) -> GeoInfo:
                 locale=_locale_for_country(data.get("country", "US")),
                 asn_name=asn_name,
             )
-            logger.debug("Geo for %s: %s / %s / %s", proxy.safe_id, geo.country, geo.city, geo.asn_name)
+            logger.debug("Geo[api1] for %s: %s / %s / %s", proxy.safe_id, geo.country, geo.city, geo.asn_name)
             return geo
     except Exception as exc:
-        logger.debug("Geo lookup failed for %s: %s — using fallback", proxy.safe_id, exc)
+        logger.debug("Geo API 1 failed for %s: %s", proxy.safe_id, exc)
+
+    # API 2: ipinfo.io
+    try:
+        async with _make_client() as client:
+            resp2 = await client.get("https://ipinfo.io/json")
+            data2 = resp2.json()
+        if data2.get("ip") and data2.get("country"):
+            tz = data2.get("timezone", "America/Chicago")
+            country_code = data2.get("country", "US")
+            country_name = _country_code_to_name(country_code)
+            geo = GeoInfo(
+                country=country_name,
+                region=data2.get("region", ""),
+                city=data2.get("city", ""),
+                timezone=tz,
+                locale=_locale_for_country(country_name),
+                asn_name=data2.get("org", ""),
+            )
+            logger.debug("Geo[api2] for %s: %s / %s / %s", proxy.safe_id, geo.country, geo.city, geo.asn_name)
+            return geo
+    except Exception as exc:
+        logger.debug("Geo API 2 failed for %s: %s", proxy.safe_id, exc)
+
+    # API 3: freeipapi.com
+    try:
+        async with _make_client() as client:
+            resp3 = await client.get("https://freeipapi.com/api/json")
+            data3 = resp3.json()
+        if data3.get("ipVersion") and data3.get("countryName"):
+            c_name = data3.get("countryName", "United States")
+            geo = GeoInfo(
+                country=c_name,
+                region=data3.get("regionName", ""),
+                city=data3.get("cityName", ""),
+                timezone=data3.get("timeZone", "America/Chicago"),
+                locale=_locale_for_country(c_name),
+                asn_name="",
+            )
+            logger.debug("Geo[api3] for %s: %s / %s / %s", proxy.safe_id, geo.country, geo.city, geo.asn_name)
+            return geo
+    except Exception as exc:
+        logger.debug("Geo API 3 failed for %s: %s", proxy.safe_id, exc)
 
     return _fallback_geo(proxy.host)
 
@@ -360,12 +445,20 @@ class ProxyPool:
 
         await asyncio.gather(*[enrich(p) for p in proxies])
 
-        # Filter datacenter ASNs
-        dc = [p for p in proxies if p.geo.is_datacenter]
-        for p in dc:
-            logger.warning("Rejecting datacenter proxy %s (ASN: %s)", p.proxy_id, p.geo.asn_name)
-        proxies = [p for p in proxies if not p.geo.is_datacenter]
-        logger.info("%d proxies after datacenter filter", len(proxies))
+        # Filter datacenter ASNs and IP reputation (NET-1)
+        from ip_quality import get_filter as get_ipqs
+        ipqs = get_ipqs()
+        clean = []
+        for p in proxies:
+            if p.geo.is_datacenter:
+                logger.warning("Rejecting datacenter proxy %s (ASN: %s)", p.safe_id, p.geo.asn_name)
+                continue
+            if not await ipqs.check_ip(p.host, p.geo.asn_name):
+                logger.warning("Rejecting low-reputation proxy %s (IPQS check failed)", p.safe_id)
+                continue
+            clean.append(p)
+        proxies = clean
+        logger.info("%d proxies after datacenter & IP reputation filter", len(proxies))
 
         return cls(proxies, cfg)
 

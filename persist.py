@@ -4,6 +4,7 @@ persist.py — Per-proxy storage_state (cookies + localStorage) carry-over.
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
 from playwright.async_api import BrowserContext
@@ -35,7 +36,7 @@ async def restore(context: BrowserContext, proxy_id: str) -> bool:
     Returns True if state was found and applied.
     """
     path = _state_path(proxy_id)
-    if not path.exists():
+    if not has_state(proxy_id):
         return False
 
     import json
@@ -51,9 +52,20 @@ async def restore(context: BrowserContext, proxy_id: str) -> bool:
         return False
 
 
-def has_state(proxy_id: str) -> bool:
-    """Check whether a saved state exists for this proxy."""
-    return _state_path(proxy_id).exists()
+def has_state(proxy_id: str, max_age_days: float = 7.0) -> bool:
+    """Check whether a valid, non-expired saved state exists for this proxy (INFRA-2: 7-day TTL)."""
+    path = _state_path(proxy_id)
+    if not path.exists():
+        return False
+    try:
+        age_days = (time.time() - path.stat().st_mtime) / 86400.0
+        if age_days > max_age_days:
+            path.unlink(missing_ok=True)
+            logger.debug("State expired (%.1f days > %.1f days) for %s — purged", age_days, max_age_days, proxy_id)
+            return False
+    except Exception:
+        pass
+    return True
 
 
 def clear(proxy_id: str) -> None:
