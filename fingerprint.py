@@ -393,6 +393,24 @@ def _generate_battery(fp: Fingerprint) -> dict:
     }
 
 
+def _calibrate_gpu_noise(webgl_renderer: str, is_mobile: bool) -> tuple[int, int]:
+    """
+    Step 3.5: Calibrate canvas noise range to match real devices with that GPU architecture.
+    Returns (max_lsb, stride_mod).
+    """
+    r = webgl_renderer.lower()
+    if is_mobile or "adreno" in r or "mali" in r or "apple gpu" in r:
+        return (2, 3)
+    elif "nvidia" in r or "geforce" in r:
+        return (2, 4)
+    elif "radeon" in r or "amd" in r:
+        return (2, 4)
+    elif "intel" in r or "iris" in r:
+        return (1, 6)
+    else:
+        return (1, 5)
+
+
 def init_script(fp: Fingerprint) -> str:
     """
     Return a JS string to inject via page.add_init_script().
@@ -403,6 +421,7 @@ def init_script(fp: Fingerprint) -> str:
     ch = _extract_client_hints(fp)
     media_devs = _generate_media_devices(fp)
     bat_info = _generate_battery(fp)
+    gpu_max_lsb, gpu_stride_mod = _calibrate_gpu_noise(fp.webgl_renderer, fp.is_mobile)
 
     return f"""
 (function() {{
@@ -701,18 +720,23 @@ def init_script(fp: Fingerprint) -> str:
     return Promise.resolve(_batteryManager);
   }}, 'getBattery');
 
-  // ── canvas & WebGL buffer integrity (deterministic seeded coordinate jitter) ──
+  // ── canvas & WebGL buffer integrity (Step 3.5: GPU Calibrated LSB Jitter) ──
   const _canvasSeed = {fp.canvas_seed};
+  const _gpuMaxLsb = {gpu_max_lsb};
+  const _gpuStrideMod = {gpu_stride_mod};
   const _applyDeterministicJitter = (data, w, h, sx, sy) => {{
     let seed = _canvasSeed;
     const len = data.length;
     for (let i = 0; i < len; i += 4) {{
       const pIdx = i >> 2;
+      if ((pIdx % _gpuStrideMod) !== 0) continue;
       const px = (pIdx % w) + sx;
       const py = Math.floor(pIdx / w) + sy;
       const hVal = (Math.imul(px ^ seed, 1664525) + Math.imul(py ^ 0x5bd1e995, 1013904223)) ^ seed;
-      const jR = (hVal & 3) === 1 ? 1 : ((hVal & 3) === 2 ? -1 : 0);
-      const jB = ((hVal >> 2) & 3) === 1 ? 1 : (((hVal >> 2) & 3) === 2 ? -1 : 0);
+      const rawR = (hVal & 3);
+      const jR = rawR === 1 ? _gpuMaxLsb : (rawR === 2 ? -_gpuMaxLsb : 0);
+      const rawB = ((hVal >> 2) & 3);
+      const jB = rawB === 1 ? _gpuMaxLsb : (rawB === 2 ? -_gpuMaxLsb : 0);
       if (jR !== 0) data[i] = Math.max(0, Math.min(255, data[i] + jR));
       if (jB !== 0) data[i + 2] = Math.max(0, Math.min(255, data[i + 2] + jB));
     }}

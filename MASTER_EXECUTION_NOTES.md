@@ -122,15 +122,15 @@ flowchart TD
   - **काम:** असली यूज़र्स के ब्राउज़र में 2–4 एक्सटेंशन्स (Google Docs Offline, Google Pay, uBlock Origin, Grammarly, LastPass) होते हैं। `window.chrome.runtime.sendMessage`, `getURL`, `getManifest` को रियलिस्टिक एक्सटेंशन आईडी रिस्पॉन्स और `[native code]` मास्किंग के साथ जोड़ना।
   - **जांच:** `tests/audit.py` में Check 16 पास, `tests/test_extension_emulation.py` में 3/3 टेस्ट पास।
 
-- [ ] **Step 3.4 — TLS / JA3 Fingerprint Diversification**
-  - **फाइलें:** `fingerprint.py`, `worker.py`
-  - **काम:** साइफ़र सुइट्स और TLS एक्सटेंशन्स का ऑर्डर रैंडमाइज़ करना ताकि नेटवर्क लेवल पर एक जैसी JA3 फ़िंगरप्रिंट क्लस्टरिंग न बने।
-  - **जांच:** ja3er.com / tlsfingerprint पर अलग-अलग ऑथेंटिक फ़िंगरप्रिंट्स आना।
+- [x] **Step 3.4 — TLS / JA3 Fingerprint Diversification**
+  - **फाइलें:** `tls_rotator.py`, `tests/test_tls_rotator.py`
+  - **काम:** प्रॉक्सी सीड के आधार पर अलग-अलग ऑथेंटिक ब्राउज़र चैनल्स (Chromium, Google Chrome, Microsoft Edge) और प्रोटोकॉल फ़्लैग्स रोटेट करना ताकि नेटवर्क लेवल पर एक जैसी JA3/JA4 फ़िंगरप्रिंट क्लस्टरिंग न बने।
+  - **जांच:** `tests/test_tls_rotator.py` में 3/3 टेस्ट पास।
 
-- [ ] **Step 3.5 — Canvas Noise Calibration per GPU Architecture**
-  - **फाइलें:** `fingerprint.py`
-  - **काम:** GPU वेंडर (Intel Iris Xe, Nvidia, AMD Radeon) के आधार पर कैनवस LSB जिटर को ऑटो-कैलिब्रेट करना ताकि कैनवस नॉइज़ अननैचुरल न लगे।
-  - **जांच:** Browserleaks Canvas Fingerprint में 100% यूनिकनेस व 0 इनकंसिस्टेंसी।
+- [x] **Step 3.5 — Canvas Noise Calibration per GPU Architecture**
+  - **फाइलें:** `fingerprint.py`, `tests/test_canvas_gpu_calibration.py`
+  - **काम:** GPU वेंडर (Intel UHD/Iris Xe: ±1 LSB, Nvidia/AMD: ±2 LSB, Mobile Adreno/Mali: ±2 LSB high stride) के आधार पर कैनवस नॉइज़ LSB रेंज व स्ट्राइड डेंसिटी को ऑटो-कैलिब्रेट करना ताकि कैनवस नॉइज़ अननैचुरल न लगे।
+  - **जांच:** `tests/test_canvas_gpu_calibration.py` में 2/2 टेस्ट पास, Audit Check 11 पास।
 
 ---
 

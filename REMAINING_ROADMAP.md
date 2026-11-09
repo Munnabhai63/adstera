@@ -460,7 +460,7 @@
    ```
 
 **Expected Outcome:** Different JA3 fingerprints across sessions, harder to cluster
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: tls_rotator.py with chromium/chrome/msedge channels, tests/test_tls_rotator.py passing 3/3)
 
 ---
 
@@ -480,7 +480,7 @@
 3. This prevents "all canvas hashes from this GPU class look suspiciously noisy" detection
 
 **Expected Outcome:** Canvas fingerprints look natural for the claimed GPU
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: _calibrate_gpu_noise in fingerprint.py, tests/test_canvas_gpu_calibration.py passing 2/2, tests/audit.py passing Check 11)
 
 ---
 
