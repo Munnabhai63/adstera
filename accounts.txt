@@ -1,0 +1,9 @@
+# accounts.txt — Multi-format account and persona pool
+# Formats supported:
+# 1. email:password
+# 2. email:password:proxy_host:proxy_port
+# 3. email:password:proxy_host:proxy_port:proxy_user:proxy_pass
+# 4. JSON: [{"email": "...", "password": "..."}]
+david.miller.invest88@gmail.com:PassSecure#2026
+sarah.connor.finance@yahoo.com:LoanRefi$992
+alex.turner.cloud@outlook.com:CloudVPS*774

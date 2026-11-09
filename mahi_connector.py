@@ -107,12 +107,22 @@ class MahiConnector:
         return None
 
     def get_random_profile(self, rng: Optional[random.Random] = None) -> Dict[str, Any]:
-        """Select a random profile from available active profiles."""
+        """Select a random profile from available active profiles, or generate dynamically."""
         profiles = self.get_available_profiles()
         if not profiles:
-            raise MahiBridgeError("No active profiles found in MAHI Browser database.")
+            return self.get_dynamic_profile()
         chooser = rng if rng is not None else random
         return chooser.choice(profiles)
+
+    def get_dynamic_profile(
+        self,
+        account: Optional[Any] = None,
+        proxy: Optional[Any] = None,
+        seed: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Generates an unlimited, mathematically coherent MAHI hardware profile on demand."""
+        from profile_factory import ProfileFactory
+        return ProfileFactory.generate_profile(account=account, proxy=proxy, seed=seed)
 
     def build_launch_args(
         self,
@@ -219,3 +229,4 @@ class MahiConnector:
         except Exception as exc:
             logger.warning("Could not save storage state for %s: %s", profile_id, exc)
         return state_path
+

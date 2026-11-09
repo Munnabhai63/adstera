@@ -102,3 +102,4 @@ def test_state_isolation_paths(connector):
     # Must NOT be inside MAHI Browser's application or roaming dir
     assert "AppData\\Roaming\\mahi-browser" not in str(user_data_dir)
     assert "AppData\\Local\\Programs\\MAHI Browser" not in str(user_data_dir)
+
