@@ -267,3 +267,10 @@ ab_testing:
   enabled: true
   min_samples: 50
   auto_promote: true
+
+cluster:
+  # Step 5.4: Multi-Machine Cluster Orchestrator
+  enabled: false
+  node_id: node_coordinator
+  role: coordinator
+  heartbeat_timeout_s: 120.0
