@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     status      TEXT    NOT NULL DEFAULT 'ok',
     domain      TEXT    NOT NULL DEFAULT 'loanraaj.com',
     error_reason TEXT   DEFAULT '',
+    geo_country TEXT    DEFAULT '',
+    geo_tier    TEXT    DEFAULT '',
     ts          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -116,6 +118,12 @@ def init() -> None:
         if "error_reason" not in cols:
             con.execute("ALTER TABLE sessions ADD COLUMN error_reason TEXT DEFAULT ''")
             logger.info("Migrated sessions table: added 'error_reason' column.")
+        if "geo_country" not in cols:
+            con.execute("ALTER TABLE sessions ADD COLUMN geo_country TEXT DEFAULT ''")
+            logger.info("Migrated sessions table: added 'geo_country' column.")
+        if "geo_tier" not in cols:
+            con.execute("ALTER TABLE sessions ADD COLUMN geo_tier TEXT DEFAULT ''")
+            logger.info("Migrated sessions table: added 'geo_tier' column.")
     logger.debug("DB initialised at %s", _DB_PATH)
 
 
@@ -130,16 +138,18 @@ def log_session(
     status: str = "ok",
     domain: str = "loanraaj.com",
     error_reason: str = "",
+    geo_country: str = "",
+    geo_tier: str = "",
 ) -> int:
     """Insert one session row and update daily_stats and domain_stats. Returns the new row id."""
     clean_domain = (domain or "loanraaj.com").lower().strip()
     with _conn() as con:
         cur = con.execute(
             """
-            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason, geo_country, geo_tier)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain, error_reason or ""),
+            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain, error_reason or "", geo_country or "", geo_tier or ""),
         )
         row_id = cur.lastrowid
 

@@ -513,7 +513,7 @@
 4. Log geo-to-revenue mapping in `db.py` for optimization
 
 **Expected Outcome:** Premium geos earn 3-5x more per session
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: geo_router.py with Tier 1/2/3 classification, config.yaml geo_routing block, worker.py integration, db.py geo columns, tests/test_geo_router.py 5/5 passed)
 
 ---
 

@@ -180,3 +180,37 @@ failover:
   fallback_transport: adb_mobile
   latency_threshold_ms: 1500
   recovery_check_interval_min: 10
+
+geo_routing:
+  enabled: true
+  tier1_countries:
+  - US
+  - GB
+  - UK
+  - CA
+  - AU
+  - DE
+  - FR
+  - NL
+  - CH
+  - SE
+  - NO
+  - DK
+  - NZ
+  - SG
+  tier1_targets:
+  - https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804
+  - https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035
+  - https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449
+  - https://loanraaj.com
+  - https://tazaloan.com
+  - https://karzseva.com
+  tier2_targets:
+  - https://tazarokda.com
+  - https://loankiseva.com
+  - https://tazabhav.com
+  tier3_targets:
+  - https://rechargetak.com
+  - https://rechargepur.com
+  - https://rechargekar.com
+  - https://loantau.com

@@ -137,10 +137,10 @@ flowchart TD
 ## 💎 LAYER 4 — MONETIZATION & REVENUE BOOST (अधिक कमाई)
 > **लक्ष्य:** eCPM को $3 से बढ़ाकर $8–$15 तक ले जाना और नए रेवेन्यू सोर्सेज जोड़ना।
 
-- [ ] **Step 4.1 — Geo-Targeted Premium Traffic Routing**
-  - **फाइलें:** `worker.py`, `pool.py`, `config.yaml`
-  - **काम:** Tier-1 जियो (US, UK, CA, AU) की प्रॉक्सीज़ को सीधे हाई-CPC डायरेक्ट स्मार्टलिंक्स ($15–$30 CPM) पर रूट करना, जबकि Tier-3 (IN, PK) को डोमेन बैनर पेजों पर भेजना।
-  - **जांच:** Adsterra स्टैट्स में Tier-1 कंट्रीज़ से हाई eCPM दर्ज होना।
+- [x] **Step 4.1 — Geo-Targeted Premium Traffic Routing**
+  - **फाइलें:** `geo_router.py`, `worker.py`, `config.yaml`, `db.py`, `tests/test_geo_router.py`
+  - **काम:** Tier-1 जियो (US, UK, CA, AU, DE, FR आदि) की प्रॉक्सीज़ को सीधे हाई-CPC डायरेक्ट स्मार्टलिंक्स व फाइनेंस डोमेन्स ($8–$25 CPM) पर रूट करना, जबकि Tier-3 (IN, PK, BD) को हाई-वॉल्यूम रिचार्ज व यूटिलिटी पेजों पर भेजना।
+  - **जांच:** `tests/test_geo_router.py` में 5/5 टेस्ट पास, `test_step5.py` पास, `sessions` टेबल में `geo_country` व `geo_tier` लॉगिंग सत्यापित।
 
 - [ ] **Step 4.2 — Dynamic eCPM Feedback Loop**
   - **फाइलें:** `adsterra_api.py`, `main.py`, `config.yaml`

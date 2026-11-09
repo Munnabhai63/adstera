@@ -16,6 +16,7 @@ from playwright.async_api import Browser, BrowserContext, Page, Playwright
 import cmp
 import db
 import fingerprint as fp_mod
+import geo_router
 import human
 from mahi_connector import MahiConnector
 import nav
@@ -74,21 +75,20 @@ def _record_active_ua(proxy_id: str, fp, active: bool = True, target_url: str | 
         pass
 
 
-def select_target_url(cfg: dict, rng: random.Random) -> str:
+def select_target_url(
+    cfg: dict,
+    rng: random.Random,
+    proxy_country: str | None = None,
+    return_tier: bool = False,
+) -> str | tuple[str, str]:
     """
-    Select a target URL from the target pool (urls / url_pool),
-    honoring optional url_weights, and falling back to cfg['target']['url'].
+    Select a target URL considering geo-targeting rules (Step 4.1).
+    If return_tier is True, returns (url, geo_tier). Otherwise returns url string.
     """
-    target_cfg = cfg.get("target", {})
-    pool = target_cfg.get("urls") or target_cfg.get("url_pool")
-    if pool and isinstance(pool, list):
-        clean_pool = [u.strip() for u in pool if isinstance(u, str) and u.strip()]
-        if clean_pool:
-            weights = target_cfg.get("url_weights")
-            if weights and isinstance(weights, list) and len(weights) == len(clean_pool):
-                return rng.choices(clean_pool, weights=weights, k=1)[0]
-            return rng.choice(clean_pool)
-    return target_cfg.get("url", "")
+    url, tier = geo_router.select_geo_target(cfg, proxy_country, rng)
+    if return_tier:
+        return url, tier
+    return url
 
 # EU/UK country codes that require CMP handling
 _EU_UK_COUNTRIES = {
@@ -294,7 +294,12 @@ async def run_session(
     Returns a result dict with session metadata.
     """
     fp = fp_mod.build(proxy)
-    start_url = cfg["target"]["fixture"] if use_fixture else select_target_url(cfg, rng)
+    proxy_country = proxy.geo.country if getattr(proxy, "geo", None) else None
+    if use_fixture:
+        start_url = cfg["target"]["fixture"]
+        geo_tier = geo_router.classify_geo_tier(proxy_country)
+    else:
+        start_url, geo_tier = select_target_url(cfg, rng, proxy_country=proxy_country, return_tier=True)
     if use_fixture and not start_url.startswith("http"):
         start_url = "file:///" + start_url.replace("\\", "/")
     _record_active_ua(proxy.proxy_id, fp, active=True, target_url=start_url)
@@ -359,6 +364,8 @@ async def run_session(
         "impressions": 0,
         "status": "ok",
         "error_reason": "",
+        "geo_country": proxy_country or "",
+        "geo_tier": geo_tier or "tier1",
     }
 
     context: BrowserContext | None = None
@@ -601,6 +608,8 @@ async def run_session(
         status=result["status"],
         domain=target_domain,
         error_reason=result.get("error_reason", ""),
+        geo_country=result.get("geo_country", ""),
+        geo_tier=result.get("geo_tier", ""),
     )
 
     # Layer 4: Real-time Circuit Breaker evaluation & Telegram alert dispatch
