@@ -249,3 +249,11 @@ push_notifications:
   min_delay_s: 7.0
   max_delay_s: 25.0
   skip_eu_uk: true
+
+cpa_stacking:
+  # Step 4.5: Affiliate CPA Offer Stacking
+  enabled: true
+  attempt_prob: 0.08
+  max_per_proxy_per_day: 3
+  min_payout_usd: 1.0
+  min_dwell_s: 15.0

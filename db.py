@@ -105,6 +105,23 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     session_id      INTEGER DEFAULT NULL,
     ts              TEXT    DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS cpa_conversions (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    offer_id        TEXT    NOT NULL,
+    network         TEXT    NOT NULL DEFAULT 'direct',
+    niche           TEXT    NOT NULL DEFAULT 'loan',
+    proxy_id        TEXT    NOT NULL,
+    domain          TEXT    NOT NULL DEFAULT 'loanraaj.com',
+    geo_country     TEXT    DEFAULT '',
+    geo_tier        TEXT    DEFAULT '',
+    payout_usd      REAL    NOT NULL DEFAULT 0.0,
+    landing_url     TEXT    DEFAULT '',
+    session_id      INTEGER DEFAULT NULL,
+    dwell_s         REAL    NOT NULL DEFAULT 0.0,
+    status          TEXT    NOT NULL DEFAULT 'submitted',
+    ts              TEXT    DEFAULT (datetime('now'))
+);
 """
 
 
@@ -228,6 +245,112 @@ def push_today_count() -> dict:
         action = row[0] if row[0] in result else "skipped"
         result[action] = row[1]
     return result
+
+
+def log_cpa_conversion(
+    offer_id: str,
+    network: str,
+    niche: str,
+    proxy_id: str,
+    domain: str,
+    geo_country: str = "",
+    geo_tier: str = "",
+    payout_usd: float = 0.0,
+    landing_url: str = "",
+    session_id: int | None = None,
+    dwell_s: float = 0.0,
+    status: str = "submitted",
+) -> int:
+    """
+    Log a CPA conversion event.
+    status: 'submitted' | 'confirmed' | 'rejected' | 'pending'
+    Returns the new row id.
+    """
+    with _conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO cpa_conversions
+                (offer_id, network, niche, proxy_id, domain, geo_country, geo_tier,
+                 payout_usd, landing_url, session_id, dwell_s, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                offer_id, network, niche, proxy_id,
+                domain or "loanraaj.com", geo_country, geo_tier,
+                round(payout_usd, 4), landing_url, session_id,
+                round(dwell_s, 2), status,
+            ),
+        )
+        logger.debug(
+            "CPA conversion logged: offer=%s network=%s payout=$%.2f domain=%s",
+            offer_id, network, payout_usd, domain,
+        )
+        return cur.lastrowid or 0
+
+
+def cpa_today_count(offer_id: str = "") -> int:
+    """Returns today's CPA conversion count for a specific offer (or all if empty)."""
+    with _conn() as con:
+        if offer_id:
+            row = con.execute(
+                "SELECT COUNT(*) FROM cpa_conversions WHERE offer_id=? AND DATE(ts)=DATE('now')",
+                (offer_id,),
+            ).fetchone()
+        else:
+            row = con.execute(
+                "SELECT COUNT(*) FROM cpa_conversions WHERE DATE(ts)=DATE('now')"
+            ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def cpa_today_count_by_proxy(proxy_id: str) -> int:
+    """Returns today's CPA attempt count for a specific proxy."""
+    with _conn() as con:
+        row = con.execute(
+            "SELECT COUNT(*) FROM cpa_conversions WHERE proxy_id=? AND DATE(ts)=DATE('now')",
+            (proxy_id,),
+        ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def cpa_today_revenue() -> float:
+    """Returns estimated today's total CPA revenue in USD."""
+    with _conn() as con:
+        row = con.execute(
+            """
+            SELECT COALESCE(SUM(payout_usd), 0.0)
+            FROM cpa_conversions
+            WHERE DATE(ts) = DATE('now') AND status NOT IN ('rejected')
+            """
+        ).fetchone()
+    return float(row[0]) if row else 0.0
+
+
+def cpa_network_summary(last_days: int = 7) -> list[dict]:
+    """Returns per-network conversion summary for last N days."""
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT network, niche,
+                   COUNT(*) as conversions,
+                   ROUND(SUM(payout_usd), 2) as revenue_usd
+            FROM cpa_conversions
+            WHERE DATE(ts) >= DATE('now', ?)
+              AND status NOT IN ('rejected')
+            GROUP BY network, niche
+            ORDER BY revenue_usd DESC
+            """,
+            (f"-{last_days} days",),
+        ).fetchall()
+    return [
+        {
+            "network": r[0],
+            "niche": r[1],
+            "conversions": r[2],
+            "revenue_usd": r[3],
+        }
+        for r in rows
+    ]
 
 
 def log_session(
