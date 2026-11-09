@@ -585,8 +585,23 @@ async def run_session(
         max_ctr_limit = float(cfg.get("target", {}).get("max_domain_ctr", 0.050))
         domain_safety = db.check_domain_safety(target_domain, max_ctr=max_ctr_limit)
 
+        # Layer 7: Check statistical anomaly detector circuit breaker
+        anomaly_paused = False
+        try:
+            from anomaly_detector import AnomalyDetector
+            is_paused, p_action, p_reason = AnomalyDetector().is_domain_paused(target_domain)
+            if is_paused:
+                anomaly_paused = True
+                logger.warning(
+                    "Anomaly Circuit Breaker Active for %s: [%s] %s (Clicks Suppressed)",
+                    target_domain, p_action, p_reason
+                )
+        except Exception:
+            pass
+
         suppress_clicks = (
             is_zero_click
+            or anomaly_paused
             or not domain_safety["allow_click"]
             or should_suppress_click_for_ctr(
                 current_ctr=recent_domain_ctr,
@@ -707,6 +722,16 @@ async def run_session(
     try:
         from alert_bot import check_and_trigger_circuit_breaker
         check_and_trigger_circuit_breaker(target_domain)
+    except Exception:
+        pass
+
+    # Layer 7: Continuous statistical anomaly detection & circuit breaker
+    try:
+        from anomaly_detector import AnomalyDetector
+        ad = AnomalyDetector()
+        detected_anomalies = ad.detect_anomalies(target_domain, window=25)
+        if detected_anomalies:
+            ad.apply_circuit_breaker(detected_anomalies)
     except Exception:
         pass
 
