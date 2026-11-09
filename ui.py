@@ -750,6 +750,33 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Multi-Domain Fleet Governance Table (MD Spec 1) -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>🌐 Multi-Domain Fleet Governance & Independent CTR Circuit Breakers</span>
+      <span style="font-size: 11px; background: rgba(52, 211, 153, 0.15); color: #34d399; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.3);">Safe CTR Limit: &le; 5.0%</span>
+    </div>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Sessions</th>
+            <th>Impressions</th>
+            <th>Clicks</th>
+            <th>Live CTR</th>
+            <th>Circuit Status</th>
+            <th>Target CPM</th>
+            <th>Est. Revenue</th>
+          </tr>
+        </thead>
+        <tbody id="domainsTbody">
+          <tr><td colspan="8" style="text-align: center; color: var(--muted);">Loading domain fleet status…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Session Log Table -->
   <div class="card">
     <div class="card-title">
@@ -760,6 +787,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <thead>
           <tr>
             <th>ID</th>
+            <th>Domain</th>
             <th>Proxy</th>
             <th>Referrer</th>
             <th>Dwell</th>
@@ -771,7 +799,7 @@ HTML_PAGE = """<!DOCTYPE html>
           </tr>
         </thead>
         <tbody id="sessionsTbody">
-          <tr><td colspan="9" style="text-align: center; color: var(--muted);">No sessions recorded yet</td></tr>
+          <tr><td colspan="10" style="text-align: center; color: var(--muted);">No sessions recorded yet</td></tr>
         </tbody>
       </table>
     </div>
@@ -886,12 +914,46 @@ HTML_PAGE = """<!DOCTYPE html>
         if (uTarget) uTarget.innerText = data.active_ua.target_url || '—';
       }
 
+      // Update domain fleet table
+      const domTbody = document.getElementById('domainsTbody');
+      if (domTbody && data.domains && data.domains.length > 0) {
+        domTbody.innerHTML = data.domains.map(d => {
+          let badgeColor = '#34d399';
+          let badgeBg = 'rgba(52, 211, 153, 0.15)';
+          let badgeBorder = 'rgba(52, 211, 153, 0.3)';
+          if (d.status === 'GUARD_ACTIVE') {
+            badgeColor = '#fbbf24';
+            badgeBg = 'rgba(251, 191, 36, 0.15)';
+            badgeBorder = 'rgba(251, 191, 36, 0.3)';
+          } else if (d.status === 'PAUSED') {
+            badgeColor = '#f87171';
+            badgeBg = 'rgba(248, 113, 113, 0.15)';
+            badgeBorder = 'rgba(248, 113, 113, 0.3)';
+          }
+          return `
+            <tr>
+              <td><strong style="color: #f8fafc;">${d.domain}</strong></td>
+              <td>${d.sessions}</td>
+              <td>${d.impressions}</td>
+              <td><strong style="color: ${d.clicks > 0 ? '#34d399' : 'inherit'}">${d.clicks}</strong></td>
+              <td><span style="font-weight: 600; color: ${badgeColor}">${d.ctr.toFixed(2)}%</span></td>
+              <td><span style="font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; color: ${badgeColor}; background: ${badgeBg}; border: 1px solid ${badgeBorder};">${d.status}</span></td>
+              <td>$${d.cpm ? d.cpm.toFixed(2) : '4.50'}</td>
+              <td><strong style="color: #38bdf8;">$${d.estimated_revenue ? d.estimated_revenue.toFixed(2) : '0.00'}</strong></td>
+            </tr>
+          `;
+        }).join('');
+      } else if (domTbody) {
+        domTbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted);">No domain sessions recorded today yet</td></tr>';
+      }
+
       // Update sessions table
       const tbody = document.getElementById('sessionsTbody');
       if (data.recent_sessions && data.recent_sessions.length > 0) {
         tbody.innerHTML = data.recent_sessions.map(s => `
           <tr>
             <td>#${s.id}</td>
+            <td><span style="color: #38bdf8; font-weight: 500;">${s.domain || 'loanraaj.com'}</span></td>
             <td title="${s.proxy_id}">${s.proxy_id}</td>
             <td title="${s.referrer}">${s.referrer ? s.referrer.substring(0, 32) + '…' : '(direct)'}</td>
             <td>${s.dwell}s</td>
@@ -1312,6 +1374,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "today": db.today(),
                 "ctr": db.ctr(100),
                 "metrics": metrics,
+                "domains": db.all_domains_summary(cpm_rate),
                 "network_mode": net_mode,
                 "mobile_info": mobile_info,
                 "proxies_count": count_valid_proxies(),
