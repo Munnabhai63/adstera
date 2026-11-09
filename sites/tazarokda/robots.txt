@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://tazarokda.com/sitemap.xml
