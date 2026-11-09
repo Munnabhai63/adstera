@@ -261,3 +261,9 @@ cpa_stacking:
 
 debug_traces: false  # Step 5.1: Record Playwright traces for degraded sessions
 max_traces: 50
+
+ab_testing:
+  # Step 5.3: A/B Test Engine for Click & Dwell Strategies
+  enabled: true
+  min_samples: 50
+  auto_promote: true

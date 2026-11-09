@@ -13,6 +13,7 @@ from urllib.parse import urlparse
 from pathlib import Path
 from playwright.async_api import Browser, BrowserContext, Page, Playwright
 
+import ab_test_engine
 from ad_network_manager import AdNetworkManager
 import cmp
 import db
@@ -401,11 +402,17 @@ async def run_session(
     ad_net_mgr = AdNetworkManager()
     selected_network = ad_net_mgr.select_network(rng)
 
+    # Step 5.3: A/B Testing Strategy Variant Selection
+    ab_engine = ab_test_engine.build_from_config(cfg)
+    variant = ab_engine.select_variant(rng)
+    cfg = ab_engine.apply_variant_to_config(cfg, variant)
+
     result = {
         "proxy_id": proxy.proxy_id,
         "target_url": start_url,
         "domain": target_domain,
         "ad_network": selected_network,
+        "variant_id": variant.variant_id,
         "mahi_profile_id": mahi_profile["id"] if mahi_profile else None,
         "ua": fp.user_agent,
         "referrer": referrer,
@@ -693,6 +700,7 @@ async def run_session(
         geo_country=result.get("geo_country", ""),
         geo_tier=result.get("geo_tier", ""),
         ad_network=result.get("ad_network", "adsterra"),
+        variant_id=result.get("variant_id", "default"),
     )
 
     # Layer 4: Real-time Circuit Breaker evaluation & Telegram alert dispatch

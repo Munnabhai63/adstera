@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     geo_country TEXT    DEFAULT '',
     geo_tier    TEXT    DEFAULT '',
     ad_network  TEXT    DEFAULT 'adsterra',
+    variant_id  TEXT    DEFAULT 'default',
     ts          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -167,6 +168,9 @@ def init() -> None:
         if "ad_network" not in cols:
             con.execute("ALTER TABLE sessions ADD COLUMN ad_network TEXT DEFAULT 'adsterra'")
             logger.info("Migrated sessions table: added 'ad_network' column.")
+        if "variant_id" not in cols:
+            con.execute("ALTER TABLE sessions ADD COLUMN variant_id TEXT DEFAULT 'default'")
+            logger.info("Migrated sessions table: added 'variant_id' column.")
     logger.debug("DB initialised at %s", _DB_PATH)
 
 
@@ -367,16 +371,17 @@ def log_session(
     geo_country: str = "",
     geo_tier: str = "",
     ad_network: str = "adsterra",
+    variant_id: str = "default",
 ) -> int:
     """Insert one session row and update daily_stats and domain_stats. Returns the new row id."""
     clean_domain = (domain or "loanraaj.com").lower().strip()
     with _conn() as con:
         cur = con.execute(
             """
-            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason, geo_country, geo_tier, ad_network)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason, geo_country, geo_tier, ad_network, variant_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain, error_reason or "", geo_country or "", geo_tier or "", ad_network or "adsterra"),
+            (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain, error_reason or "", geo_country or "", geo_tier or "", ad_network or "adsterra", variant_id or "default"),
         )
         row_id = cur.lastrowid
 
@@ -440,6 +445,58 @@ def ctr(last_n: int = 100) -> float:
     if not row or not row["imps"]:
         return 0.0
     return round(row["clicks"] / row["imps"], 4)
+
+
+def get_ab_test_metrics(last_n: int = 500) -> dict[str, dict[str, Any]]:
+    """
+    Step 5.3: Compute aggregated metrics for each A/B testing strategy variant.
+    Returns: {
+        variant_id: {
+            'sessions': int,
+            'degraded': int,
+            'degraded_pct': float,
+            'clicks': int,
+            'impressions': int,
+            'ctr': float,
+            'avg_dwell': float,
+        }
+    }
+    """
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT COALESCE(variant_id, 'default') AS var_id,
+                   COUNT(*) AS sessions,
+                   SUM(CASE WHEN status='degraded' THEN 1 ELSE 0 END) AS degraded,
+                   SUM(ad_clicks) AS clicks,
+                   SUM(impressions) AS impressions,
+                   AVG(dwell) AS avg_dwell
+            FROM (SELECT * FROM sessions ORDER BY id DESC LIMIT ?)
+            GROUP BY var_id
+            """,
+            (last_n,),
+        ).fetchall()
+
+    metrics = {}
+    for r in rows:
+        var_id = str(r["var_id"])
+        sess = int(r["sessions"] or 0)
+        deg = int(r["degraded"] or 0)
+        clicks = int(r["clicks"] or 0)
+        imps = int(r["impressions"] or 0)
+        avg_dwell = float(r["avg_dwell"] or 0.0)
+        ctr_val = round(clicks / imps, 4) if imps > 0 else 0.0
+        deg_pct = round(deg / sess, 4) if sess > 0 else 0.0
+        metrics[var_id] = {
+            "sessions": sess,
+            "degraded": deg,
+            "degraded_pct": deg_pct,
+            "clicks": clicks,
+            "impressions": imps,
+            "ctr": ctr_val,
+            "avg_dwell": round(avg_dwell, 1),
+        }
+    return metrics
 
 
 def domain_today(domain: str) -> dict:
