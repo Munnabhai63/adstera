@@ -252,7 +252,7 @@
 | rechargekar.com | DTH/Utility | "Tata Play Recharge Offers", "Dish TV Best Packs" |
 
 **Expected Outcome:** All 10 domains have proper landing pages with ad units
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: All 10 domain landing pages built in `sites/` with 8 ad slots each, tested & verified in Chromium)
 
 ---
 

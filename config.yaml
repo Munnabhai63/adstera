@@ -1,11 +1,15 @@
 target:
-  url: https://rechargetak.com
+  url: https://loanraaj.com
   urls:
+  - https://loanraaj.com
   - https://rechargetak.com
   - https://tazaloan.com
   - https://karzseva.com
   - https://rechargepur.com
   - https://loankiseva.com
+  - https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc004
+  - https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035
+  - https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449
   fixture: tests/fixtures/page.html
   referrers:
   - https://www.google.com/search?q=example+keyword
@@ -93,7 +97,7 @@ proxy:
   max_concurrent_per_ip: 1
   dead_ip_cooldown_min: 45
 scheduler:
-  concurrency: 1
+  concurrency: 6
   sessions_per_hour: 150
   daily_cap: 2000
   diurnal:
