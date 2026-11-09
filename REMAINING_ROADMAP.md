@@ -788,7 +788,7 @@
 3. Internal links give the bot natural multi-page navigation targets
 
 **Expected Outcome:** Each domain has 10+ indexable pages with ad units
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_content_generator.py` 5/5 passing, commit `a42f5ac`)
 
 ---
 
@@ -815,7 +815,7 @@
 2. Real traffic comes from many sources — pure Google-only referrers are suspicious
 
 **Expected Outcome:** Natural-looking referrer distribution
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_social_referrers.py` 3/3 passing, commit `014e59f`)
 
 ---
 
@@ -834,7 +834,7 @@
 5. Dashboard integration: show organic vs bot traffic comparison
 
 **Expected Outcome:** Track real organic visibility alongside bot operations
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified via `tests/test_gsc_monitor.py` 4/4 passing, commit `ff40224`)
 
 ---
 
