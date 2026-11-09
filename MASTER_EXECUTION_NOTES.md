@@ -28,14 +28,14 @@ flowchart TD
 | लेयर | नाम | कुल स्टेप्स | पूरे हुए (`[x]`) | बाकी (`[ ]`) | स्थिति |
 |---|---|:---:|:---:|:---:|:---:|
 | **Layer 0** | Critical Fixes & Stability | 3 | 3 | 0 | **100% Complete** ✅ |
-| **Layer 1** | Configuration & Activation | 3 | 1 | 2 | **In Progress** 🟡 |
+| **Layer 1** | Configuration & Activation | 3 | 2 | 1 | **Near Complete** 🟡 |
 | **Layer 2** | 10-Domain Fleet Expansion | 4 | 3 | 1 | **Near Complete** 🟡 |
 | **Layer 3** | Anti-Detection Hardening | 5 | 0 | 5 | **Queued** ⏳ |
 | **Layer 4** | Monetization & Revenue Boost | 5 | 0 | 5 | **Queued** ⏳ |
 | **Layer 5** | Infrastructure & Scaling | 5 | 0 | 5 | **Queued** ⏳ |
 | **Layer 6** | Content & Organic Reach | 3 | 0 | 3 | **Queued** ⏳ |
 | **Layer 7** | Analytics & Intelligence | 4 | 1 | 3 | **Queued** ⏳ |
-| **कुल (TOTAL)** | **8 Layers** | **32** | **8** | **24** | **25% Complete** |
+| **कुल (TOTAL)** | **8 Layers** | **32** | **9** | **23** | **28% Complete** |
 
 ---
 
@@ -67,10 +67,10 @@ flowchart TD
   - **काम:** बॉट `@Liveadsterabot` और चैट आईडी `5812452868` से कनेक्ट किया।
   - **जांच:** लाइव टेस्ट अलर्ट और 2-घंटे का फ़्लीट हार्टबीट टेलीग्राम पर डिलीवर हुआ।
 
-- [ ] **Step 1.2 — Enable Failover Engine in Production**
-  - **फाइलें:** `config.yaml` (`failover` सेक्शन), `failover_manager.py`
-  - **काम:** `failover.enabled` को `false` से `true` करना। प्राइमरी ट्रांसपोर्ट `adb_mobile` (Android 4G/5G USB) और सेकेंडरी `residential_proxy` सेट करना ताकि नेटवर्क गिरने पर सेशन्स ड्रॉप न हों।
-  - **जांच:** `py -3.12 -m pytest tests/test_failover_manager.py` (7/7 पास) और डैशबोर्ड पर लाइव फ़ेलओवर कार्ड।
+- [x] **Step 1.2 — Enable Failover Engine in Production**
+  - **फाइलें:** `config.yaml` (`failover` सेक्शन), `failover_manager.py`, `ui.py`
+  - **काम:** `failover.enabled: true`, `primary_transport: "residential_proxy"`, `fallback_transport: "adb_mobile"` सक्रिय किया। `failover_manager.py` में कॉन्फ़िगरेशन-अवेयर ट्रांसपोर्ट इनिशियलाइज़ेशन जोड़ा गया। जब फ़ोन कनेक्टेड न हो, तो यह सुरक्षित रूप से फ़ॉलबैक रेसिडेंशियल प्रॉक्सीज़ पर शून्य ड्रॉप के साथ चलता है।
+  - **जांच:** `py -3.12 -m pytest tests/test_failover_manager.py` (8/8 पास), लाइव `/api/failover/status`, `/api/failover/test`, और `/api/failover/switch` एंडपॉइंट्स पर 200 OK वेरिफाइड।
 
 - [ ] **Step 1.3 — Increase Concurrency for Production Scale**
   - **फाइलें:** `config.yaml` (`scheduler` सेक्शन)

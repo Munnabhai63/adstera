@@ -144,3 +144,17 @@ def test_get_status_summary(mock_cfg):
     assert "primary_healthy" in status
     assert "latency_threshold_ms" in status
     assert "total_failovers" in status
+
+
+def test_primary_transport_residential_proxy_mode():
+    cfg = {
+        "failover": {
+            "enabled": True,
+            "primary_transport": "residential_proxy",
+            "fallback_transport": "adb_mobile",
+            "latency_threshold_ms": 1500,
+        }
+    }
+    mgr = DualTransportManager(cfg)
+    assert mgr.enabled is True
+    assert mgr.active_mode == DualTransportManager.MODE_FALLBACK_PROXY

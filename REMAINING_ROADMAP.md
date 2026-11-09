@@ -176,7 +176,7 @@
 4. Start the system and verify failover toggle appears in dashboard
 
 **Expected Outcome:** Automatic network switching on failure, zero downtime
-**Completion Checkbox:** `[ ]`
+**Completion Checkbox:** `[x]` (Completed & Verified: `failover.enabled: true` in config.yaml, tests/test_failover_manager.py 8/8 pass, and live /api/failover endpoints operational)
 
 ---
 

@@ -306,9 +306,14 @@ GLOBAL_FAILOVER_MGR = None
 
 def get_failover_mgr():
     global GLOBAL_FAILOVER_MGR
+    cfg = read_config()
     if GLOBAL_FAILOVER_MGR is None:
         from failover_manager import DualTransportManager
-        GLOBAL_FAILOVER_MGR = DualTransportManager(read_config())
+        GLOBAL_FAILOVER_MGR = DualTransportManager(cfg)
+    else:
+        failover_cfg = cfg.get("failover", {})
+        GLOBAL_FAILOVER_MGR.enabled = bool(failover_cfg.get("enabled", True))
+        GLOBAL_FAILOVER_MGR.latency_threshold_ms = float(failover_cfg.get("latency_threshold_ms", 1500.0))
     return GLOBAL_FAILOVER_MGR
 
 # ── Config & Proxy Helpers ──────────────────────────────────────────────────────

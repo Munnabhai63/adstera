@@ -11,9 +11,6 @@ target:
   - https://tazabhav.com
   - https://tazarokda.com
   - https://rechargekar.com
-  - https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc004
-  - https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035
-  - https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449
   fixture: tests/fixtures/page.html
   referrers:
   - https://www.google.com/search?q=example+keyword
@@ -101,7 +98,7 @@ proxy:
   max_concurrent_per_ip: 1
   dead_ip_cooldown_min: 45
 scheduler:
-  concurrency: 6
+  concurrency: 1
   sessions_per_hour: 150
   daily_cap: 2000
   diurnal:
@@ -178,8 +175,8 @@ telegram:
   alert_on_ctr_threshold: 0.045
   emergency_ctr_pause: 0.05
 failover:
-  enabled: false
-  primary_transport: adb_mobile
-  fallback_transport: residential_proxy
+  enabled: true
+  primary_transport: residential_proxy
+  fallback_transport: adb_mobile
   latency_threshold_ms: 1500
   recovery_check_interval_min: 10

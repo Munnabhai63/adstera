@@ -8,20 +8,13 @@ from pathlib import Path
 import db
 import worker
 
-TEST_DB_PATH = Path("test_governor.db")
-
-
 @pytest.fixture(autouse=True)
-def setup_teardown_db(monkeypatch):
+def setup_teardown_db(monkeypatch, tmp_path):
     """Isolate tests into a temporary database."""
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
-    
-    monkeypatch.setattr(db, "_DB_PATH", TEST_DB_PATH)
+    test_db = tmp_path / "test_governor.db"
+    monkeypatch.setattr(db, "_DB_PATH", test_db)
     db.init()
     yield
-    if TEST_DB_PATH.exists():
-        TEST_DB_PATH.unlink()
 
 
 def test_schema_has_domain_and_domain_stats():

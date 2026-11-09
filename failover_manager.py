@@ -51,7 +51,11 @@ class DualTransportManager:
         self.max_failures_before_failover = int(failover_cfg.get("max_failures_before_failover", 2))
 
         # State management
-        self.active_mode = self.MODE_PRIMARY_MOBILE
+        primary = str(failover_cfg.get("primary_transport", "adb_mobile")).lower()
+        if primary in ("residential_proxy", "proxy"):
+            self.active_mode = self.MODE_FALLBACK_PROXY
+        else:
+            self.active_mode = self.MODE_PRIMARY_MOBILE
         self.primary_healthy = True
         self.consecutive_primary_failures = 0
         self.consecutive_fallback_failures = 0
