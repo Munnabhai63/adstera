@@ -298,6 +298,20 @@ class TelegramAlertBot:
         )
         return self.send_message(msg, alert_type="pool_low", level="WARNING")
 
+    def send_pool_replenished(self, added_count: int, total_healthy: int) -> dict[str, Any]:
+        """Triggered when auto-replenishment successfully injects new healthy proxies."""
+        now = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+        msg = (
+            "✅ <b>PROXY POOL AUTO-REPLENISHED</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📥 <b>New Proxies Injected:</b> <b>+{added_count}</b>\n"
+            f"🔌 <b>Total Healthy IPs:</b> <b>{total_healthy}</b>\n"
+            "🛡️ Datacenter filter & Geo-enrichment verified.\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🕒 <i>{now}</i>"
+        )
+        return self.send_message(msg, alert_type="pool_replenished", level="INFO")
+
     def send_test_alert(self) -> dict[str, Any]:
         """Send a test ping to verify end-to-end bot connectivity."""
         now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")

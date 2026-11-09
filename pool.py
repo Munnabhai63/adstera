@@ -422,6 +422,95 @@ class ProxyPool:
             p.active_sessions = 0
         logger.info("Daily proxy counts reset")
 
+    def healthy_count(self) -> int:
+        """Count proxies that are currently available and not exhausted or cooling down."""
+        max_uses = self._cfg.get("proxy", {}).get("max_uses_per_ip", 12)
+        cooldown = self._cfg.get("proxy", {}).get("dead_ip_cooldown_min", 45) * 60
+        max_concurrent = int(self._cfg.get("proxy", {}).get("max_concurrent_per_ip", 1))
+        return sum(
+            1 for p in self._proxies
+            if p.is_available(max_uses, cooldown, max_concurrent)
+        )
+
+    async def add_raw_proxies(self, lines: list[str]) -> int:
+        """Parse, deduplicate, enrich with geo, filter datacenter ASNs, and append to pool."""
+        existing_ids = {p.proxy_id for p in self._proxies}
+        raw = [_parse_proxy_line(ln) for ln in lines]
+        new_candidates = [p for p in raw if p is not None and p.proxy_id not in existing_ids]
+
+        if not new_candidates:
+            return 0
+
+        sem = asyncio.Semaphore(5)
+
+        async def enrich(p: Proxy) -> None:
+            async with sem:
+                p.geo = await _lookup_geo(p)
+
+        await asyncio.gather(*[enrich(p) for p in new_candidates])
+        clean = [p for p in new_candidates if not p.geo.is_datacenter]
+
+        async with self._global_lock:
+            # Re-check existing_ids under lock to prevent race conditions
+            current_ids = {p.proxy_id for p in self._proxies}
+            added = []
+            for p in clean:
+                if p.proxy_id not in current_ids:
+                    self._proxies.append(p)
+                    current_ids.add(p.proxy_id)
+                    added.append(p)
+
+        logger.info("Added %d new healthy proxies to pool (total=%d)", len(added), len(self._proxies))
+        return len(added)
+
+    async def auto_replenish(self, min_healthy_threshold: int | None = None) -> int:
+        """
+        Step 5.2: Check pool health. If healthy proxies < threshold, fetch from proxy API,
+        enrich, filter datacenter ASNs, and send alert.
+        """
+        threshold = (
+            min_healthy_threshold
+            if min_healthy_threshold is not None
+            else int(self._cfg.get("proxy", {}).get("min_healthy_threshold", 5))
+        )
+        current_healthy = self.healthy_count()
+        if current_healthy >= threshold:
+            return 0
+
+        logger.warning(
+            "Proxy pool low (%d healthy < threshold %d). Triggering auto-replenishment...",
+            current_healthy, threshold,
+        )
+
+        # Trigger warning alert
+        try:
+            from alert_bot import TelegramAlertBot
+            bot = TelegramAlertBot()
+            bot.send_pool_warning(healthy_ips=current_healthy, minimum_required=threshold)
+        except Exception as alert_err:
+            logger.debug("Failed sending pool low alert: %s", alert_err)
+
+        api_url = self._cfg.get("proxy", {}).get("api_url")
+        if not api_url:
+            logger.warning("Auto-replenish failed: proxy.api_url is not configured.")
+            return 0
+
+        try:
+            loop = asyncio.get_running_loop()
+            raw_lines = await loop.run_in_executor(None, fetch_proxies_from_api, api_url)
+            added = await self.add_raw_proxies(raw_lines)
+            if added > 0:
+                try:
+                    from alert_bot import TelegramAlertBot
+                    bot = TelegramAlertBot()
+                    bot.send_pool_replenished(added_count=added, total_healthy=self.healthy_count())
+                except Exception as alert_err2:
+                    logger.debug("Failed sending pool replenished alert: %s", alert_err2)
+            return added
+        except Exception as exc:
+            logger.error("Auto-replenishment API fetch error: %s", exc)
+            return 0
+
     def __len__(self) -> int:
         return len(self._proxies)
 

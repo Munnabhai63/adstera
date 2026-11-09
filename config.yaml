@@ -92,6 +92,7 @@ session:
 proxy:
   file: proxies.txt
   api_url: ''
+  min_healthy_threshold: 5
   geo_strict: true
   country: US
   max_uses_per_ip: 12
