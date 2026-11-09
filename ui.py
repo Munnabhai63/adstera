@@ -200,30 +200,19 @@ class RunnerManager:
             cmd = [python_exe, "-u", main_script]
 
             try:
-                if os.name == "nt":
-                    try:
-                        self._proc = InteractiveProcess(cmd, cwd=str(BASE_DIR), env=dict(os.environ))
-                    except Exception as ex:
-                        logger.warning("InteractiveProcess fallback to subprocess.Popen: %s", ex)
-                        self._proc = subprocess.Popen(
-                            cmd,
-                            cwd=str(BASE_DIR),
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            text=True,
-                            bufsize=1,
-                            env={**os.environ, "PYTHONUNBUFFERED": "1"},
-                        )
-                else:
-                    self._proc = subprocess.Popen(
-                        cmd,
-                        cwd=str(BASE_DIR),
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                        env={**os.environ, "PYTHONUNBUFFERED": "1"},
-                    )
+                # Always clean up terminated process reference
+                if self._proc and self._proc.poll() is not None:
+                    self._proc = None
+
+                self._proc = subprocess.Popen(
+                    cmd,
+                    cwd=str(BASE_DIR),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                    env={**os.environ, "PYTHONUNBUFFERED": "1"},
+                )
 
                 cfg = read_config()
                 is_headless = cfg.get("browser", {}).get("headless", False)
@@ -1487,34 +1476,51 @@ HTML_PAGE = """<!DOCTYPE html>
   }
 
   async function startRunner() {
-    if (currentNetworkMode === 'proxy') {
-      const pText = document.getElementById('proxiesText').value.trim();
-      if (!pText) {
-        alert("⚠️ You are in '🌐 Proxies' mode, but no proxies are configured!\n\nEither paste your proxies into 'One proxy per line', or switch to the '📱 Mobile ADB IP' tab to run directly via your connected phone's mobile data.");
-        return;
-      }
-    } else if (currentNetworkMode === 'mobile_tether') {
-      try {
-        const adbRes = await fetch('/api/adb/status');
-        const adbData = await adbRes.json();
-        if (!adbData.ok || !adbData.devices || adbData.devices.length === 0) {
-          alert("⚠️ No Android phone detected via USB debugging!\n\nPlease check:\n1. Mobile phone is plugged in via USB\n2. USB Tethering is turned ON in phone Settings\n3. USB Debugging is turned ON in Developer Options\n4. Check phone screen to allow USB debugging prompt");
-          return;
-        }
-      } catch (err) {
-        console.warn("Pre-flight ADB check error:", err);
-      }
+    const btn = document.getElementById('btnStart');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = '⏳ Starting…';
     }
 
-    await saveConfig(false);
-    const res = await fetch('/api/start', { method: 'POST' });
-    const data = await res.json();
-    if (data.ok) {
-      showToast(data.msg);
-    } else {
-      alert(data.msg);
+    try {
+      if (currentNetworkMode === 'proxy') {
+        const pText = document.getElementById('proxiesText').value.trim();
+        if (!pText) {
+          alert("⚠️ You are in '🌐 Proxies' mode, but no proxies are configured!\n\nEither paste your proxies into 'One proxy per line', or switch to the '📱 Mobile ADB IP' tab to run directly via your connected phone's mobile data.");
+          if (btn) { btn.disabled = false; btn.innerText = '▶ Start Live Run'; }
+          return;
+        }
+      } else if (currentNetworkMode === 'mobile_tether') {
+        try {
+          const adbRes = await fetch('/api/adb/status');
+          const adbData = await adbRes.json();
+          if (!adbData.ok || !adbData.devices || adbData.devices.length === 0) {
+            alert("⚠️ No Android phone detected via USB debugging!\n\nPlease check:\n1. Mobile phone is plugged in via USB\n2. USB Tethering is turned ON in phone Settings\n3. USB Debugging is turned ON in Developer Options\n4. Check phone screen to allow USB debugging prompt");
+            if (btn) { btn.disabled = false; btn.innerText = '▶ Start Live Run'; }
+            return;
+          }
+        } catch (err) {
+          console.warn("Pre-flight ADB check error:", err);
+        }
+      }
+
+      await saveConfig(false);
+      const res = await fetch('/api/start', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        showToast(data.msg);
+      } else {
+        alert(data.msg);
+      }
+    } catch (e) {
+      alert("Error starting runner: " + e);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '▶ Start Live Run';
+      }
+      fetchStatus();
     }
-    fetchStatus();
   }
 
   async function stopRunner() {
