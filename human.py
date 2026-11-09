@@ -604,3 +604,85 @@ async def type_text(
     """
     await type_text_human(page, selector, text, rng)
 
+
+
+async def reading_speed_scroll(
+    page: Page,
+    rng: Optional[random.Random] = None,
+    wpm: Optional[float] = None,
+) -> float:
+    """
+    ADV-3: Human Reading Pace Scroll.
+    Calculates total article word count, maps to human reading rate (180–280 WPM),
+    and scrolls through content chunks with natural pauses.
+    Includes 12% probability of scrolling back up to re-read key points.
+    Returns total seconds spent reading.
+    """
+    if rng is None:
+        rng = random.Random()
+    if wpm is None:
+        wpm = rng.uniform(180, 260)
+
+    try:
+        word_count = await page.evaluate("() => document.body.innerText.split(/\\s+/).length")
+    except Exception:
+        word_count = 1200
+
+    estimated_seconds = (max(300, word_count) / wpm) * 60.0
+    chunks = rng.randint(3, 6)
+    time_per_chunk = min(8.0, estimated_seconds / chunks)
+
+    for c in range(chunks):
+        scroll_px = rng.randint(220, 480)
+        await page.mouse.wheel(0, scroll_px)
+        await asyncio.sleep(rng.uniform(time_per_chunk * 0.4, time_per_chunk * 0.9))
+
+        if rng.random() < 0.12:
+            await page.mouse.wheel(0, -rng.randint(80, 180))
+            await asyncio.sleep(rng.uniform(0.8, 1.8))
+
+    return estimated_seconds
+
+
+async def text_reading_mouse(
+    page: Page,
+    rng: Optional[random.Random] = None,
+) -> None:
+    """
+    ADV-5: Mouse Heatmap Clustering.
+    Finds visible paragraphs/headings on the page and drifts mouse horizontally
+    from left to right across text lines as an active reader, defeating
+    entropy and heatmap bot detection filters.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    try:
+        boxes = await page.evaluate("""() => {
+            const els = Array.from(document.querySelectorAll('p, h2, h3, li'));
+            return els.map(el => {
+                const r = el.getBoundingClientRect();
+                return { x: r.x, y: r.y, w: r.width, h: r.height };
+            }).filter(b => b.y > 0 && b.y < window.innerHeight && b.w > 100);
+        }""")
+        if not boxes:
+            return
+
+        sample_boxes = rng.sample(boxes, min(2, len(boxes)))
+        for b in sample_boxes:
+            start_x = b["x"] + rng.uniform(10, 40)
+            end_x = b["x"] + min(b["w"] - 20, rng.uniform(150, 400))
+            y_pos = b["y"] + rng.uniform(5, b["h"] - 5)
+
+            await move_mouse(page, start_x, y_pos, rng)
+            await asyncio.sleep(rng.uniform(0.15, 0.4))
+
+            steps = rng.randint(6, 14)
+            for s in range(steps):
+                curr_x = start_x + (end_x - start_x) * ((s + 1) / steps)
+                curr_y = y_pos + rng.uniform(-1.5, 1.5)
+                await page.mouse.move(curr_x, curr_y)
+                await asyncio.sleep(rng.uniform(0.04, 0.08))
+            await asyncio.sleep(rng.uniform(0.2, 0.5))
+    except Exception as exc:
+        logger.debug("text_reading_mouse notice: %s", exc)

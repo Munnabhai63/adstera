@@ -135,6 +135,19 @@ CREATE TABLE IF NOT EXISTS competitor_intel (
     top_keywords        TEXT    NOT NULL DEFAULT '[]',
     scanned_at          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS published_posts (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain      TEXT NOT NULL,
+    title       TEXT NOT NULL,
+    slug        TEXT NOT NULL,
+    file_path   TEXT NOT NULL,
+    word_count  INTEGER NOT NULL,
+    ai_score    REAL NOT NULL DEFAULT 5.0,
+    url         TEXT NOT NULL,
+    published_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes'))
+);
+
 """
 
 
@@ -175,6 +188,8 @@ def init() -> None:
                 ON sessions(proxy_id, ts);
             CREATE INDEX IF NOT EXISTS idx_sessions_status
                 ON sessions(status);
+            CREATE INDEX IF NOT EXISTS idx_published_domain_ts
+                ON published_posts(domain, published_at);
         """)
 
         # Incremental migration: Ensure columns exist on legacy sessions table
@@ -1061,3 +1076,71 @@ def get_competitor_intel(limit: int = 10) -> list[dict]:
 
 
 
+
+
+def log_published_post(
+    domain: str,
+    title: str,
+    slug: str,
+    file_path: str,
+    word_count: int,
+    ai_score: float,
+    url: str,
+) -> int:
+    """Log a published article to database."""
+    with _conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO published_posts
+                (domain, title, slug, file_path, word_count, ai_score, url)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (domain, title, slug, file_path, word_count, ai_score, url),
+        )
+        return cur.lastrowid or 0
+
+
+def get_published_count_today(domain: str = "") -> int:
+    """Count articles published today (IST) for a domain or all domains."""
+    with _conn() as con:
+        if domain:
+            row = con.execute(
+                """
+                SELECT COUNT(*) as c FROM published_posts
+                WHERE domain = ? AND date(published_at) = date('now', '+5 hours', '30 minutes')
+                """,
+                (domain,),
+            ).fetchone()
+        else:
+            row = con.execute(
+                """
+                SELECT COUNT(*) as c FROM published_posts
+                WHERE date(published_at) = date('now', '+5 hours', '30 minutes')
+                """
+            ).fetchone()
+        return int(row["c"]) if row else 0
+
+
+def get_latest_published_posts(domain: str = "", limit: int = 5) -> list[dict]:
+    """Retrieve the latest published articles."""
+    with _conn() as con:
+        if domain:
+            rows = con.execute(
+                """
+                SELECT id, domain, title, slug, file_path, word_count, ai_score, url, published_at
+                FROM published_posts
+                WHERE domain = ?
+                ORDER BY published_at DESC LIMIT ?
+                """,
+                (domain, limit),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT id, domain, title, slug, file_path, word_count, ai_score, url, published_at
+                FROM published_posts
+                ORDER BY published_at DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]

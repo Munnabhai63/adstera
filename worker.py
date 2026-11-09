@@ -652,10 +652,12 @@ async def run_session(
         async def on_page_loaded(pg: Page, url: str, page_num: int) -> None:
             nonlocal result, scroll_done, ad_clicks_done, last_idle, last_ad_attempt
 
-            # Scroll
+            # ADV-3 & ADV-5: Human Reading Speed Scroll and Text Reading Heatmap Mouse
             if rng.random() < cfg["target"]["scroll_prob"]:
-                await human.scroll_page(pg, rng)
+                await human.reading_speed_scroll(pg, rng)
                 scroll_done = True
+            if rng.random() < 0.65:
+                await human.text_reading_mouse(pg, rng)
 
             # Smart Ad click probability check (BHV-5 lognormal delay + Viewport & Safe CTR check)
             ad_min_wait = max(6.5, rng.lognormvariate(2.8, 0.6))  # BHV-5 lognormal click delay (mean ~20-25s)
@@ -710,9 +712,13 @@ async def run_session(
 
         result["dwell"] = time.time() - t_on_page
 
-        # Save cookies
+        # Save cookies & ADV-6 visitor profiling
         if cfg["session"]["cookie_persist"]:
             await persist.save(context, proxy.proxy_id)
+            try:
+                persist.record_visit(proxy.proxy_id, start_url)
+            except Exception:
+                pass
             if mahi_conn and mahi_profile:
                 try:
                     await mahi_conn.save_profile_state(context, mahi_profile["id"])

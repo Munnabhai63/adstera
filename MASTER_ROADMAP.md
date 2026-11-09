@@ -542,7 +542,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 ### 🤖 3.2 — AI Content Writer
 **Cost:** ₹0 (Gemini free tier: 1500 requests/day)
 
-- [ ] **CONT-1:** `trends_fetcher.py` — Google Trends integration:
+- [x] **CONT-1:** `trends_fetcher.py` — Google Trends integration:
   ```python
   from pytrends.request import TrendReq
   # Per domain niche keywords:
@@ -551,7 +551,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   # tazabhav → "gold rate today", "petrol price Delhi"
   ```
 
-- [ ] **CONT-2:** `content_writer.py` — Gemini API integration:
+- [x] **CONT-2:** `content_writer.py` — Gemini API integration:
   ```python
   # Prompt template per niche:
   # "Write 2500-word Hindi/English article for Indian audience
@@ -559,7 +559,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   #  conversational tone, H2/H3 structure, FAQ section."
   ```
 
-- [ ] **CONT-3:** Content specs:
+- [x] **CONT-3:** Content specs:
   ```
   Min: 2000 words | Max: 4000 words
   Structure: H1 → 4+ H2s → FAQ → Conclusion
@@ -573,7 +573,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 ### ✅ 3.3 — AI Quality Gate (MOST IMPORTANT — तुम्हारा idea)
 
-- [ ] **GATE-1:** `quality_gate.py` — 3 layer system:
+- [x] **GATE-1:** `quality_gate.py` — 3 layer system:
 
   **Layer 1 — AI Detection Check:**
   ```python
@@ -607,7 +607,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   # 3 fails → discard, नया topic try करो
   ```
 
-- [ ] **GATE-2:** Test gate with 5 sample articles
+- [x] **GATE-2:** Test gate with 5 sample articles
 
 **Completion Checkbox:** `[ ]`
 
@@ -615,13 +615,13 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 ### 📅 3.4 — Publishing Automation
 
-- [ ] **PUB-1:** `cf_publisher.py` — GitHub API push:
+- [x] **PUB-1:** `cf_publisher.py` — GitHub API push:
   ```python
   repo.create_file(f"content/posts/{slug}.md", "New post: {title}", content)
   # → Cloudflare auto-builds → live in 60 seconds
   ```
 
-- [ ] **PUB-2:** Schedule — 5 posts/day, 3-4 hr gap, domain-offset:
+- [x] **PUB-2:** Schedule — 5 posts/day, 3-4 hr gap, domain-offset:
   ```
   Domain Group A (Finance): 5:30, 9:00, 12:30, 16:00, 20:30
   Domain Group B (Recharge): 6:00, 9:30, 13:00, 16:30, 21:00
@@ -633,7 +633,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
   # हर नई post को immediately Google को submit करो
   ```
 
-- [ ] **PUB-4:** Telegram announcer — per domain channel पर share
+- [x] **PUB-4:** Telegram announcer — per domain channel पर share
 
 **Completion Checkbox:** `[ ]`
 
@@ -647,7 +647,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 ### 🔍 4.1 — Real Google Search Journey
 **Impact:** DoubleVerify/IAS को 100% real user signal मिलता है — spoof impossible
 
-- [ ] **ADV-1:** `serp_navigator.py` बनाओ:
+- [x] **ADV-1:** `serp_navigator.py` बनाओ:
   ```python
   async def real_google_journey(page, keyword, target_domain, rng):
       await page.goto("https://www.google.co.in")
@@ -663,7 +663,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
       # Result: Real gclid + real Google session cookie + real Sec-Fetch-User: ?1
   ```
 
-- [ ] **ADV-2:** 60% sessions → Real SERP journey, 40% → Direct/Social
+- [x] **ADV-2:** 60% sessions → Real SERP journey, 40% → Direct/Social
   - Keywords: 60% from Google Trends, 30% niche, 10% brand
 
 **Completion Checkbox:** `[ ]`
@@ -673,7 +673,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 ### 📖 4.2 — Reading Speed Scroll
 **Impact:** DoubleVerify "engagement depth" signal perfectly match करता है
 
-- [ ] **ADV-3:** `human.py` → `reading_speed_scroll()`:
+- [x] **ADV-3:** `human.py` → `reading_speed_scroll()`:
   ```python
   async def reading_speed_scroll(page, rng):
       word_count = await page.evaluate("document.body.innerText.split(/\s+/).length")
@@ -684,7 +684,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
       # Occasional pause (thinking/distracted)
   ```
 
-- [ ] **ADV-4:** Content-aware dwell:
+- [x] **ADV-4:** Content-aware dwell:
   ```python
   reading_time = (article_word_count / 220) * 60
   actual_dwell = reading_time * rng.uniform(0.7, 1.3)
@@ -697,7 +697,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 ### 🖱️ 4.3 — Mouse Heatmap Clustering
 **Impact:** FingerprintJS Pro v3 mouse entropy check defeat करता है
 
-- [ ] **ADV-5:** `human.py` → `text_reading_mouse()`:
+- [x] **ADV-5:** `human.py` → `text_reading_mouse()`:
   ```python
   async def text_reading_mouse(page, rng):
       paragraphs = await page.evaluate("""
@@ -716,7 +716,7 @@ Phase 5 Scale  ░░░░░░░░░░░░░░░░░░░░    0
 
 ### 🔄 4.4 — Return Visitor Intelligence
 
-- [ ] **ADV-6:** `persist.py` → enhanced state:
+- [x] **ADV-6:** `persist.py` → enhanced state:
   ```python
   {
       "proxy_id": "...",

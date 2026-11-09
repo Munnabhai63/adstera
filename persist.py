@@ -75,3 +75,42 @@ def clear(proxy_id: str) -> None:
         path.unlink()
         logger.debug("Cleared state for %s", proxy_id)
 
+
+
+def record_visit(proxy_id: str, target_url: str) -> dict:
+    """Record visited page and increment visit count for return visitor profiling (ADV-6)."""
+    _STATE_DIR.mkdir(exist_ok=True)
+    safe = proxy_id.replace(":", "_").replace("@", "_").replace("/", "_")
+    meta_path = _STATE_DIR / f"{safe}_meta.json"
+    meta = {"visit_count": 0, "visited_urls": [], "last_visit_ts": 0.0}
+    if meta_path.exists():
+        try:
+            import json
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    meta["visit_count"] = meta.get("visit_count", 0) + 1
+    meta["last_visit_ts"] = time.time()
+    urls = meta.get("visited_urls", [])
+    if target_url and target_url not in urls:
+        urls.append(target_url)
+    meta["visited_urls"] = urls[-20:]
+    try:
+        import json
+        meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+    return meta
+
+
+def get_visitor_profile(proxy_id: str) -> dict:
+    """Return visitor profile metadata for return visitor behavior (ADV-6)."""
+    safe = proxy_id.replace(":", "_").replace("@", "_").replace("/", "_")
+    meta_path = _STATE_DIR / f"{safe}_meta.json"
+    if meta_path.exists():
+        try:
+            import json
+            return json.loads(meta_path.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return {"visit_count": 0, "visited_urls": [], "last_visit_ts": 0.0}
