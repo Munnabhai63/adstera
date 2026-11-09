@@ -86,6 +86,7 @@ def test_worker_fallback_recovery_on_bad_url():
         cfg_bad["target"]["urls"] = ["http://this-domain-definitely-does-not-exist-123456789.com"]
         cfg_bad["target"]["min_dwell"] = 2
         cfg_bad["target"]["max_dwell"] = 4
+        cfg_bad["geo_routing"] = {"enabled": False}
         
         rng = random.Random(99)
         proxy = Proxy(host="direct", port=0)

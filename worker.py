@@ -330,16 +330,36 @@ async def _handle_push_async(
 
 
 async def run_session(
-    browser: Browser,
-    proxy: Proxy,
-    cfg: dict,
-    rng: random.Random,
+    *args,
     use_fixture: bool = False,
+    **kwargs,
 ) -> dict:
     """
     Run one complete browser session for a given proxy.
-    Returns a result dict with session metadata.
+    Supports both signatures:
+      run_session(playwright, browser, proxy, cfg, rng, use_fixture=...)
+      run_session(browser, proxy, cfg, rng, use_fixture=...)
     """
+    if len(args) >= 5:
+        _pw = args[0]
+        browser = args[1]
+        proxy = args[2]
+        cfg = args[3]
+        rng = args[4]
+        if len(args) >= 6:
+            use_fixture = args[5]
+    elif len(args) == 4:
+        browser = args[0]
+        proxy = args[1]
+        cfg = args[2]
+        rng = args[3]
+    else:
+        browser = kwargs.get("browser", args[0] if len(args) > 0 else None)
+        proxy = kwargs.get("proxy", args[1] if len(args) > 1 else None)
+        cfg = kwargs.get("cfg", args[2] if len(args) > 2 else {})
+        rng = kwargs.get("rng", args[3] if len(args) > 3 else random.Random())
+        if "use_fixture" in kwargs:
+            use_fixture = kwargs["use_fixture"]
     fp = fp_mod.build(proxy)
     proxy_country = proxy.geo.country if getattr(proxy, "geo", None) else None
     if use_fixture:
