@@ -105,6 +105,9 @@ _AD_SELECTORS = [
     "[class*='ad-unit']",
     "[class*='adsbygoogle']",
     "[data-ad-slot]",
+    "a[data-ad-slot]",
+    "a.ad-link-card",
+    "a.btn-apply",
     # Fixture selectors
     ".fake-ad",
     "iframe.ad-frame",

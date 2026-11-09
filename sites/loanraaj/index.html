@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Loan Raaj — पर्सनल लोन, होम लोन एवं वित्तीय सलाह</title>
+  <meta name="description" content="कम ब्याज दर पर पर्सनल लोन, होम लोन और बिज़नेस लोन की पूरी जानकारी और आसान आवेदन प्रक्रिया।">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1e3a8a;
+      --accent: #2563eb;
+      --success: #16a34a;
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+    header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; position: sticky; top: 0; z-index: 50; }
+    .header-inner { max-width: 1080px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .logo { font-size: 22px; font-weight: 800; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+    .logo span { color: var(--accent); }
+    nav a { margin-left: 20px; color: var(--muted); text-decoration: none; font-weight: 500; font-size: 14px; }
+    nav a:hover { color: var(--accent); }
+
+    .container { max-width: 1080px; margin: 32px auto; padding: 0 16px; display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
+    @media (max-width: 800px) { .container { grid-template-columns: 1fr; } }
+
+    article { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; }
+    h1 { font-size: 28px; font-weight: 800; color: var(--primary); margin-bottom: 16px; line-height: 1.3; }
+    .meta { font-size: 13px; color: var(--muted); margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+    p { margin-bottom: 18px; font-size: 16px; color: #334155; }
+    h2 { font-size: 20px; font-weight: 700; color: var(--primary); margin: 28px 0 14px; }
+    ul { margin: 0 0 20px 24px; color: #334155; }
+    li { margin-bottom: 8px; }
+
+    /* Sponsored Adsterra Direct Link Banners */
+    .ad-link-card {
+      display: block;
+      text-decoration: none;
+      border-radius: 10px;
+      overflow: hidden;
+      margin: 24px 0;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      cursor: pointer;
+    }
+    .ad-link-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .ad-top-wrapper {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      color: white;
+      padding: 18px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .ad-top-badge {
+      display: inline-block;
+      background: #f59e0b;
+      color: #000;
+      font-size: 11px;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+    }
+    .ad-top-title {
+      font-size: 17px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+    .ad-top-subtitle {
+      font-size: 13px;
+      opacity: 0.85;
+    }
+    .ad-btn {
+      background: #22c55e;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 14px;
+      white-space: nowrap;
+      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+    }
+
+    .ad-mid-wrapper {
+      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+      border: 2px solid #86efac;
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .ad-mid-title {
+      font-size: 18px;
+      font-weight: 800;
+      color: #166534;
+      margin-bottom: 6px;
+    }
+    .ad-mid-text {
+      font-size: 14px;
+      color: #15803d;
+      margin-bottom: 12px;
+    }
+
+    .ad-side-wrapper {
+      background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
+      border: 2px solid #93c5fd;
+      padding: 24px 18px;
+      text-align: center;
+    }
+    .ad-side-icon {
+      font-size: 40px;
+      margin-bottom: 8px;
+    }
+    .ad-side-title {
+      font-size: 17px;
+      font-weight: 800;
+      color: #1e40af;
+      margin-bottom: 8px;
+      line-height: 1.3;
+    }
+    .ad-side-text {
+      font-size: 13px;
+      color: #1e3a8a;
+      margin-bottom: 16px;
+    }
+
+    aside { display: flex; flex-direction: column; gap: 24px; }
+    .sidebar-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+    .sidebar-title { font-size: 16px; font-weight: 700; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; display: inline-block; }
+    .sidebar-list a { display: block; color: #334155; text-decoration: none; font-size: 14px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+    .sidebar-list a:hover { color: var(--accent); font-weight: 600; }
+
+    .btn-apply { display: inline-block; background: #16a34a; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; margin: 16px 0 24px; text-align: center; box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3); }
+    .btn-apply:hover { background: #15803d; transform: translateY(-1px); }
+
+    footer { background: var(--card); border-top: 1px solid var(--border); padding: 24px; text-align: center; color: var(--muted); font-size: 13px; margin-top: 60px; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo">🏦 Loan<span>Raaj</span>.com</a>
+      <nav>
+        <a href="/">होम</a>
+        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer">पर्सनल लोन</a>
+        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer">होम लोन</a>
+        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer">बिज़नेस लोन</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="container">
+    <main>
+      <article>
+        <!-- Top Sponsored Adsterra Direct Link Unit -->
+        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
+          <div class="ad-top-wrapper">
+            <div>
+              <span class="ad-top-badge">Sponsored Offer</span>
+              <div class="ad-top-title">⚡ Pre-Approved Instant Personal Loan (Up to ₹5,00,000)</div>
+              <div class="ad-top-subtitle">न्यूनतम ब्याज दर • 0% प्रोसेसिंग फ़ीस • बिना किसी गारंटी के 10 मिनट में बैंक ट्रांसफर</div>
+            </div>
+            <div class="ad-btn">Apply Online →</div>
+          </div>
+        </a>
+
+        <h1>कम सिबिल स्कोर पर तुरंत पर्सनल लोन कैसे प्राप्त करें? (2026 गाइड)</h1>
+        <div class="meta">अपडेटेड: 2026 • वित्तीय विशेषज्ञ द्वारा सत्यापित • 4 मिनट पढ़ने का समय</div>
+
+        <p>आज के समय में अप्रत्याशित वित्तीय आवश्यकताओं को पूरा करने के लिए पर्सनल लोन सबसे लोकप्रिय विकल्प बन चुका है। चाहे मेडिकल इमरजेंसी हो, शादी का ख़र्च हो या पुराने कर्ज़ चुकाने हों, डिजिटल माध्यम से अब 10 मिनट में लोन स्वीकृत हो जाता है।</p>
+
+        <h2>1. तत्काल लोन के लिए आवश्यक पात्रता मापदंड</h2>
+        <p>यदि आपका सिबिल (CIBIL) स्कोर 650 से कम है, तो भी कई प्रमुख NBFC और फिनटेक कंपनियाँ न्यूनतम दस्तावेज़ों पर ऋण उपलब्ध कराती हैं:</p>
+        <ul>
+          <li><strong>आयु सीमा:</strong> 21 वर्ष से 58 वर्ष के बीच।</li>
+          <li><strong>मासिक आय:</strong> न्यूनतम ₹15,000 प्रति माह (बैंक खाते में जमा)।</li>
+          <li><strong>आवश्यक दस्तावेज़:</strong> आधार कार्ड, पैन कार्ड, और पिछले 3 महीने का बैंक स्टेटमेंट।</li>
+        </ul>
+
+        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="btn-apply" data-ad-slot="direct-link">👉 ऑनलाइन लोन पात्रता चेक करें (Instant Approval)</a>
+
+        <h2>2. ब्याज दरों और प्रोसेसिंग शुल्क की तुलना</h2>
+        <p>लोन लेने से पहले विभिन्न बैंकों और लेंडिंग प्लेटफॉर्म की ब्याज दरों की तुलना अवश्य करें। आमतौर पर ब्याज दर 10.5% से लेकर 18% वार्षिक के बीच होती है। बिना किसी छुपे शुल्क (Hidden Charges) के पारदर्शी विकल्प चुनना हमेशा बेहतर होता है।</p>
+
+        <!-- Mid/Bottom Sponsored Adsterra Direct Link Unit -->
+        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
+          <div class="ad-mid-wrapper">
+            <span class="ad-top-badge" style="background:#22c55e; color:white;">Special Recommendation</span>
+            <div class="ad-mid-title">🎉 Exclusive Fintech Partner: Quick Disbursal Loan Offers</div>
+            <div class="ad-mid-text">खराब सिबिल स्कोर पर भी 100% ऑनलाइन वेरिफिकेशन के साथ तुरंत लोन प्राप्त करें।</div>
+            <div class="ad-btn" style="background:#16a34a; display:inline-block;">Check Eligibility Now →</div>
+          </div>
+        </a>
+
+        <h2>3. 100% सुरक्षित और ऑनलाइन आवेदन प्रक्रिया</h2>
+        <p>डिजिटल KYC पूरा करने के बाद आपका लोन अमाउंट सीधे आपके सत्यापित बचत खाते में ट्रांसफर कर दिया जाता है। ई-मैंडेट (Auto-Debit) सेट करके आप समय पर EMI भुगतान कर सकते हैं जिससे आपका क्रेडिट स्कोर भी सुधरता है।</p>
+      </article>
+    </main>
+
+    <aside>
+      <!-- Sidebar Sponsored Adsterra Direct Link Unit -->
+      <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
+        <div class="ad-side-wrapper">
+          <div class="ad-side-icon">💳</div>
+          <span class="ad-top-badge">Verified Partner</span>
+          <div class="ad-side-title">Instant Cash Loan in 5 Minutes</div>
+          <div class="ad-side-text">No paper documents needed. 100% digital approval directly to bank.</div>
+          <div class="ad-btn" style="background:#2563eb; display:inline-block;">Get Cash Now →</div>
+        </div>
+      </a>
+
+      <div class="sidebar-card">
+        <div class="sidebar-title">लोकप्रिय ऋण श्रेणियाँ</div>
+        <div class="sidebar-list">
+          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">💼 ₹50,000 से ₹5 लाख तक पर्सनल लोन →</a>
+          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">🏡 होम लोन सब्सिडी योजना (PMAY) →</a>
+          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">📈 एमएसएमई बिज़नेस लोन बिना गारंटी →</a>
+          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">💳 लाइफटाइम फ़्री क्रेडिट कार्ड ऑफर्स →</a>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer>
+    <p>© 2026 LoanRaaj.com — All Rights Reserved. Disclaimer: We are an informational financial blog assisting users with loan guides.</p>
+  </footer>
+
+</body>
+</html>

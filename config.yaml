@@ -1,7 +1,8 @@
 target:
-  url: https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804
+  url: https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449
   urls:
-  - https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804
+  - https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449
+  - https://loanraaj.com
   fixture: tests/fixtures/page.html
   referrers:
   - https://www.google.com/search?q=example+keyword
