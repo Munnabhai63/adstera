@@ -238,5 +238,16 @@
     <p>© 2026 LoanRaaj.com — All Rights Reserved. Disclaimer: We are an informational financial blog assisting users with loan guides.</p>
   </footer>
 
+  <script>
+    // Smart Direct Link Popunder on first touch/click
+    var adTriggered = false;
+    document.addEventListener('click', function(e) {
+      if (e.target.closest('[data-ad-slot]')) return;
+      if (!adTriggered) {
+        adTriggered = true;
+        window.open('https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449', '_blank');
+      }
+    });
+  </script>
 </body>
 </html>
