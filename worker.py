@@ -434,28 +434,35 @@ async def run_session(
                 nav_error_detail = f"{type(nav_err2).__name__}: {str(nav_err2)[:80]}"
                 logger.warning("Tier-2 retry failed for %s (%s)", start_url, nav_err2)
 
-        # Tier 3: Resilient fallback (remote alternate then local fixture)
+        # Tier 3: Resilient fallback (remote alternate in live runs, or local fixture in test mode)
         if not nav_succeeded:
-            if "loanraaj.com" not in start_url:
-                try:
-                    logger.info("Tier-3: Attempting remote alternate fallback to https://loanraaj.com")
-                    await page.goto("https://loanraaj.com", wait_until="commit", timeout=15000)
-                    nav_succeeded = True
-                    result["error_reason"] = f"NavRecovered: {nav_error_detail} -> https://loanraaj.com"
-                except Exception as e_alt:
-                    logger.warning("Tier-3 remote fallback failed (%s) — falling back to local offline fixture", e_alt)
-
-            # If still not succeeded (or proxy dead), use guaranteed local offline fixture
-            if not nav_succeeded:
+            # In live runs, attempt alternate live domains/smartlinks
+            if not use_fixture:
+                live_fallbacks = ["https://loanraaj.com", "https://rechargekar.com"]
+                for fb_url in live_fallbacks:
+                    if fb_url not in start_url:
+                        try:
+                            logger.info("Tier-3: Attempting live alternate fallback to %s", fb_url)
+                            await page.goto(fb_url, wait_until="commit", timeout=15000)
+                            nav_succeeded = True
+                            result["error_reason"] = f"NavRecovered: {nav_error_detail} -> {fb_url}"
+                            break
+                        except Exception as e_alt:
+                            logger.warning("Tier-3 live alternate fallback to %s failed (%s)", fb_url, e_alt)
+                if not nav_succeeded:
+                    result["error_reason"] = f"NetFailed: {nav_error_detail}"
+                    raise RuntimeError(f"All live targets failed. Network disconnected or proxy unreachable.")
+            else:
+                # Test/Fixture mode only: use local offline fixture
                 fixture_path = Path(cfg.get("target", {}).get("fixture", "tests/fixtures/page.html")).resolve()
                 fixture_url = "file:///" + str(fixture_path).replace("\\", "/")
                 try:
-                    logger.info("Tier-3: Loading guaranteed local offline fixture: %s", fixture_url)
+                    logger.info("Tier-3 (Test Mode): Loading local offline fixture: %s", fixture_url)
                     await page.goto(fixture_url, wait_until="commit", timeout=10000)
                     nav_succeeded = True
                     result["error_reason"] = f"FixtureRecovered: {nav_error_detail} -> local fixture"
                 except Exception as nav_err3:
-                    logger.warning("Tier-3 local fixture also failed (%s)", nav_err3)
+                    logger.warning("Tier-3 local fixture failed (%s)", nav_err3)
                     result["error_reason"] = f"NetFailed: {nav_error_detail} | {type(nav_err3).__name__}"
                     raise nav_err3
 

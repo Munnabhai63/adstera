@@ -153,7 +153,7 @@ network:
 
 adsterra_api:
   enabled: true
-  api_key: ""
+  api_key: "23f635cd7b6e6709533dfe45f6ac0f94"
   endpoint: "https://api3.adsterratools.com/publisher/stats.json"
   sync_interval_min: 15
 
@@ -173,9 +173,9 @@ serp:
   max_serp_scroll_depth: 3
 
 telegram:
-  enabled: false
-  bot_token: ""
-  chat_id: ""
+  enabled: true
+  bot_token: "9153118554:AAFfheV-T-3-uM1lF39aDv2LqKKvvGHWnQc"
+  chat_id: "5812452868"
   heartbeat_hours: 2
   alert_on_ctr_threshold: 0.045
   emergency_ctr_pause: 0.050
