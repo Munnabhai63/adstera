@@ -2028,7 +2028,49 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         path = parsed.path
 
-        if path in ("", "/"):
+        # Domain Virtual Host router
+        host_header = (self.headers.get("Host") or "").split(":")[0].lower()
+        if host_header.startswith("www."):
+            host_header = host_header[4:]
+
+        DOMAIN_FOLDERS = {
+            "loanraaj.com": "loanraaj",
+            "rechargetak.com": "rechargetak",
+            "rechargepur.com": "rechargepur",
+            "tazaloan.com": "tazaloan",
+            "loankiseva.com": "loankiseva",
+            "karzseva.com": "karzseva",
+            "loantau.com": "loantau",
+            "tazabhav.com": "tazabhav",
+            "tazarokda.com": "tazarokda",
+            "rechargekar.com": "rechargekar",
+        }
+
+        # 1. Direct static route: /sites/<folder>
+        if path.startswith("/sites/"):
+            parts = [p for p in path.split("/") if p]
+            if len(parts) >= 2:
+                folder_name = parts[1]
+                site_file = Path("sites") / folder_name / "index.html"
+                if site_file.is_file():
+                    content = site_file.read_text(encoding="utf-8")
+                    self._send_html(content)
+                    return
+
+        # 2. Virtual Host route for live domains
+        if host_header in DOMAIN_FOLDERS:
+            # If accessing admin dashboard on rechargekar.com/admin or /dashboard
+            if host_header == "rechargekar.com" and path in ("/admin", "/dashboard"):
+                pass  # Fall through to render dashboard
+            elif path in ("", "/", "/index.html"):
+                folder_name = DOMAIN_FOLDERS[host_header]
+                site_file = Path("sites") / folder_name / "index.html"
+                if site_file.is_file():
+                    content = site_file.read_text(encoding="utf-8")
+                    self._send_html(content)
+                    return
+
+        if path in ("", "/", "/admin", "/dashboard"):
             cfg = read_config()
             net_mode = cfg.get("network", {}).get("mode", "proxy")
             raw_urls = cfg.get("target", {}).get("urls") or ([cfg.get("target", {}).get("url")] if cfg.get("target", {}).get("url") else [])
