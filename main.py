@@ -22,6 +22,7 @@ import yaml
 from playwright.async_api import async_playwright
 
 import db
+from mahi_connector import MahiConnector
 import tests.audit as audit_mod
 import worker
 from pool import ProxyPool
@@ -159,22 +160,34 @@ async def main() -> None:
     headless = cfg["browser"].get("headless", False)
     slow_mo = cfg["browser"].get("slow_mo_ms", 40)
 
+    # MAHI Browser Custom Chromium Core (Gate 2 MD Spec 2)
+    engine_type = cfg.get("browser", {}).get("engine", "mahi")
+    executable_path = None
+    mahi_conn = MahiConnector()
+    if engine_type == "mahi" and mahi_conn.is_available():
+        executable_path = mahi_conn.get_chrome_executable_path()
+        logger.info("Gate 2 Active: Launching MAHI Browser custom Chromium core (v138.0.7204.0)")
+
+    launch_kwargs: dict = {
+        "headless": headless,
+        "slow_mo": slow_mo,
+        "args": [
+            "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+            "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+            "--disable-blink-features=AutomationControlled",
+            "--no-first-run",
+            "--no-default-browser-check",
+            "--disable-infobars",
+            "--disable-popup-blocking",
+            "--window-position=100,100",
+            "--window-size=1280,800",
+        ],
+    }
+    if executable_path:
+        launch_kwargs["executable_path"] = executable_path
+
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(
-            headless=headless,
-            slow_mo=slow_mo,
-            args=[
-                "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-                "--webrtc-ip-handling-policy=disable_non_proxied_udp",
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-                "--no-default-browser-check",
-                "--disable-infobars",
-                "--disable-popup-blocking",
-                "--window-position=100,100",
-                "--window-size=1280,800",
-            ],
-        )
+        browser = await pw.chromium.launch(**launch_kwargs)
         try:
             logger.info("Browser launched. Starting session loop.")
             await _session_loop(cfg, pool, pw, browser)

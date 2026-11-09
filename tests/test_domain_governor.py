@@ -123,3 +123,4 @@ def test_all_domains_summary():
     domains = [s["domain"] for s in summary]
     assert "loanraaj.com" in domains
     assert "cloudhoster.com" in domains
+

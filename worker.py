@@ -17,6 +17,7 @@ import cmp
 import db
 import fingerprint as fp_mod
 import human
+from mahi_connector import MahiConnector
 import nav
 import persist
 from pool import Proxy
@@ -293,6 +294,24 @@ async def run_session(
         parsed_dom = parsed_dom.split(":")[0]
     target_domain = parsed_dom.lower() if parsed_dom else "loanraaj.com"
 
+    # Check if MAHI profiles are enabled and available (Gate 2 MD Spec 2)
+    mahi_conn = None
+    mahi_profile = None
+    if cfg.get("browser", {}).get("use_mahi_profiles", True):
+        try:
+            mahi_conn = MahiConnector()
+            if mahi_conn.is_available():
+                mahi_profile = mahi_conn.get_random_profile(rng)
+                disp = mahi_profile.get("settings", {}).get("display", {})
+                brw = mahi_profile.get("settings", {}).get("browser", {})
+                if disp.get("screenWidth") and disp.get("screenHeight"):
+                    fp.viewport_width = int(disp["screenWidth"])
+                    fp.viewport_height = int(disp["screenHeight"])
+                if brw.get("userAgent"):
+                    fp.user_agent = brw["userAgent"]
+        except Exception as mahi_err:
+            logger.debug("MAHI profile bridge fallback: %s", mahi_err)
+
     # Referrer selection
     referrers = cfg["target"]["referrers"]
     weights = cfg["target"]["referrer_weights"]
@@ -302,6 +321,7 @@ async def run_session(
         "proxy_id": proxy.proxy_id,
         "target_url": start_url,
         "domain": target_domain,
+        "mahi_profile_id": mahi_profile["id"] if mahi_profile else None,
         "ua": fp.user_agent,
         "referrer": referrer,
         "dwell": 0.0,
@@ -465,6 +485,11 @@ async def run_session(
         # Save cookies
         if cfg["session"]["cookie_persist"]:
             await persist.save(context, proxy.proxy_id)
+            if mahi_conn and mahi_profile:
+                try:
+                    await mahi_conn.save_profile_state(context, mahi_profile["id"])
+                except Exception:
+                    pass
 
     except Exception as exc:
         logger.warning("Session error for %s: %s", proxy.proxy_id, exc)

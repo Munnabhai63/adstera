@@ -98,6 +98,8 @@ cmp:
 browser:
   headless: false
   slow_mo_ms: 40
+  engine: "mahi"
+  use_mahi_profiles: true
   block_resources:
   - font
   - media
