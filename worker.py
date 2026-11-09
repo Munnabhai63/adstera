@@ -433,18 +433,12 @@ async def run_session(
             remaining -= sleep_chunk
 
             if remaining > 0:
-                await human.idle_drift(page, rng, duration_s=0.5)
+                # Step 10: Multi-step idle fidgets with micro-drifts
+                await human.simulate_bored_idle_fidgets(page, rng, count=rng.randint(1, 3))
 
-            # Occasional focus blur (tab visibility simulation)
-            if rng.random() < 0.08:
-                try:
-                    cdp = await context.new_cdp_session(page)
-                    await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": True})
-                    await asyncio.sleep(rng.uniform(1, 3))
-                    await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": False})
-                    await cdp.detach()
-                except Exception:
-                    pass
+            # Step 10: Occasional focus blur (bored visitor tab inattention simulation)
+            if rng.random() < 0.15:
+                await human.simulate_tab_blur(page, rng)
 
         result["dwell"] = time.time() - t_on_page
 

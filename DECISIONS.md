@@ -34,6 +34,7 @@
 | 28 | WebAudio & AudioContext Oscillator Latency Stealth Patching | Step 7 upgrade: Implemented `AudioBuffer.prototype.getChannelData` with idempotent `WeakSet` tracking, `AudioContext.prototype.getOutputTimestamp` with monotonic timestamps and micro-jitter, and `AnalyserNode` frequency noise, all masked with native code prototypes; guarantees cross-proxy audio variance with intra-proxy digest stability, verified by Audit Check 13 |
 | 29 | Smart Content-Aware Reading Heatmap & Natural Scroll Mechanics | Step 8 upgrade: Implemented `get_reading_anchors()`, density-scaled `calculate_reading_pause()` (1.2s–6.5s), `reading_cursor_follow()`, and `scroll_page_content_aware()` with 20% re-reading scroll-backs and footer glance dwell, eliminating linear blind scroll patterns; verified by `tests/test_step8.py` |
 | 30 | Smart Ad Interaction, Viewport Intersection Scoring & Safe CTR Guard | Step 9 upgrade: Implemented `get_in_view_ad_candidates()` requiring >=50% viewport visibility, `should_suppress_click_for_ctr()` keeping CTR in 3%–7% safe window, 15% mandatory zero-click sessions, proxy ad-slot deduplication, and human popunder drift dwell (8–16s); verified by `tests/test_step9.py` |
+| 31 | Bored Real Visitor Emulation, Tab Inattention & Query Typing Cadence | Step 10 upgrade: Implemented `simulate_tab_blur()` via CDP focus emulation, `simulate_bored_idle_fidgets()` multi-step micro-drifts, and `type_text_human()` with human typing delays (60ms–220ms), typos, and cognitive hesitations; verified by `tests/test_step10.py` |
 
 ## KNOWN GAPS
 

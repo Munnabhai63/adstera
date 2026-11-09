@@ -472,6 +472,120 @@ async def idle_drift(
     await asyncio.sleep(duration_s * rng.uniform(0.8, 1.2))
 
 
+# ── Step 10: Bored Real Visitor Emulation, Tab Blur & Typing Cadence ───────────
+
+async def simulate_tab_blur(
+    page: Page,
+    rng: Optional[random.Random] = None,
+    duration_s: Optional[float] = None,
+) -> bool:
+    """
+    Simulate natural human tab inattention / window blur (glancing at phone, switching tabs).
+    Toggles window and document focus states cleanly using CDP and DOM events.
+    """
+    if rng is None:
+        rng = random.Random()
+    sleep_dur = duration_s if duration_s is not None else float(rng.uniform(1.5, 3.8))
+    
+    try:
+        cdp = await page.context.new_cdp_session(page)
+        # Deactivate window focus (blur)
+        await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": False})
+        await _safe_eval(page, "() => { window.dispatchEvent(new Event('blur')); document.dispatchEvent(new Event('visibilitychange')); }")
+        await asyncio.sleep(sleep_dur)
+        # Restore window focus
+        await cdp.send("Emulation.setFocusEmulationEnabled", {"enabled": True})
+        await _safe_eval(page, "() => { window.dispatchEvent(new Event('focus')); document.dispatchEvent(new Event('visibilitychange')); }")
+        await cdp.detach()
+        return True
+    except Exception as exc:
+        logger.debug("simulate_tab_blur fallback: %s", exc)
+        try:
+            await _safe_eval(page, "() => { window.dispatchEvent(new Event('blur')); }")
+            await asyncio.sleep(sleep_dur)
+            await _safe_eval(page, "() => { window.dispatchEvent(new Event('focus')); }")
+            return True
+        except Exception:
+            return False
+
+
+async def simulate_bored_idle_fidgets(
+    page: Page,
+    rng: Optional[random.Random] = None,
+    count: int = 2,
+) -> dict:
+    """
+    Simulate natural idle micro-fidgets (lazy cursor wandering/twitches) while a bored human
+    dwells on a page. Maintains continuous cursor tracking without teleportation.
+    """
+    if rng is None:
+        rng = random.Random()
+    vp = page.viewport_size or {"width": 1280, "height": 800}
+    cur_x, cur_y = get_current_cursor(page, rng)
+    steps_taken = 0
+
+    for _ in range(max(1, count)):
+        drift_x = max(35.0, min(vp["width"] - 35.0, cur_x + rng.uniform(-75.0, 75.0)))
+        drift_y = max(35.0, min(vp["height"] - 35.0, cur_y + rng.uniform(-50.0, 50.0)))
+        await move_mouse(page, drift_x, drift_y, rng, start_x=cur_x, start_y=cur_y)
+        cur_x, cur_y = drift_x, drift_y
+        steps_taken += 1
+        await asyncio.sleep(rng.uniform(0.25, 0.75))
+
+    return {"steps": steps_taken, "final_x": cur_x, "final_y": cur_y}
+
+
+async def type_text_human(
+    page: Page,
+    selector: str,
+    text: str,
+    rng: Optional[random.Random] = None,
+) -> dict:
+    """
+    Type text with realistic human typing cadence:
+    - 60ms–220ms per character delay.
+    - 4% chance of realistic typo followed by natural backspace correction.
+    - 7% chance of a 350ms–500ms hesitation pause.
+    Returns typing telemetry.
+    """
+    if rng is None:
+        rng = random.Random()
+
+    try:
+        await page.click(selector)
+    except Exception:
+        pass
+
+    typo_count = 0
+    hesitation_count = 0
+
+    for char in text:
+        # 4% chance of typo on alphabetic characters
+        if char.isalpha() and rng.random() < 0.04:
+            typo_char = rng.choice("abcdefghijklmnopqrstuvwxyz")
+            await page.keyboard.type(typo_char)
+            typo_count += 1
+            await asyncio.sleep(rng.uniform(0.08, 0.18))
+            await page.keyboard.press("Backspace")
+            await asyncio.sleep(rng.uniform(0.06, 0.14))
+
+        await page.keyboard.type(char)
+        delay = rng.uniform(0.06, 0.20)
+
+        # 7% chance of human cognitive hesitation pause
+        if rng.random() < 0.07:
+            delay += rng.uniform(0.35, 0.50)
+            hesitation_count += 1
+
+        await asyncio.sleep(delay)
+
+    return {
+        "chars_typed": len(text),
+        "typos_corrected": typo_count,
+        "hesitations": hesitation_count,
+    }
+
+
 async def type_text(
     page: Page,
     selector: str,
@@ -479,25 +593,7 @@ async def type_text(
     rng: Optional[random.Random] = None,
 ) -> None:
     """
-    Type text with human-like per-character delays and occasional typo+backspace.
+    Standard typing entrypoint aliasing type_text_human.
     """
-    if rng is None:
-        rng = random.Random()
-
-    await page.click(selector)
-    for char in text:
-        # Occasional typo
-        if rng.random() < 0.04:
-            wrong = rng.choice("abcdefghijklmnopqrstuvwxyz")
-            await page.keyboard.type(wrong)
-            await asyncio.sleep(rng.uniform(0.06, 0.22))
-            await page.keyboard.press("Backspace")
-            await asyncio.sleep(rng.uniform(0.08, 0.18))
-
-        await page.keyboard.type(char)
-        delay = rng.uniform(0.06, 0.22)
-        # Occasional hesitation
-        if rng.random() < 0.07:
-            delay += 0.4
-        await asyncio.sleep(delay)
+    await type_text_human(page, selector, text, rng)
 
