@@ -137,7 +137,24 @@ async def main() -> None:
         sys.exit(int(str(e)))
 
     net_mode = cfg.get("network", {}).get("mode", "proxy")
-    if net_mode == "mobile_tether":
+    failover_enabled = cfg.get("failover", {}).get("enabled", False)
+
+    if failover_enabled or net_mode == "dual_failover":
+        from failover_manager import DualTransportManager
+        from pool import MobileTetherPool
+        logger.info("Operating in Dual-ISP Hot-Failover Mode (Mobile ADB + Residential Proxy)")
+        mobile_sub = MobileTetherPool(cfg)
+        proxy_sub = None
+        api_url = cfg.get("proxy", {}).get("api_url", "")
+        if api_url:
+            proxy_sub = await ProxyPool.from_api(api_url, cfg)
+        elif Path(cfg["proxy"]["file"]).is_file():
+            proxy_sub = await ProxyPool.from_file(cfg["proxy"]["file"], cfg)
+
+        failover_mgr = DualTransportManager(cfg)
+        failover_mgr.set_sub_pools(mobile_pool=mobile_sub, proxy_pool=proxy_sub)
+        pool = failover_mgr
+    elif net_mode == "mobile_tether":
         from pool import MobileTetherPool
         logger.info("Operating in Mobile USB Tethering Mode (ADB IP Rotation) — Locking Concurrency to 1")
         cfg["scheduler"]["concurrency"] = 1

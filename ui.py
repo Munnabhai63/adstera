@@ -285,6 +285,14 @@ class RunnerManager:
 
 
 RUNNER = RunnerManager()
+GLOBAL_FAILOVER_MGR = None
+
+def get_failover_mgr():
+    global GLOBAL_FAILOVER_MGR
+    if GLOBAL_FAILOVER_MGR is None:
+        from failover_manager import DualTransportManager
+        GLOBAL_FAILOVER_MGR = DualTransportManager(read_config())
+    return GLOBAL_FAILOVER_MGR
 
 # ── Config & Proxy Helpers ──────────────────────────────────────────────────────
 
@@ -921,6 +929,44 @@ HTML_PAGE = """<!DOCTYPE html>
           <tr><td colspan="6" style="text-align: center; color: var(--muted);">No alerts dispatched yet today...</td></tr>
         </tbody>
       </table>
+    </div>
+  </div>
+
+  <!-- Pillar 5: Dual-ISP Carrier Hot-Failover Engine Card -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>⚡ Pillar 5: Dual-ISP Carrier Hot-Failover Engine</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="failoverModeBadge" style="font-size: 11px; background: rgba(34, 197, 94, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3);">PRIMARY: Mobile 4G/5G</span>
+        <button id="btnProbeFailover" class="btn btn-secondary" onclick="probeFailoverHealth()" style="padding: 4px 10px; font-size: 11px;">⚡ Probe Health</button>
+        <button id="btnSwapFailover" class="btn btn-secondary" onclick="toggleFailoverTransport()" style="padding: 4px 10px; font-size: 11px;">🔄 Force Hot-Swap</button>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
+      Zero-drop carrier resilience switching dynamically between Primary Mobile 4G/5G (unlimited dynamic carrier IPs via ADB) and Fallback Residential Proxy Pool whenever high latency (>1500ms) or network timeout occurs.
+    </div>
+    
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px;">
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Active Transport</div>
+        <div id="foActiveTransport" style="font-size: 1.0rem; font-weight: 700; color: #4ade80;">PRIMARY MOBILE</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Carrier Latency</div>
+        <div id="foLatency" style="font-size: 1.0rem; font-weight: 700; color: #38bdf8;">-- ms</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Primary Health</div>
+        <div id="foHealth" style="font-size: 1.0rem; font-weight: 700; color: #4ade80;">ONLINE</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Failover Trips</div>
+        <div id="foTotalTrips" style="font-size: 1.0rem; font-weight: 700; color: #facc15;">0</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Auto Recoveries</div>
+        <div id="foRecoveries" style="font-size: 1.0rem; font-weight: 700; color: #38bdf8;">0</div>
+      </div>
     </div>
   </div>
 
@@ -1718,14 +1764,93 @@ HTML_PAGE = """<!DOCTYPE html>
     }
   }
 
+  async function fetchFailoverStatus() {
+    try {
+      const res = await fetch('/api/failover/status');
+      const data = await res.json();
+      if (data.success && data.status) {
+        const s = data.status;
+        const badge = document.getElementById('failoverModeBadge');
+        const activeEl = document.getElementById('foActiveTransport');
+        const latEl = document.getElementById('foLatency');
+        const hlthEl = document.getElementById('foHealth');
+        const tripsEl = document.getElementById('foTotalTrips');
+        const recovEl = document.getElementById('foRecoveries');
+
+        if (activeEl) activeEl.innerText = s.active_mode.replace('_', ' ');
+        if (latEl) latEl.innerText = (s.last_latency_ms > 0 ? `${s.last_latency_ms} ms` : 'Active');
+        if (tripsEl) tripsEl.innerText = s.total_failovers || 0;
+        if (recovEl) recovEl.innerText = s.total_recoveries || 0;
+
+        if (s.active_mode === 'PRIMARY_MOBILE') {
+          if (badge) {
+            badge.style.background = 'rgba(34, 197, 94, 0.2)';
+            badge.style.color = '#4ade80';
+            badge.innerText = 'PRIMARY: Mobile 4G/5G';
+          }
+          if (activeEl) activeEl.style.color = '#4ade80';
+        } else {
+          if (badge) {
+            badge.style.background = 'rgba(56, 189, 248, 0.2)';
+            badge.style.color = '#38bdf8';
+            badge.innerText = 'FALLBACK: Residential Proxy';
+          }
+          if (activeEl) activeEl.style.color = '#38bdf8';
+        }
+
+        if (hlthEl) {
+          if (s.primary_healthy) {
+            hlthEl.innerText = 'ONLINE';
+            hlthEl.style.color = '#4ade80';
+          } else {
+            hlthEl.innerText = 'DEGRADED';
+            hlthEl.style.color = '#f87171';
+          }
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  async function probeFailoverHealth() {
+    const btn = document.getElementById('btnProbeFailover');
+    if (btn) btn.innerText = '⏳ Probing…';
+    try {
+      const res = await fetch('/api/failover/test', { method: 'POST' });
+      const data = await res.json();
+      await fetchFailoverStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '⚡ Probe Health';
+    }
+  }
+
+  async function toggleFailoverTransport() {
+    const btn = document.getElementById('btnSwapFailover');
+    if (btn) btn.innerText = '⏳ Swapping…';
+    try {
+      const res = await fetch('/api/failover/switch', { method: 'POST' });
+      const data = await res.json();
+      await fetchFailoverStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '🔄 Force Hot-Swap';
+    }
+  }
+
   // Initial load & Polling
   loadConfig();
   fetchStatus();
   previewSerpQueries();
   fetchTelegramStatus();
+  fetchFailoverStatus();
   setInterval(() => {
     fetchStatus();
     fetchTelegramStatus();
+    fetchFailoverStatus();
   }, 3000);
 </script>
 
@@ -1880,6 +2005,12 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             })
             return
 
+        if path == "/api/failover/status":
+            mgr = get_failover_mgr()
+            status = mgr.get_status()
+            self._send_json({"success": True, "status": status})
+            return
+
         if path == "/api/accounts":
             from accounts_manager import AccountsManager
             mgr = AccountsManager()
@@ -1981,6 +2112,29 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 bot = TelegramAlertBot()
                 res = bot.send_heartbeat()
                 self._send_json({"success": True, "result": res})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/failover/test":
+            try:
+                mgr = get_failover_mgr()
+                health = mgr.check_primary_health()
+                self._send_json({"success": True, "health": health})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/failover/switch":
+            try:
+                mgr = get_failover_mgr()
+                if mgr.active_mode == "PRIMARY_MOBILE":
+                    mgr.trigger_failover(reason="User manual hot-swap trigger from Web Dashboard")
+                else:
+                    mgr.active_mode = "PRIMARY_MOBILE"
+                    mgr.primary_healthy = True
+                    mgr.consecutive_primary_failures = 0
+                self._send_json({"success": True, "active_mode": mgr.active_mode})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
             return
