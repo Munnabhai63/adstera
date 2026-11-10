@@ -15,3 +15,9 @@ telegram_link.py
 reports/*.json
 reports/*.txt
 
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example
