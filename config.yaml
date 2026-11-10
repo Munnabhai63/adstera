@@ -24,14 +24,16 @@ target:
   - https://www.youtube.com/
   - ''
   referrer_weights:
-  - 0.35
+  - 0.25
+  - 0.15
   - 0.1
   - 0.1
-  - 0.12
+  - 0.1
   - 0.05
   - 0.05
-  - 0.03
-  - 0.2
+  - 0.05
+  - 0.05
+  - 0.1
   min_dwell: 25
   max_dwell: 110
   scroll_prob: 0.85

@@ -439,8 +439,10 @@ async def run_session(
         logger.debug("SERP Synthesizer notice: %s", serp_err)
 
     if not referrer:
-        referrers = cfg["target"]["referrers"]
-        weights = cfg["target"]["referrer_weights"]
+        referrers = cfg["target"].get("referrers", [""])
+        weights = cfg["target"].get("referrer_weights")
+        if not weights or len(weights) != len(referrers):
+            weights = [1.0] * len(referrers)
         referrer = rng.choices(referrers, weights=weights, k=1)[0]
 
     # Step 4.3: Multi-Ad-Network Selection
