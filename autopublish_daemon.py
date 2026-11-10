@@ -146,6 +146,20 @@ def seed_queue():
     if inserted > 0:
         print(f"[Topic Queue] Seeded {inserted} fresh topics across network domains.")
 
+    # Auto-Replenish Queue using Tier-1 & Global Multi-Geo Trends Harvester
+    try:
+        import trends_harvester
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) FROM topic_queue WHERE status = 'pending'")
+        pending_count = cur.fetchone()[0]
+        conn.close()
+        if pending_count < 30:
+            print(f"[Topic Queue] Pending topics low ({pending_count}). Auto-harvesting Tier-1 topics...")
+            trends_harvester.run_harvest_cycle(limit_per_domain=3)
+    except Exception as e:
+        print(f"[Topic Queue] Trends harvester notice: {e}")
+
 # 3. ARTICLE GENERATION ENGINE (Using FreeLLMAPI)
 def generate_article_content(site_id, site_info, category, topic):
     site_name = site_info["name"]
