@@ -1,259 +1,1002 @@
 <!DOCTYPE html>
 <html lang="hi">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Loan Raaj — पर्सनल लोन, होम लोन एवं वित्तीय सलाह</title>
-  <meta name="description" content="कम ब्याज दर पर पर्सनल लोन, होम लोन और बिज़नेस लोन की पूरी जानकारी और आसान आवेदन प्रक्रिया।">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --primary: #1e3a8a;
-      --accent: #2563eb;
-      --success: #16a34a;
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #0f172a;
-      --muted: #64748b;
-      --border: #e2e8f0;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
-    header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; position: sticky; top: 0; z-index: 50; }
-    .header-inner { max-width: 1080px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-    .logo { font-size: 22px; font-weight: 800; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
-    .logo span { color: var(--accent); }
-    nav a { margin-left: 20px; color: var(--muted); text-decoration: none; font-weight: 500; font-size: 14px; }
-    nav a:hover { color: var(--accent); }
-
-    .container { max-width: 1080px; margin: 32px auto; padding: 0 16px; display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
-    @media (max-width: 800px) { .container { grid-template-columns: 1fr; } }
-
-    article { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; }
-    h1 { font-size: 28px; font-weight: 800; color: var(--primary); margin-bottom: 16px; line-height: 1.3; }
-    .meta { font-size: 13px; color: var(--muted); margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-    p { margin-bottom: 18px; font-size: 16px; color: #334155; }
-    h2 { font-size: 20px; font-weight: 700; color: var(--primary); margin: 28px 0 14px; }
-    ul { margin: 0 0 20px 24px; color: #334155; }
-    li { margin-bottom: 8px; }
-
-    /* Sponsored Adsterra Direct Link Banners */
-    .ad-link-card {
-      display: block;
-      text-decoration: none;
-      border-radius: 10px;
-      overflow: hidden;
-      margin: 24px 0;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-      cursor: pointer;
-    }
-    .ad-link-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoanRaaj - पर्सनल लोन, बिजनेस लोन और सरकारी योजनाओं की ताज़ा जानकारी - LoanRaaj</title>
+    <meta name="description" content="LoanRaaj पर पाएं पर्सनल लोन, PMEGP बिजनेस लोन, क्रेडिट कार्ड्स, सुकन्या योजना और बैंक ब्याज दरों की पूरी जानकारी।">
+    <link rel="canonical" href="https://loanraaj.com/">
     
-    .ad-top-wrapper {
-      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
-      color: white;
-      padding: 18px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .ad-top-badge {
-      display: inline-block;
-      background: #f59e0b;
-      color: #000;
-      font-size: 11px;
-      font-weight: 800;
-      padding: 2px 8px;
-      border-radius: 4px;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
-    .ad-top-title {
-      font-size: 17px;
-      font-weight: 700;
-      line-height: 1.3;
-    }
-    .ad-top-subtitle {
-      font-size: 13px;
-      opacity: 0.85;
-    }
-    .ad-btn {
-      background: #22c55e;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-weight: 700;
-      font-size: 14px;
-      white-space: nowrap;
-      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
-    }
+    <!-- Open Graph / Meta -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="LoanRaaj - पर्सनल लोन, बिजनेस लोन और सरकारी योजनाओं की ताज़ा जानकारी - LoanRaaj">
+    <meta property="og:description" content="LoanRaaj पर पाएं पर्सनल लोन, PMEGP बिजनेस लोन, क्रेडिट कार्ड्स, सुकन्या योजना और बैंक ब्याज दरों की पूरी जानकारी।">
+    <meta property="og:url" content="https://loanraaj.com/">
+    <meta property="og:image" content="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1200&auto=format&fit=crop&q=80">
+    <meta property="og:site_name" content="LoanRaaj">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="LoanRaaj - पर्सनल लोन, बिजनेस लोन और सरकारी योजनाओं की ताज़ा जानकारी - LoanRaaj">
+    <meta name="twitter:description" content="LoanRaaj पर पाएं पर्सनल लोन, PMEGP बिजनेस लोन, क्रेडिट कार्ड्स, सुकन्या योजना और बैंक ब्याज दरों की पूरी जानकारी।">
+    <meta name="twitter:image" content="https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=1200&auto=format&fit=crop&q=80">
 
-    .ad-mid-wrapper {
-      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-      border: 2px solid #86efac;
-      padding: 20px 24px;
-      text-align: center;
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Roboto:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    
+    <!-- Schema.org JSON-LD -->
+    <script type="application/ld+json">
+    {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "name": "LoanRaaj - पर्सनल लोन, बिजनेस लोन और सरकारी योजनाओं की ताज़ा जानकारी",
+  "url": "https://loanraaj.com/",
+  "description": "LoanRaaj पर पाएं पर्सनल लोन, PMEGP बिजनेस लोन, क्रेडिट कार्ड्स, सुकन्या योजना और बैंक ब्याज दरों की पूरी जानकारी।",
+  "publisher": {
+    "@type": "Organization",
+    "name": "LoanRaaj",
+    "url": "https://loanraaj.com",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://loanraaj.com/logo.png"
     }
-    .ad-mid-title {
-      font-size: 18px;
-      font-weight: 800;
-      color: #166534;
-      margin-bottom: 6px;
-    }
-    .ad-mid-text {
-      font-size: 14px;
-      color: #15803d;
-      margin-bottom: 12px;
-    }
+  }
+}
+    </script>
+    
+    <!-- HilltopAds & Monetag -->
+    <script src="/sw.js"></script>
 
-    .ad-side-wrapper {
-      background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
-      border: 2px solid #93c5fd;
-      padding: 24px 18px;
-      text-align: center;
-    }
-    .ad-side-icon {
-      font-size: 40px;
-      margin-bottom: 8px;
-    }
-    .ad-side-title {
-      font-size: 17px;
-      font-weight: 800;
-      color: #1e40af;
-      margin-bottom: 8px;
-      line-height: 1.3;
-    }
-    .ad-side-text {
-      font-size: 13px;
-      color: #1e3a8a;
-      margin-bottom: 16px;
-    }
+    <style>
+        /* === ZOX NEWS SIGNATURE MODERN THEME CSS === */
+        :root {
+            --primary: #FF005B;
+            --primary-hover: #D6004C;
+            --accent: #0BE6AF;
+            --dark: #111111;
+            --dark-surface: #1E1E1E;
+            --text-main: #222222;
+            --text-muted: #666666;
+            --bg-body: #F7F7F7;
+            --bg-card: #FFFFFF;
+            --border-color: #E5E5E5;
+            --font-head: 'Oswald', sans-serif;
+            --font-body: 'Roboto', sans-serif;
+        }
 
-    aside { display: flex; flex-direction: column; gap: 24px; }
-    .sidebar-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-    .sidebar-title { font-size: 16px; font-weight: 700; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; display: inline-block; }
-    .sidebar-list a { display: block; color: #334155; text-decoration: none; font-size: 14px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
-    .sidebar-list a:hover { color: var(--accent); font-weight: 600; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-body);
+            color: var(--text-main);
+            background-color: var(--bg-body);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+        a { text-decoration: none; color: inherit; transition: color 0.2s; }
+        a:hover { color: var(--primary); }
+        img { max-width: 100%; height: auto; display: block; }
 
-    .btn-apply { display: inline-block; background: #16a34a; color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; margin: 16px 0 24px; text-align: center; box-shadow: 0 4px 14px rgba(22, 163, 74, 0.3); }
-    .btn-apply:hover { background: #15803d; transform: translateY(-1px); }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 16px;
+        }
 
-    footer { background: var(--card); border-top: 1px solid var(--border); padding: 24px; text-align: center; color: var(--muted); font-size: 13px; margin-top: 60px; }
-  </style>
+        /* --- Top Bar --- */
+        .top-bar {
+            background: var(--dark);
+            color: #AAAAAA;
+            font-size: 13px;
+            padding: 8px 0;
+            border-bottom: 1px solid #222;
+        }
+        .top-bar-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .top-ticker {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .ticker-badge {
+            background: var(--primary);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 8px;
+            text-transform: uppercase;
+            border-radius: 2px;
+        }
+        .top-date { font-size: 12px; }
+
+        /* --- Main Header --- */
+        .main-header {
+            background: #FFFFFF;
+            padding: 20px 0;
+            border-bottom: 2px solid var(--border-color);
+        }
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .logo {
+            font-family: var(--font-head);
+            font-size: 38px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            color: var(--dark);
+            line-height: 1;
+        }
+        .logo span { color: var(--primary); }
+        .logo-tagline {
+            font-size: 12px;
+            color: var(--text-muted);
+            font-family: var(--font-body);
+            font-weight: 400;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .header-ad-banner {
+            display: none;
+        }
+        @media (min-width: 768px) {
+            .header-ad-banner {
+                display: block;
+                width: 728px;
+                height: 90px;
+                background: #F0F2F5;
+                border: 1px dashed #CBD5E1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: #94A3B8;
+                font-size: 12px;
+                text-transform: uppercase;
+                letter-spacing: 1px;
+            }
+        }
+
+        /* --- Main Navigation Bar --- */
+        .navbar {
+            background: var(--dark);
+            position: sticky;
+            top: 0;
+            z-index: 999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .nav-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .nav-menu {
+            display: flex;
+            list-style: none;
+            overflow-x: auto;
+            white-space: nowrap;
+        }
+        .nav-menu::-webkit-scrollbar { display: none; }
+        .nav-item a {
+            display: block;
+            padding: 14px 16px;
+            font-family: var(--font-head);
+            font-size: 15px;
+            text-transform: uppercase;
+            color: #FFFFFF;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+        }
+        .nav-item a:hover, .nav-item.active a {
+            background: var(--primary);
+            color: #FFFFFF;
+        }
+        .nav-tools {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 0 12px;
+            color: #FFF;
+        }
+        .nav-calc-btn {
+            background: var(--accent);
+            color: var(--dark) !important;
+            padding: 6px 14px;
+            border-radius: 4px;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* --- Hero Featured Grid (Zox Style) --- */
+        .hero-section {
+            margin: 20px 0;
+        }
+        .hero-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        @media (min-width: 992px) {
+            .hero-grid {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+        .hero-main-card {
+            position: relative;
+            height: 420px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #000;
+        }
+        .hero-main-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.75;
+            transition: transform 0.4s ease;
+        }
+        .hero-main-card:hover img {
+            transform: scale(1.03);
+            opacity: 0.85;
+        }
+        .hero-card-content {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 24px;
+            background: linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 60%, transparent 100%);
+            color: #FFF;
+        }
+        .cat-tag {
+            display: inline-block;
+            background: var(--primary);
+            color: #FFF;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            text-transform: uppercase;
+            border-radius: 3px;
+            margin-bottom: 10px;
+            font-family: var(--font-head);
+            letter-spacing: 0.5px;
+        }
+        .hero-main-title {
+            font-family: var(--font-head);
+            font-size: 26px;
+            font-weight: 700;
+            line-height: 1.25;
+            margin-bottom: 8px;
+            color: #FFF;
+        }
+        @media (min-width: 768px) {
+            .hero-main-title { font-size: 30px; }
+        }
+        .hero-side-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+        .hero-side-card {
+            position: relative;
+            height: 202px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #000;
+        }
+        .hero-side-card img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.75;
+            transition: transform 0.4s ease;
+        }
+        .hero-side-card:hover img {
+            transform: scale(1.03);
+            opacity: 0.85;
+        }
+        .hero-side-content {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, transparent 100%);
+            color: #FFF;
+        }
+        .hero-side-title {
+            font-family: var(--font-head);
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.25;
+            color: #FFF;
+        }
+
+        /* --- Two Column Layout: Main + Sidebar --- */
+        .layout-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+            margin: 30px 0;
+        }
+        @media (min-width: 992px) {
+            .layout-grid {
+                grid-template-columns: 2fr 1fr;
+            }
+        }
+
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid var(--dark);
+            margin-bottom: 20px;
+            padding-bottom: 6px;
+        }
+        .section-title {
+            font-family: var(--font-head);
+            font-size: 20px;
+            font-weight: 700;
+            text-transform: uppercase;
+            position: relative;
+        }
+        .section-title::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 0;
+            width: 50px;
+            height: 3px;
+            background: var(--primary);
+        }
+
+        /* --- Article Cards Feed --- */
+        .article-card {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        @media (min-width: 576px) {
+            .article-card {
+                grid-template-columns: 200px 1fr;
+            }
+        }
+        .article-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+        }
+        .article-thumb {
+            border-radius: 4px;
+            overflow: hidden;
+            height: 140px;
+            background: #E2E8F0;
+        }
+        .article-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .article-details {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+        .article-title {
+            font-family: var(--font-head);
+            font-size: 20px;
+            font-weight: 700;
+            line-height: 1.3;
+            margin: 6px 0 8px 0;
+            color: var(--dark);
+        }
+        .article-title:hover {
+            color: var(--primary);
+        }
+        .article-snippet {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .article-meta {
+            font-size: 12px;
+            color: #888888;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        /* --- Sidebar Widgets --- */
+        .widget {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+        .widget-title {
+            font-family: var(--font-head);
+            font-size: 18px;
+            font-weight: 700;
+            text-transform: uppercase;
+            border-bottom: 2px solid var(--dark);
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+            position: relative;
+        }
+        .widget-title::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 40px;
+            height: 2px;
+            background: var(--primary);
+        }
+        .widget-post-item {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 14px;
+            padding-bottom: 14px;
+            border-bottom: 1px dashed var(--border-color);
+        }
+        .widget-post-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        .widget-post-thumb {
+            width: 70px;
+            height: 60px;
+            border-radius: 3px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .widget-post-thumb img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .widget-post-title {
+            font-family: var(--font-head);
+            font-size: 14px;
+            font-weight: 600;
+            line-height: 1.3;
+        }
+
+        /* --- EMI Calculator Widget --- */
+        .calc-box {
+            background: #F8FAFC;
+            border: 1px solid #CBD5E1;
+            border-radius: 6px;
+            padding: 16px;
+        }
+        .calc-field {
+            margin-bottom: 14px;
+        }
+        .calc-field label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 13px;
+            font-weight: 600;
+            color: #334155;
+            margin-bottom: 4px;
+        }
+        .calc-field input[type="range"] {
+            width: 100%;
+            accent-color: var(--primary);
+        }
+        .calc-result {
+            background: var(--dark);
+            color: #FFF;
+            padding: 12px;
+            border-radius: 4px;
+            text-align: center;
+            margin-top: 14px;
+        }
+        .calc-result-val {
+            font-size: 24px;
+            font-weight: 700;
+            font-family: var(--font-head);
+            color: var(--accent);
+        }
+
+        /* --- Single Post Page Styling --- */
+        .single-post-container {
+            background: #FFF;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 30px;
+        }
+        .breadcrumb {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .single-title {
+            font-family: var(--font-head);
+            font-size: 32px;
+            font-weight: 700;
+            line-height: 1.25;
+            color: var(--dark);
+            margin-bottom: 16px;
+        }
+        .single-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border-color);
+            margin-bottom: 24px;
+        }
+        .single-feat-img {
+            border-radius: 6px;
+            overflow: hidden;
+            margin-bottom: 25px;
+            max-height: 450px;
+        }
+        .single-feat-img img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .entry-content {
+            font-size: 16px;
+            line-height: 1.8;
+            color: #333333;
+        }
+        .entry-content h2 {
+            font-family: var(--font-head);
+            font-size: 24px;
+            font-weight: 700;
+            margin: 28px 0 14px 0;
+            padding-bottom: 6px;
+            border-bottom: 2px solid var(--border-color);
+            color: var(--dark);
+        }
+        .entry-content h3 {
+            font-family: var(--font-head);
+            font-size: 20px;
+            font-weight: 700;
+            margin: 20px 0 10px 0;
+            color: var(--dark);
+        }
+        .entry-content p {
+            margin-bottom: 16px;
+        }
+        .entry-content ul, .entry-content ol {
+            margin: 14px 0 18px 24px;
+        }
+        .entry-content li {
+            margin-bottom: 8px;
+        }
+        .in-article-ad {
+            background: #F1F5F9;
+            border: 1px dashed #CBD5E1;
+            padding: 16px;
+            text-align: center;
+            margin: 24px 0;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #94A3B8;
+        }
+
+        /* --- Footer --- */
+        .footer {
+            background: var(--dark);
+            color: #CCCCCC;
+            margin-top: 50px;
+            padding-top: 40px;
+            border-top: 4px solid var(--primary);
+        }
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 30px;
+            padding-bottom: 40px;
+        }
+        @media (min-width: 768px) {
+            .footer-grid {
+                grid-template-columns: 2fr 1fr 1fr;
+            }
+        }
+        .footer-title {
+            font-family: var(--font-head);
+            font-size: 18px;
+            font-weight: 700;
+            color: #FFF;
+            text-transform: uppercase;
+            margin-bottom: 16px;
+        }
+        .footer-links {
+            list-style: none;
+        }
+        .footer-links li {
+            margin-bottom: 10px;
+        }
+        .footer-links a {
+            color: #AAAAAA;
+            font-size: 14px;
+        }
+        .footer-links a:hover {
+            color: var(--primary);
+            padding-left: 4px;
+        }
+        .footer-bottom {
+            background: #090909;
+            padding: 18px 0;
+            font-size: 13px;
+            color: #888888;
+            text-align: center;
+            border-top: 1px solid #1A1A1A;
+        }
+    </style>
 </head>
 <body>
-
-  <header>
-    <div class="header-inner">
-      <a href="/" class="logo">🏦 Loan<span>Raaj</span>.com</a>
-      <nav>
-        <a href="/">होम</a>
-        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer">पर्सनल लोन</a>
-        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer">होम लोन</a>
-        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer">बिज़नेस लोन</a>
-      </nav>
-    </div>
-  </header>
-
-  <div class="container">
-    <main>
-      <article>
-        <!-- Top Sponsored Adsterra Direct Link Unit -->
-        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
-          <div class="ad-top-wrapper">
-            <div>
-              <span class="ad-top-badge">Sponsored Offer</span>
-              <div class="ad-top-title">⚡ Pre-Approved Instant Personal Loan (Up to ₹5,00,000)</div>
-              <div class="ad-top-subtitle">न्यूनतम ब्याज दर • 0% प्रोसेसिंग फ़ीस • बिना किसी गारंटी के 10 मिनट में बैंक ट्रांसफर</div>
+    <!-- Top Bar -->
+    <div class="top-bar">
+        <div class="container top-bar-inner">
+            <div class="top-ticker">
+                <span class="ticker-badge"><i class="fa-solid fa-bolt"></i> TRENDING</span>
+                <span>PMEGP ₹25 लाख लोन • सुकन्या योजना 2026 • HDFC क्रेडिट कार्ड्स • होम लोन ब्याज दरें</span>
             </div>
-            <div class="ad-btn">Apply Online →</div>
-          </div>
-        </a>
-
-        <h1>कम सिबिल स्कोर पर तुरंत पर्सनल लोन कैसे प्राप्त करें? (2026 गाइड)</h1>
-        <div class="meta">अपडेटेड: 2026 • वित्तीय विशेषज्ञ द्वारा सत्यापित • 4 मिनट पढ़ने का समय</div>
-
-        <p>आज के समय में अप्रत्याशित वित्तीय आवश्यकताओं को पूरा करने के लिए पर्सनल लोन सबसे लोकप्रिय विकल्प बन चुका है। चाहे मेडिकल इमरजेंसी हो, शादी का ख़र्च हो या पुराने कर्ज़ चुकाने हों, डिजिटल माध्यम से अब 10 मिनट में लोन स्वीकृत हो जाता है।</p>
-
-        <h2>1. तत्काल लोन के लिए आवश्यक पात्रता मापदंड</h2>
-        <p>यदि आपका सिबिल (CIBIL) स्कोर 650 से कम है, तो भी कई प्रमुख NBFC और फिनटेक कंपनियाँ न्यूनतम दस्तावेज़ों पर ऋण उपलब्ध कराती हैं:</p>
-        <ul>
-          <li><strong>आयु सीमा:</strong> 21 वर्ष से 58 वर्ष के बीच।</li>
-          <li><strong>मासिक आय:</strong> न्यूनतम ₹15,000 प्रति माह (बैंक खाते में जमा)।</li>
-          <li><strong>आवश्यक दस्तावेज़:</strong> आधार कार्ड, पैन कार्ड, और पिछले 3 महीने का बैंक स्टेटमेंट।</li>
-        </ul>
-
-        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="btn-apply" data-ad-slot="direct-link">👉 ऑनलाइन लोन पात्रता चेक करें (Instant Approval)</a>
-
-        <h2>2. ब्याज दरों और प्रोसेसिंग शुल्क की तुलना</h2>
-        <p>लोन लेने से पहले विभिन्न बैंकों और लेंडिंग प्लेटफॉर्म की ब्याज दरों की तुलना अवश्य करें। आमतौर पर ब्याज दर 10.5% से लेकर 18% वार्षिक के बीच होती है। बिना किसी छुपे शुल्क (Hidden Charges) के पारदर्शी विकल्प चुनना हमेशा बेहतर होता है।</p>
-
-        <!-- Mid/Bottom Sponsored Adsterra Direct Link Unit -->
-        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
-          <div class="ad-mid-wrapper">
-            <span class="ad-top-badge" style="background:#22c55e; color:white;">Special Recommendation</span>
-            <div class="ad-mid-title">🎉 Exclusive Fintech Partner: Quick Disbursal Loan Offers</div>
-            <div class="ad-mid-text">खराब सिबिल स्कोर पर भी 100% ऑनलाइन वेरिफिकेशन के साथ तुरंत लोन प्राप्त करें।</div>
-            <div class="ad-btn" style="background:#16a34a; display:inline-block;">Check Eligibility Now →</div>
-          </div>
-        </a>
-
-        <h2>3. 100% सुरक्षित और ऑनलाइन आवेदन प्रक्रिया</h2>
-        <p>डिजिटल KYC पूरा करने के बाद आपका लोन अमाउंट सीधे आपके सत्यापित बचत खाते में ट्रांसफर कर दिया जाता है। ई-मैंडेट (Auto-Debit) सेट करके आप समय पर EMI भुगतान कर सकते हैं जिससे आपका क्रेडिट स्कोर भी सुधरता है।</p>
-      </article>
-    </main>
-
-    <aside>
-      <!-- Sidebar Sponsored Adsterra Direct Link Unit -->
-      <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
-        <div class="ad-side-wrapper">
-          <div class="ad-side-icon">💳</div>
-          <span class="ad-top-badge">Verified Partner</span>
-          <div class="ad-side-title">Instant Cash Loan in 5 Minutes</div>
-          <div class="ad-side-text">No paper documents needed. 100% digital approval directly to bank.</div>
-          <div class="ad-btn" style="background:#2563eb; display:inline-block;">Get Cash Now →</div>
+            <div class="top-date">
+                <i class="fa-regular fa-calendar"></i> मंगलवार, 10 नवंबर 2026
+            </div>
         </div>
-      </a>
+    </div>
 
-      <div class="sidebar-card">
-        <div class="sidebar-title">लोकप्रिय ऋण श्रेणियाँ</div>
-        <div class="sidebar-list">
-          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">💼 ₹50,000 से ₹5 लाख तक पर्सनल लोन →</a>
-          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">🏡 होम लोन सब्सिडी योजना (PMAY) →</a>
-          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">📈 एमएसएमई बिज़नेस लोन बिना गारंटी →</a>
-          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">💳 लाइफटाइम फ़्री क्रेडिट कार्ड ऑफर्स →</a>
+    <!-- Main Header -->
+    <header class="main-header">
+        <div class="container header-inner">
+            <div class="logo-area">
+                <a href="/" class="logo">LOAN<span>RAAJ</span></a>
+                <div class="logo-tagline">Finance, Banking & Government Schemes Hub</div>
+            </div>
+            <div class="header-ad-banner">
+                <!-- 728x90 Header Ad Slot -->
+                <span>Sponsored Financial Banner (728x90)</span>
+            </div>
         </div>
-      </div>
+    </header>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="container nav-inner">
+            <ul class="nav-menu">
+                <li class="nav-item active"><a href="/"><i class="fa-solid fa-house"></i> होम</a></li>
+                <li class="nav-item"><a href="/#business-loans">बिजनेस लोन</a></li>
+                <li class="nav-item"><a href="/#personal-loans">पर्सनल लोन</a></li>
+                <li class="nav-item"><a href="/#govt-schemes">सरकारी योजनाएं</a></li>
+                <li class="nav-item"><a href="/#credit-cards">क्रेडिट कार्ड</a></li>
+                <li class="nav-item"><a href="/#insurance">इंश्योरेंस</a></li>
+                <li class="nav-item"><a href="/emi-calculator"><i class="fa-solid fa-calculator"></i> EMI कैलकुलेटर</a></li>
+            </ul>
+            <div class="nav-tools">
+                <a href="/emi-calculator" class="nav-calc-btn"><i class="fa-solid fa-calculator"></i> EMI चेक करें</a>
+            </div>
+        </div>
+    </nav>
+
+<main class="container">
+    <section class="hero-section">
+        <div class="hero-grid">
+            <a href="/pmegp-loan-scheme" class="hero-main-card">
+                <img src="https://bazartak.in/wp-content/uploads/2025/06/PMEGP-BUSINESS-LOAN-1000x600.jpg" alt="PMEGP BUSINESS LOAN APPLY NOW: सरकार नए बिजनेस के लिऐ दे रही 25 लाख रुपये तक लोन" loading="eager">
+                <div class="hero-card-content">
+                    <span class="cat-tag">Business Loan</span>
+                    <h1 class="hero-main-title">PMEGP BUSINESS LOAN APPLY NOW: सरकार नए बिजनेस के लिऐ दे रही 25 लाख रुपये तक लोन</h1>
+                    <div style="font-size:13px; opacity:0.9;"><i class="fa-regular fa-clock"></i> 5 min read • November 2026</div>
+                </div>
+            </a>
+            <div class="hero-side-grid">
+                <a href="/daughter-loan-scheme" class="hero-side-card">
+                    <img src="https://bazartak.in/wp-content/uploads/2025/04/20250425_212935-ezgif.com-jpg-to-webp-converter-1000x600.webp" alt="बेटियों के लिए 2025 में मुफ्त पैसा! भारत सरकार की 10+ योजनाएं, सीधे बैंक खाते में मिलेगी आर्थिक सहायता | आवेदन प्रक्रिया जानें" loading="lazy">
+                    <div class="hero-side-content">
+                        <span class="cat-tag">Personal Loan</span>
+                        <div class="hero-side-title">बेटियों के लिए 2025 में मुफ्त पैसा! भारत सरकार की 10+ योजनाएं, सीधे बैंक खाते में मिलेगी आर्थिक सहायता | आवेदन प्रक्रिया जानें</div>
+                    </div>
+                </a>
+                <a href="/moneyview-loan-apply" class="hero-side-card">
+                    <img src="https://bazartak.in/wp-content/uploads/2025/04/moneyview-loan-1000x600.webp" alt="Moneyview Loan Apply Now: अब घर बैठे मिलेगा 10 लाख रुपये तक का लोन" loading="lazy">
+                    <div class="hero-side-content">
+                        <span class="cat-tag">Instant Loan</span>
+                        <div class="hero-side-title">Moneyview Loan Apply Now: अब घर बैठे मिलेगा 10 लाख रुपये तक का लोन</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Two-column Layout: Feed + Sidebar -->
+    <div class="layout-grid">
+        <div class="main-feed-area">
+            <div class="section-header">
+                <div class="section-title">ताज़ा वित्तीय आर्टिकल्स & योजनाएं</div>
+            </div>
+
+            <article class="article-card">
+                <div class="article-thumb">
+                    <a href="/pnb-home-loan-guide">
+                        <img src="https://bazartak.in/wp-content/uploads/2025/04/pnb-home-loan-1000x600.webp" alt="PNB Home Loan 2025: आपके बजट में, आपके सपनों का घर" loading="lazy">
+                    </a>
+                </div>
+                <div class="article-details">
+                    <div><span class="cat-tag">Home Loan</span></div>
+                    <a href="/pnb-home-loan-guide">
+                        <h2 class="article-title">PNB Home Loan 2025: आपके बजट में, आपके सपनों का घर</h2>
+                    </a>
+                    <p class="article-snippet">...</p>
+                    <div class="article-meta">
+                        <span><i class="fa-regular fa-user"></i> LoanRaaj Financial Editorial Team</span>
+                        <span><i class="fa-regular fa-calendar"></i> November 2026</span>
+                    </div>
+                </div>
+            </article>
     
-<!-- INTERNAL_ARTICLES_NAV -->
-<div class="sidebar-card" style="margin-top:16px;"><div class="sidebar-title">मुख्य लेख एवं गाइड</div><div class="sidebar-list">
-  <a href="/personal-loan-guide.html" style="display:block;margin:6px 0;color:#2563eb;text-decoration:none;">📄 पर्सनल लोन कैसे लें — ब्याज दर, जरूरी दस... →</a>
-  <a href="/emi-calculator.html" style="display:block;margin:6px 0;color:#2563eb;text-decoration:none;">📄 लोन ईएमआई कैलकुलेटर — मासिक किस्त और कुल... →</a>
-</div></div>
-</aside>
-  </div>
+            <article class="article-card">
+                <div class="article-thumb">
+                    <a href="/hdfc-credit-card-apply">
+                        <img src="https://bazartak.in/wp-content/uploads/2024/07/20250329_111106-ezgif.com-optijpeg-1000x600.jpg" alt="HDFC Credit Card Apply Now: Features, Interest Rates, and Application Process" loading="lazy">
+                    </a>
+                </div>
+                <div class="article-details">
+                    <div><span class="cat-tag">Credit Card</span></div>
+                    <a href="/hdfc-credit-card-apply">
+                        <h2 class="article-title">HDFC Credit Card Apply Now: Features, Interest Rates, and Application Process</h2>
+                    </a>
+                    <p class="article-snippet">...</p>
+                    <div class="article-meta">
+                        <span><i class="fa-regular fa-user"></i> LoanRaaj Financial Editorial Team</span>
+                        <span><i class="fa-regular fa-calendar"></i> November 2026</span>
+                    </div>
+                </div>
+            </article>
+    
+            <article class="article-card">
+                <div class="article-thumb">
+                    <a href="/car-loan-guide">
+                        <img src="https://bazartak.in/wp-content/uploads/2025/02/car-loan-kaise-le-1000x600.jpg" alt="Car Loan: कार लोन कैसे लें, ब्याज दरें, लोन राशि, लोन अवधि, डॉक्यूमेंट, आवेदन प्रक्रिया के बारे में अभी जानें" loading="lazy">
+                    </a>
+                </div>
+                <div class="article-details">
+                    <div><span class="cat-tag">Car Loan</span></div>
+                    <a href="/car-loan-guide">
+                        <h2 class="article-title">Car Loan: कार लोन कैसे लें, ब्याज दरें, लोन राशि, लोन अवधि, डॉक्यूमेंट, आवेदन प्रक्रिया के बारे में अभी जानें</h2>
+                    </a>
+                    <p class="article-snippet">...</p>
+                    <div class="article-meta">
+                        <span><i class="fa-regular fa-user"></i> LoanRaaj Financial Editorial Team</span>
+                        <span><i class="fa-regular fa-calendar"></i> November 2026</span>
+                    </div>
+                </div>
+            </article>
+    
+            <article class="article-card">
+                <div class="article-thumb">
+                    <a href="/uyegp-loan-scheme">
+                        <img src="https://bazartak.in/wp-content/uploads/2024/07/UYEGP-Loan-Scheme-1000x576.webp" alt="UYEGP Loan Scheme Apply Online: Get Loan Upto 10 Lakh At Low Intrest Rate" loading="lazy">
+                    </a>
+                </div>
+                <div class="article-details">
+                    <div><span class="cat-tag">Government Loan</span></div>
+                    <a href="/uyegp-loan-scheme">
+                        <h2 class="article-title">UYEGP Loan Scheme Apply Online: Get Loan Upto 10 Lakh At Low Intrest Rate</h2>
+                    </a>
+                    <p class="article-snippet">...</p>
+                    <div class="article-meta">
+                        <span><i class="fa-regular fa-user"></i> LoanRaaj Financial Editorial Team</span>
+                        <span><i class="fa-regular fa-calendar"></i> November 2026</span>
+                    </div>
+                </div>
+            </article>
+    
+            <article class="article-card">
+                <div class="article-thumb">
+                    <a href="/best-health-insurance">
+                        <img src="https://bazartak.in/wp-content/uploads/2025/06/20250613_144132-ezgif.com-resize-1000x600.webp" alt="Best Health Insurance in India Buy Now" loading="lazy">
+                    </a>
+                </div>
+                <div class="article-details">
+                    <div><span class="cat-tag">Insurance</span></div>
+                    <a href="/best-health-insurance">
+                        <h2 class="article-title">Best Health Insurance in India Buy Now</h2>
+                    </a>
+                    <p class="article-snippet">...</p>
+                    <div class="article-meta">
+                        <span><i class="fa-regular fa-user"></i> LoanRaaj Financial Editorial Team</span>
+                        <span><i class="fa-regular fa-calendar"></i> November 2026</span>
+                    </div>
+                </div>
+            </article>
+    
+            <article class="article-card">
+                <div class="article-thumb">
+                    <a href="/work-from-home-jobs">
+                        <img src="https://bazartak.in/wp-content/uploads/2024/07/20250330_223759-ezgif.com-optijpeg-1000x600.jpg" alt="Best Work from Home Jobs in India 2024" loading="lazy">
+                    </a>
+                </div>
+                <div class="article-details">
+                    <div><span class="cat-tag">Work From Home</span></div>
+                    <a href="/work-from-home-jobs">
+                        <h2 class="article-title">Best Work from Home Jobs in India 2024</h2>
+                    </a>
+                    <p class="article-snippet">...</p>
+                    <div class="article-meta">
+                        <span><i class="fa-regular fa-user"></i> LoanRaaj Financial Editorial Team</span>
+                        <span><i class="fa-regular fa-calendar"></i> November 2026</span>
+                    </div>
+                </div>
+            </article>
+    
+            <article class="article-card">
+                <div class="article-thumb">
+                    <a href="/21-machines-business">
+                        <img src="https://bazartak.net/wp-content/uploads/2026/11/1000111648-60kb-1000x600.jpg" alt="21 Machines You Can Import From China to Start a Profitable Home Business" loading="lazy">
+                    </a>
+                </div>
+                <div class="article-details">
+                    <div><span class="cat-tag">Business Ideas</span></div>
+                    <a href="/21-machines-business">
+                        <h2 class="article-title">21 Machines You Can Import From China to Start a Profitable Home Business</h2>
+                    </a>
+                    <p class="article-snippet">...</p>
+                    <div class="article-meta">
+                        <span><i class="fa-regular fa-user"></i> LoanRaaj Financial Editorial Team</span>
+                        <span><i class="fa-regular fa-calendar"></i> November 2026</span>
+                    </div>
+                </div>
+            </article>
+    
+            <article class="article-card">
+                <div class="article-thumb">
+                    <a href="/commercial-auto-insurance">
+                        <img src="https://bazartak.net/wp-content/uploads/2026/07/258262584_1784531074824948-1-1000x600.jpg" alt="Commercial Auto Insurance Quotes: How I Stopped Guessing and Started Comparing — A Complete Guide for Owner-Operators in 2026" loading="lazy">
+                    </a>
+                </div>
+                <div class="article-details">
+                    <div><span class="cat-tag">Insurance</span></div>
+                    <a href="/commercial-auto-insurance">
+                        <h2 class="article-title">Commercial Auto Insurance Quotes: How I Stopped Guessing and Started Comparing — A Complete Guide for Owner-Operators in 2026</h2>
+                    </a>
+                    <p class="article-snippet">...</p>
+                    <div class="article-meta">
+                        <span><i class="fa-regular fa-user"></i> LoanRaaj Financial Editorial Team</span>
+                        <span><i class="fa-regular fa-calendar"></i> November 2026</span>
+                    </div>
+                </div>
+            </article>
+    
+        </div>
+        
+        <!-- Sidebar -->
+        <aside class="sidebar-area">
+            <!-- Sticky Ad Slot -->
+            <div class="widget" style="padding:10px; text-align:center;">
+                <div style="font-size:11px; color:#999; text-transform:uppercase; margin-bottom:6px;">SPONSORED LINK</div>
+                <div style="background:#F1F5F9; border:1px dashed #CBD5E1; height:250px; display:flex; align-items:center; justify-content:center; color:#64748B; border-radius:4px;">
+                    <!-- Adsterra 300x250 Banner Slot -->
+                    <span>300x250 Responsive Banner</span>
+                </div>
+            </div>
 
-  <footer>
-    <p>© 2026 LoanRaaj.com — All Rights Reserved. Disclaimer: We are an informational financial blog assisting users with loan guides.</p>
-  </footer>
+            <!-- Live Interactive EMI Calculator -->
+            <div class="widget">
+                <div class="widget-title">लोन EMI कैलकुलेटर</div>
+                <div class="calc-box">
+                    <div class="calc-field">
+                        <label><span>लोन राशि:</span> <span id="amountDisplay">₹5,00,000</span></label>
+                        <input type="range" id="loanAmount" min="50000" max="5000000" step="25000" value="500000" oninput="updateEMI()">
+                    </div>
+                    <div class="calc-field">
+                        <label><span>ब्याज दर (% प्रति वर्ष):</span> <span id="rateDisplay">10.5%</span></label>
+                        <input type="range" id="loanRate" min="7" max="24" step="0.25" value="10.5" oninput="updateEMI()">
+                    </div>
+                    <div class="calc-field">
+                        <label><span>अवधि (साल):</span> <span id="tenureDisplay">3 वर्ष</span></label>
+                        <input type="range" id="loanTenure" min="1" max="15" step="1" value="3" oninput="updateEMI()">
+                    </div>
+                    <div class="calc-result">
+                        <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.5px;">मासिक EMI</div>
+                        <div class="calc-result-val" id="emiResult">₹16,252</div>
+                    </div>
+                </div>
+            </div>
 
-  <script>
-    // Smart Direct Link Popunder on first touch/click
-    var adTriggered = false;
-    document.addEventListener('click', function(e) {
-      if (e.target.closest('[data-ad-slot]')) return;
-      if (!adTriggered) {
-        adTriggered = true;
-        window.open('https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449', '_blank');
-      }
-    });
-  </script>
+            <!-- Popular Categories Widget -->
+            <div class="widget">
+                <div class="widget-title">पॉपुलर केटेगरी</div>
+                <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                    <a href="/#business-loans" class="cat-tag" style="background:#222;">बिजनेस लोन</a>
+                    <a href="/#personal-loans" class="cat-tag" style="background:#222;">पर्सनल लोन</a>
+                    <a href="/#govt-schemes" class="cat-tag" style="background:#222;">सरकारी योजनाएं</a>
+                    <a href="/#credit-cards" class="cat-tag" style="background:#222;">क्रेडिट कार्ड</a>
+                    <a href="/#insurance" class="cat-tag" style="background:#222;">हेल्थ इंश्योरेंस</a>
+                    <a href="/#trucking" class="cat-tag" style="background:#222;">ऑटो इंश्योरेंस (Tier-1)</a>
+                </div>
+            </div>
+        </aside>
+    </div>
+</main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container footer-grid">
+            <div>
+                <div class="logo" style="color:#FFF; font-size:30px; margin-bottom:12px;">LOAN<span>RAAJ</span></div>
+                <p style="font-size:14px; color:#AAAAAA; line-height:1.7;">
+                    LoanRaaj भारत का एक प्रमुख स्वतंत्र वित्तीय और सरकारी योजना सूचना पोर्टल है। यहाँ आप पर्सनल लोन, बिजनेस लोन (PMEGP/UYEGP), क्रेडिट कार्ड्स, और बैंक ब्याज दरों की सटीक व सत्यापित जानकारी प्राप्त कर सकते हैं।
+                </p>
+            </div>
+            <div>
+                <div class="footer-title">मुख्य केटेगरी</div>
+                <ul class="footer-links">
+                    <li><a href="/#business-loans"><i class="fa-solid fa-angle-right"></i> बिजनेस लोन (PMEGP)</a></li>
+                    <li><a href="/#personal-loans"><i class="fa-solid fa-angle-right"></i> पर्सनल & इंसटेंट लोन</a></li>
+                    <li><a href="/#govt-schemes"><i class="fa-solid fa-angle-right"></i> सरकारी कल्याणकारी योजनाएं</a></li>
+                    <li><a href="/#credit-cards"><i class="fa-solid fa-angle-right"></i> क्रेडिट कार्ड कंपैरिजन</a></li>
+                    <li><a href="/emi-calculator"><i class="fa-solid fa-angle-right"></i> ऑनलाइन लोन EMI कैलकुलेटर</a></li>
+                </ul>
+            </div>
+            <div>
+                <div class="footer-title">लीगल & पॉलिसीज</div>
+                <ul class="footer-links">
+                    <li><a href="/privacy-policy"><i class="fa-solid fa-shield-halved"></i> प्राइवेसी पॉलिसी</a></li>
+                    <li><a href="/terms-and-conditions"><i class="fa-solid fa-file-contract"></i> नियम एवं शर्तें</a></li>
+                    <li><a href="/disclaimer"><i class="fa-solid fa-triangle-exclamation"></i> डिस्क्लेमर (Disclaimer)</a></li>
+                    <li><a href="/about-us"><i class="fa-solid fa-users"></i> हमारे बारे में (About Us)</a></li>
+                    <li><a href="/contact-us"><i class="fa-solid fa-envelope"></i> संपर्क करें (Contact Us)</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div class="container">
+                © 2026 LoanRaaj.com. सर्वाधिकार सुरक्षित। यह वेबसाइट किसी भी सरकारी बैंक का आधिकारिक प्रतिनिधि नहीं है; यह केवल सूचनात्मक मार्गदर्शन प्रदान करती है।
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive EMI Calculator Script -->
+    <script>
+    function updateEMI() {
+        const p = parseFloat(document.getElementById('loanAmount').value);
+        const r = parseFloat(document.getElementById('loanRate').value) / 12 / 100;
+        const n = parseFloat(document.getElementById('loanTenure').value) * 12;
+        
+        document.getElementById('amountDisplay').innerText = '₹' + p.toLocaleString('en-IN');
+        document.getElementById('rateDisplay').innerText = (document.getElementById('loanRate').value) + '%';
+        document.getElementById('tenureDisplay').innerText = (document.getElementById('loanTenure').value) + ' वर्ष';
+        
+        const emi = (p * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1);
+        if (!isNaN(emi)) {
+            document.getElementById('emiResult').innerText = '₹' + Math.round(emi).toLocaleString('en-IN');
+        }
+    }
+    </script>
 </body>
 </html>
