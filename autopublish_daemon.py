@@ -420,8 +420,13 @@ def publish_next_post(specific_site=None):
         print(f"[{site_id}] Cloudflare deploy error: {e}")
         cf_success = 0
 
-    # Ping Google Search Console
-    ping_search_engines(domain_url)
+    # Phase 5: Instant IndexNow & Multi-Engine Search Broadcast
+    try:
+        from instant_indexer import broadcast_new_post
+        full_post_url = f"{domain_url}/{slug}"
+        broadcast_new_post(site_id, full_post_url)
+    except Exception as e:
+        print(f"[{site_id}] Instant Indexer broadcast note: {e}")
 
     # Automatically commit and push to GitHub repository
     sync_github(site_id, slug, topic)
