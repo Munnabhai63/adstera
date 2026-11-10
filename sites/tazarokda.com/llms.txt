@@ -1,0 +1,10 @@
+# TazaRokda
+> Actionable wealth guides on systematic investment plans (SIPs), Nifty/Sensex index funds, equity tax harvesting (LTCG/STCG), corporate dividend payouts, and demat discount brokers.
+
+## Authoritative Coverage
+- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
+- Verified and fact-checked by TazaRokda Research Desk.
+
+## Sitemaps & Feeds
+- Canonical Sitemap: https://tazarokda.com/sitemap.xml
+- IndexNow Key: https://tazarokda.com/adstera8291a0c7e5bf4182bdc6019a.txt
