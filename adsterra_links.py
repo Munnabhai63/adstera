@@ -11,7 +11,7 @@ from typing import Any
 
 ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
     "loanraaj": {
-        "url": "https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5",
+        "url": "https://araplhn.org/4/17dc693c036f3b211f48887d232add4b",
         "badge": "Commercial Finance Partner",
         "title": "Commercial Vehicle & MSME Loan Pre-Approval",
         "desc": "Check competitive APRs, collateral-free credit limits, and fast-track business loan approvals with leading financial institutions.",
@@ -20,7 +20,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "🚛",
     },
     "rechargetak": {
-        "url": "https://asiafilm.org/4/c8ee7e929c7c0f77f48b9eb7f198735b",
+        "url": "https://araplhn.org/4/36def2a0119696fb23e3fe034ccfcbc6",
         "badge": "Sponsored Telecom Rewards",
         "title": "Unlimited 5G Data & OTT Combo Cashback",
         "desc": "Unlock up to ₹150 instant cashback voucher on annual recharge packs, 5G data boosters, and FASTag highway top-ups.",
@@ -29,7 +29,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "📱",
     },
     "rechargepur": {
-        "url": "https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449",
+        "url": "https://araplhn.org/4/efed43a0653e93bd1dc62b74d42e4c6a",
         "badge": "Official Utility Partner",
         "title": "Smart Meter Electricity & Cooking Gas Rebate",
         "desc": "Claim government subsidy rebates and instant UPI discount vouchers on your municipal bill payments and gas refills.",
@@ -38,7 +38,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "⚡",
     },
     "tazaloan": {
-        "url": "https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035",
+        "url": "https://araplhn.org/4/b85c5d24beb88d58bfb4e161e1f74dd9",
         "badge": "Digital Credit Offer",
         "title": "Paperless Instant Cash Personal Loan",
         "desc": "Disbursal in 60 minutes, zero physical paperwork, low CIBIL considerations, and pre-approved digital credit lines up to ₹5,00,000.",
@@ -47,7 +47,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "💸",
     },
     "loankiseva": {
-        "url": "https://asiafilm.org/4/17ddb2ab1cf803847dffc03339639ae2",
+        "url": "https://araplhn.org/4/2caa4b8918499ce7fd21fc1b92ec94aa",
         "badge": "MSME Scheme Desk",
         "title": "CGTMSE Collateral-Free Business Credit",
         "desc": "PMEGP subsidy applications, industrial machinery lease financing, and fast-tracked SIDBI commercial working capital.",
@@ -56,7 +56,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "🏭",
     },
     "karzseva": {
-        "url": "https://asiafilm.org/4/36bc7f04daecf4b91801beda6ea285a5",
+        "url": "https://araplhn.org/4/8b6f18f361f42dc7c2c708b4ce5f6f28",
         "badge": "Legal Settlement Partner",
         "title": "One-Time Bank Settlement (OTS) Relief",
         "desc": "Legally settle unmanageable credit card debts with up to 60% principal waivers and dispute negative credit bureau reporting.",
@@ -65,7 +65,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "🛡️",
     },
     "loantau": {
-        "url": "https://asiafilm.org/4/e5d95a7029b0b931e6310b08c33befa3",
+        "url": "https://araplhn.org/4/5758e39593ed52767a2328758c2683da",
         "badge": "Kisan Credit Desk",
         "title": "KCC 4% Subsidized Agriculture Credit",
         "desc": "Low-interest crop loans, tractor purchase finance, solar pump subsidies, and NABARD rural dairy enterprise funding.",
@@ -74,7 +74,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "🌾",
     },
     "tazabhav": {
-        "url": "https://asiafilm.org/4/dd81186b26c491b694a530a285873443",
+        "url": "https://araplhn.org/4/ca5b06c43def4844f857da9379d3229d",
         "badge": "Live Bullion Desk",
         "title": "Digital Gold & Sovereign Commodity Trading",
         "desc": "Access live 24K MCX bullion spot rates, buy digital gold starting at ₹10, and accumulate pure bullion with zero vault fees.",
@@ -83,7 +83,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "🥇",
     },
     "tazarokda": {
-        "url": "https://asiafilm.org/4/080aacbe5bb90ca178d15ff864c503f7",
+        "url": "https://araplhn.org/4/683357397a7ae6ec26a028b4100a876c",
         "badge": "Direct Investment Partner",
         "title": "Zero-Brokerage Demat & High-CAGR SIPs",
         "desc": "Open lifetime free demat account with zero maintenance fee and invest in direct zero-commission mutual funds and index funds.",
@@ -92,7 +92,7 @@ ADSTERRA_DIRECT_LINKS: dict[str, dict[str, str]] = {
         "icon": "📈",
     },
     "rechargekar": {
-        "url": "https://asiafilm.org/4/c32806b04cb876619cbcff1c8f210313",
+        "url": "https://araplhn.org/4/7a123d148c127cf4f54df5374d59a985",
         "badge": "Exclusive Entertainment Offer",
         "title": "Multi-Room DTH & Family Telecom Pack",
         "desc": "Save up to 30% annually on Tata Play, Airtel DTH, Dish TV, and pooled postpaid family telecom connections.",
@@ -155,4 +155,59 @@ def render_sidebar_ad_widget(domain_or_key: str) -> str:
         <p class="sidebar-ad-desc">{cfg['desc']}</p>
         <a href="{cfg['url']}" target="_blank" rel="noopener sponsored" class="sidebar-ad-btn">{cfg['cta']}</a>
     </div>
+    """
+
+
+ADSTERRA_SCRIPTS: dict[str, dict[str, str]] = {
+    "rechargetak": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/dc41505f499f4766916a1efc1fcc260c"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/bf2db224e6b41f48796445afdf3e666b"></script>',
+    },
+    "tazaloan": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/7c72b09e2f9b8efbeffc6adf72b46383"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/05f860490762d69285aa3dccbf6b7cee"></script>',
+    },
+    "tazabhav": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/4af55666d78005635674d84ca5705dc3"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/768c05ff622a4e818f439d86f0a45823"></script>',
+    },
+    "rechargepur": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/8921db9b7c660d20aee2be0f5e708fcc"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/79732d673f8eb0607b192edc9dc6a3b5"></script>',
+    },
+    "loankiseva": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/8c01d8d0e2d9e28a5b16ea2030075464"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/aaa958f01b1a81eaf466d3c9a001a862"></script>',
+    },
+    "loanraaj": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/469818ae009e95c4d51277eb83956347"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/33f1a7d198b5423ebc2a315b8eb76d52"></script>',
+    },
+    "karzseva": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/60fe0e370671a9c4feb05cbaf4af39aa"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/0278c131d8a4ef8d08fef6c937ccd0d2"></script>',
+    },
+    "loantau": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/4bed4e6942d4d450068417705aab2055"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/6bb0516e01dc9bdfe29ec03aee2a4e0d"></script>',
+    },
+    "tazarokda": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/2cb8a2b93f18d3107c54c7cd67102652"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/0f4d1c559ba16b9c12fc6d564c679bf5"></script>',
+    },
+    "rechargekar": {
+        "popunder": '<script data-cfasync="false" src="https://abscloud.org/1/02d7469ada7886443b3c4deff2a923cb"></script>',
+        "socialbar": '<script data-cfasync="false" src="https://bauval.org/14/e742775cc78d4b7bb87893991c674116"></script>',
+    },
+}
+
+def render_adsterra_scripts(domain_or_key: str) -> str:
+    """Generate official Adsterra Popunder + SocialBar script block."""
+    clean = domain_or_key.lower().replace("https://", "").replace("http://", "").split("/")[0].split(":")[0]
+    prefix = clean.replace(".com", "")
+    info = ADSTERRA_SCRIPTS.get(prefix) or ADSTERRA_SCRIPTS.get(clean) or ADSTERRA_SCRIPTS["loanraaj"]
+    return f"""
+    <!-- Adsterra Monetization Engine -->
+    {info['popunder']}
+    {info['socialbar']}
     """

@@ -759,7 +759,7 @@ img {{ max-width: 100%; height: auto; display: block; }}
 """
 
 def render_master_page(site_config, title, desc, canonical, main_body, active_nav="Home", ticker_title=None, ticker_url=None):
-    from adsterra_links import get_adsterra_config
+    from adsterra_links import get_adsterra_config, render_adsterra_scripts
     domain = site_config["domain"]
     ad_cfg = get_adsterra_config(domain)
     name = site_config["name"]
@@ -796,7 +796,6 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
     <meta name="description" content="{desc}">
     <link rel="canonical" href="{canonical}">
     <meta name="google-site-verification" content="google31976c4df01121b2">
-    <meta name="adsterra-verification" content="A8B6C3">
     <meta property="og:title" content="{title} | {name}">
     <meta property="og:description" content="{desc}">
     <meta property="og:type" content="website">
@@ -895,12 +894,13 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
             </div>
         </div>
     </footer>
+    {render_adsterra_scripts(domain)}
 </body>
 </html>
 """
 
 def render_sidebar(site_config, recent_articles):
-    from adsterra_links import get_adsterra_config, render_sidebar_ad_widget
+    from adsterra_links import get_adsterra_config, render_adsterra_scripts, render_sidebar_ad_widget
     ad_cfg = get_adsterra_config(site_config["domain"])
     name = site_config["name"]
     categories = site_config["categories"]
