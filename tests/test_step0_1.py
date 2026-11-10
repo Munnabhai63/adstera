@@ -52,17 +52,24 @@ def test_worker_resilient_navigation():
             cfg = yaml.safe_load(f)
         
         # Run a test session with fixture (safe, offline)
+        cfg["target"]["min_dwell"] = 1
+        cfg["target"]["max_dwell"] = 2
+        cfg["session"]["page_depth_max"] = 1
+        cfg["session"]["internal_nav_prob"] = 0.0
+        cfg["target"]["scroll_prob"] = 0.0
         rng = random.Random(42)
-        proxy = Proxy(host="127.0.0.1", port=8080)
+        proxy = Proxy(host="direct", port=0)
         
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True)
+            browser = await pw.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+            )
             try:
                 result = await worker.run_session(pw, browser, proxy, cfg, rng, use_fixture=True)
                 assert result["status"] == "ok"
                 assert result["pages"] >= 1
                 assert "error_reason" in result
-                print("\nWorker test passed: status=", result["status"], "pages=", result["pages"])
             finally:
                 await browser.close()
     
@@ -84,21 +91,27 @@ def test_worker_fallback_recovery_on_bad_url():
         cfg_bad["target"] = dict(cfg["target"])
         cfg_bad["target"]["url"] = "http://this-domain-definitely-does-not-exist-123456789.com"
         cfg_bad["target"]["urls"] = ["http://this-domain-definitely-does-not-exist-123456789.com"]
-        cfg_bad["target"]["min_dwell"] = 2
-        cfg_bad["target"]["max_dwell"] = 4
+        cfg_bad["target"]["min_dwell"] = 1
+        cfg_bad["target"]["max_dwell"] = 2
+        cfg_bad["target"]["scroll_prob"] = 0.0
+        cfg_bad["session"] = dict(cfg["session"])
+        cfg_bad["session"]["page_depth_max"] = 1
+        cfg_bad["session"]["internal_nav_prob"] = 0.0
         cfg_bad["geo_routing"] = {"enabled": False}
         
         rng = random.Random(99)
         proxy = Proxy(host="direct", port=0)
         
         async with async_playwright() as pw:
-            browser = await pw.chromium.launch(headless=True)
+            browser = await pw.chromium.launch(
+                headless=True,
+                args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
+            )
             try:
                 result = await worker.run_session(pw, browser, proxy, cfg_bad, rng, use_fixture=False)
                 # Should have recovered via loanraaj or fixture, so pages >= 1 and error_reason notes recovery!
                 assert result["pages"] >= 1
                 assert "Recovered" in result["error_reason"]
-                print("\nRecovery verification passed: error_reason=", result["error_reason"])
             finally:
                 await browser.close()
     

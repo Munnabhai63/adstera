@@ -381,7 +381,8 @@ async def run_session(
     else:
         start_url, geo_tier = select_target_url(cfg, rng, proxy_country=proxy_country, return_tier=True)
     if use_fixture and not start_url.startswith("http"):
-        start_url = "file:///" + start_url.replace("\\", "/")
+        clean_path = start_url.replace("\\", "/").lstrip("/")
+        start_url = "file:///" + clean_path
     _record_active_ua(proxy.proxy_id, fp, active=True, target_url=start_url)
 
     # Extract target domain for per-domain CTR governance
@@ -577,7 +578,8 @@ async def run_session(
             else:
                 # Test/Fixture mode only: use local offline fixture
                 fixture_path = Path(cfg.get("target", {}).get("fixture", "tests/fixtures/page.html")).resolve()
-                fixture_url = "file:///" + str(fixture_path).replace("\\", "/")
+                clean_path = str(fixture_path).replace("\\", "/").lstrip("/")
+                fixture_url = "file:///" + clean_path
                 try:
                     logger.info("Tier-3 (Test Mode): Loading local offline fixture: %s", fixture_url)
                     await page.goto(fixture_url, wait_until="commit", timeout=10000)

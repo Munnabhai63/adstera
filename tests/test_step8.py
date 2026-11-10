@@ -32,13 +32,14 @@ async def run_step8_tests():
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(
             headless=True,
-            args=["--disable-blink-features=AutomationControlled"]
+            args=["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-blink-features=AutomationControlled"]
         )
         ctx = await browser.new_context(viewport={"width": 1280, "height": 800})
         page = await ctx.new_page()
         
         # Load local test fixture
-        fixture_url = f"file:///{FIXTURE_PATH.resolve().as_posix()}"
+        clean_fixture = str(FIXTURE_PATH.resolve()).replace("\\", "/").lstrip("/")
+        fixture_url = f"file:///{clean_fixture}"
         await page.goto(fixture_url, wait_until="domcontentloaded")
         
         # Test 1: Extraction of Reading Anchors

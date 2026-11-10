@@ -1,5 +1,3 @@
 User-agent: *
 Allow: /
-Disallow: /sw.js
-
 Sitemap: https://tazabhav.com/sitemap.xml

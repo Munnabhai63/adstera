@@ -20,6 +20,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install System Dependencies & Real Fonts
+        run: |
+          sudo apt-get update || true
+          sudo apt-get install -y xvfb fonts-liberation fonts-noto-color-emoji || true
+
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
@@ -34,13 +39,13 @@ jobs:
         env:
           CI: "true"
         run: |
-          python -m pytest -v
+          xvfb-run -a python -m pytest -v
 
       - name: Run Pre-Flight Invariant Audit
         env:
           CI: "true"
         run: |
-          python tests/audit.py
+          xvfb-run -a python tests/audit.py
 
       - name: Deployment Gate Passed
         run: |
