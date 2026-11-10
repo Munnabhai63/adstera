@@ -809,6 +809,7 @@ def render_page(title, desc, canonical, main_body, active_nav="Home"):
     <title>{title} | LoanRaaj</title>
     <meta name="description" content="{desc}">
     <link rel="canonical" href="{canonical}">
+    <meta name="google-site-verification" content="google31976c4df01121b2">
     <meta property="og:title" content="{title} | LoanRaaj">
     <meta property="og:description" content="{desc}">
     <meta property="og:type" content="website">
