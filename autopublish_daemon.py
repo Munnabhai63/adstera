@@ -15,6 +15,7 @@ from datetime import datetime
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from site_templates import render_master_page, render_sidebar
+from adsterra_links import render_native_ad_card, get_adsterra_config
 from autopublish_engine import AntiAIDetectionGate, query_freellmapi, ping_search_engines
 
 DB_PATH = os.path.join("state", "autopublish.db")
@@ -312,10 +313,7 @@ def publish_next_post(specific_site=None):
                     <div class="post-content">
                         {content_html}
                     </div>
-                    <div class="ad-slot-box">
-                        <div class="ad-slot-label">Sponsored Resource</div>
-                        <div class="ad-slot-spec">Mid-Article Responsive Ad Space (300x250 / 728x90)</div>
-                    </div>
+                    {render_native_ad_card(domain)}
                     <div class="author-card">
                         <div class="author-avatar">{name[:2]}</div>
                         <div>

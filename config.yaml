@@ -23,13 +23,13 @@ target:
   - ''
   referrer_weights:
   - 0.35
-  - 0.10
-  - 0.10
+  - 0.1
+  - 0.1
   - 0.12
   - 0.05
   - 0.05
   - 0.03
-  - 0.20
+  - 0.2
   min_dwell: 25
   max_dwell: 110
   scroll_prob: 0.85
@@ -46,22 +46,22 @@ target:
     url: https://loanraaj.com
     weight: 1.0
     target_cpm: 6.5
-    target_ctr: 0.040
+    target_ctr: 0.04
     ctr_variance: 0.015
     referrer_weights:
       google: 0.55
       youtube: 0.15
-      direct: 0.30
+      direct: 0.3
   - domain: rechargetak.com
     niche: Mobile Recharge & Cashback Offers
     url: https://rechargetak.com
     weight: 1.0
     target_cpm: 4.5
-    target_ctr: 0.050
-    ctr_variance: 0.020
+    target_ctr: 0.05
+    ctr_variance: 0.02
     referrer_weights:
-      google: 0.40
-      telegram: 0.20
+      google: 0.4
+      telegram: 0.2
       whatsapp: 0.15
       direct: 0.25
   - domain: rechargepur.com
@@ -72,8 +72,8 @@ target:
     target_ctr: 0.048
     ctr_variance: 0.018
     referrer_weights:
-      google: 0.40
-      telegram: 0.20
+      google: 0.4
+      telegram: 0.2
       whatsapp: 0.15
       direct: 0.25
   - domain: tazaloan.com
@@ -86,7 +86,7 @@ target:
     referrer_weights:
       google: 0.55
       youtube: 0.15
-      direct: 0.30
+      direct: 0.3
   - domain: loankiseva.com
     niche: MSME & Business Loan Schemes
     url: https://loankiseva.com
@@ -97,18 +97,18 @@ target:
     referrer_weights:
       google: 0.58
       youtube: 0.12
-      direct: 0.30
+      direct: 0.3
   - domain: karzseva.com
     niche: Debt Relief & Credit Repair
     url: https://karzseva.com
     weight: 1.0
     target_cpm: 8.5
-    target_ctr: 0.030
-    ctr_variance: 0.010
+    target_ctr: 0.03
+    ctr_variance: 0.01
     referrer_weights:
-      google: 0.60
-      youtube: 0.10
-      direct: 0.30
+      google: 0.6
+      youtube: 0.1
+      direct: 0.3
   - domain: loantau.com
     niche: Rural Credit & Gold Loans
     url: https://loantau.com
@@ -119,17 +119,17 @@ target:
     referrer_weights:
       google: 0.55
       youtube: 0.15
-      direct: 0.30
+      direct: 0.3
   - domain: tazabhav.com
     niche: Live Gold/Silver Rates & Financial Markets
     url: https://tazabhav.com
     weight: 1.0
     target_cpm: 5.5
-    target_ctr: 0.020
+    target_ctr: 0.02
     ctr_variance: 0.008
     referrer_weights:
-      google: 0.60
-      direct: 0.40
+      google: 0.6
+      direct: 0.4
   - domain: tazarokda.com
     niche: Stock Trading & Wealth Building
     url: https://tazarokda.com
@@ -138,8 +138,8 @@ target:
     target_ctr: 0.022
     ctr_variance: 0.009
     referrer_weights:
-      google: 0.60
-      direct: 0.40
+      google: 0.6
+      direct: 0.4
   - domain: rechargekar.com
     niche: DTH & Utility Wallet Cashbacks
     url: https://rechargekar.com
@@ -250,7 +250,6 @@ failover:
   fallback_transport: adb_mobile
   latency_threshold_ms: 1500
   recovery_check_interval_min: 10
-
 geo_routing:
   enabled: true
   tier1_countries:
@@ -264,7 +263,7 @@ geo_routing:
   - NL
   - CH
   - SE
-  - NO
+  - false
   - DK
   - NZ
   - SG
@@ -281,69 +280,62 @@ geo_routing:
   - https://rechargepur.com
   - https://rechargekar.com
   - https://loantau.com
-
 ecpm_feedback:
   enabled: true
-  top_earner_share: 0.60
+  top_earner_share: 0.6
   sync_interval_min: 15
-
 ad_networks:
   adsterra:
     enabled: true
-    weight: 0.50
+    weight: 0.5
     smartlinks:
-    - https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804
-    - https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035
+    - https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5
+    - https://asiafilm.org/4/c8ee7e929c7c0f77f48b9eb7f198735b
     - https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449
+    - https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035
+    - https://asiafilm.org/4/17ddb2ab1cf803847dffc03339639ae2
+    - https://asiafilm.org/4/36bc7f04daecf4b91801beda6ea285a5
+    - https://asiafilm.org/4/e5d95a7029b0b931e6310b08c33befa3
+    - https://asiafilm.org/4/dd81186b26c491b694a530a285873443
+    - https://asiafilm.org/4/080aacbe5bb90ca178d15ff864c503f7
+    - https://asiafilm.org/4/c32806b04cb876619cbcff1c8f210313
   propellerads:
     enabled: true
-    weight: 0.30
+    weight: 0.3
     smartlinks:
     - https://propeller-direct.com/smartlink/3549341
     - https://monetag-direct.net/smartlink/489102
   hilltopads:
     enabled: true
-    weight: 0.20
+    weight: 0.2
     smartlinks:
     - https://hilltop-direct.com/smartlink/778899
     - https://hilltop-direct.com/smartlink/889900
-
 push_notifications:
-  # Step 4.4: Push Notification Subscription Farming
   enabled: true
   trigger_prob: 0.175
   allow_prob: 0.78
   min_delay_s: 7.0
   max_delay_s: 25.0
   skip_eu_uk: true
-
 cpa_stacking:
-  # Step 4.5: Affiliate CPA Offer Stacking
   enabled: true
   attempt_prob: 0.08
   max_per_proxy_per_day: 3
   min_payout_usd: 1.0
   min_dwell_s: 15.0
-
-debug_traces: false  # Step 5.1: Record Playwright traces for degraded sessions
+debug_traces: false
 max_traces: 50
-
 ab_testing:
-  # Step 5.3: A/B Test Engine for Click & Dwell Strategies
   enabled: true
   min_samples: 50
   auto_promote: true
-
 cluster:
-  # Step 5.4: Multi-Machine Cluster Orchestrator
   enabled: false
   node_id: node_coordinator
   role: coordinator
   heartbeat_timeout_s: 120.0
-
-
 anomaly_detection:
-  # Step 7.3: Statistical Anomaly Detection & Circuit Breaker
   enabled: true
   z_threshold: 2.5
   ecpm_drop_max_pct: 40.0
@@ -352,20 +344,15 @@ anomaly_detection:
   degraded_max_pct: 35.0
   min_dwell_s: 22.0
   auto_resume: true
-
 email_service:
-  # Multi-Email Provisioning with Sonjj (SmailPro) API & Credit Guard
   enabled: true
-  provider: 'sonjj'
-  daily_limit: 10          # Maximum 10 real API calls per day to strictly protect user credits
-  max_uses_per_email: 3    # Re-use active cached emails up to 3 times
-  expiry_minutes: 1440     # 24-hour temporary inbox lifetime
+  provider: sonjj
+  daily_limit: 10
+  max_uses_per_email: 3
+  expiry_minutes: 1440
   test_mode: false
-
 freellm:
-  # FreeLLMAPI Aggregator Client (7.4B tokens/mo across 34 providers)
   enabled: true
-  url: 'http://localhost:3001'
-  model: 'auto'
+  url: http://localhost:3001
+  model: auto
   timeout: 20.0
-

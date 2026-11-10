@@ -722,10 +722,12 @@ def get_head(title, desc, slug="", is_article=False, image="https://images.unspl
                 <a href="/" class="logo">LOAN<span>RAAJ</span></a>
                 <div class="logo-tagline">Finance, Banking & Government Schemes Hub</div>
             </div>
-            <div class="header-ad-banner">
-                <!-- 728x90 Header Ad Slot -->
-                <span>Sponsored Financial Banner (728x90)</span>
-            </div>
+            <a href="https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5" target="_blank" rel="noopener sponsored" style="text-decoration:none;">
+                <div class="header-ad-banner" style="cursor:pointer; display:flex; flex-direction:column; justify-content:center; align-items:center; background:linear-gradient(135deg, #1E293B 0%, #0F172A 100%); border:1px solid #334155; border-radius:6px; padding:10px 20px;">
+                    <span style="color:#FFF; font-weight:800; font-size:14px; font-family:var(--font-head);">Commercial Vehicle & MSME Loan Pre-Approval ↗</span>
+                    <span style="color:#0BE6AF; font-size:11px; margin-top:3px; font-weight:700;">Check Competitive APRs & Instant Credit Limits</span>
+                </div>
+            </a>
         </div>
     </header>
 
@@ -891,12 +893,12 @@ home_html += """
         <!-- Sidebar -->
         <aside class="sidebar-area">
             <!-- Sticky Ad Slot -->
-            <div class="widget" style="padding:10px; text-align:center;">
-                <div style="font-size:11px; color:#999; text-transform:uppercase; margin-bottom:6px;">SPONSORED LINK</div>
-                <div style="background:#F1F5F9; border:1px dashed #CBD5E1; height:250px; display:flex; align-items:center; justify-content:center; color:#64748B; border-radius:4px;">
-                    <!-- Adsterra 300x250 Banner Slot -->
-                    <span>300x250 Responsive Banner</span>
-                </div>
+            <div class="widget" style="padding:18px; text-align:center; background:linear-gradient(145deg, #0F172A 0%, #1E293B 100%); color:#FFF; border:1px solid #334155; border-radius:8px;">
+                <div style="font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:1px; color:#0BE6AF; margin-bottom:10px;">Commercial Finance Partner</div>
+                <div style="font-size:32px; margin-bottom:8px;">🚛</div>
+                <h4 style="font-size:15px; font-weight:800; color:#FFF; margin-bottom:6px; font-family:var(--font-head);">Commercial Vehicle & MSME Pre-Approval</h4>
+                <p style="font-size:12px; color:#94A3B8; line-height:1.5; margin-bottom:16px;">Check competitive rates, collateral-free credit limits, and fast-track loan approvals.</p>
+                <a href="https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5" target="_blank" rel="noopener sponsored" style="display:block; width:100%; background:linear-gradient(135deg, #FF005B 0%, #D00049 100%); color:#FFF; font-size:13px; font-weight:800; padding:10px; border-radius:6px; text-decoration:none;">Check Pre-Approved Rates →</a>
             </div>
 
             <!-- Live Interactive EMI Calculator -->
@@ -979,8 +981,16 @@ for idx, art in enumerate(articles):
                 </div>
 
                 <!-- Top In-Article Ad Slot -->
-                <div class="in-article-ad">
-                    <span>Sponsored Announcement (Responsive Top Ad)</span>
+                <div class="native-ad-card" style="background:linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%); border:1px solid #CBD5E1; border-left:5px solid #FF005B; border-radius:10px; padding:20px; margin:24px 0;">
+                    <div style="display:inline-block; background:#FFE4E6; color:#E11D48; font-size:10px; font-weight:800; text-transform:uppercase; padding:3px 8px; border-radius:4px; margin-bottom:10px;">Commercial Finance Partner</div>
+                    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                        <div style="font-size:28px;">🚛</div>
+                        <div style="flex:1; min-width:240px;">
+                            <h4 style="font-size:15px; font-weight:800; color:#0F172A; margin-bottom:4px; font-family:var(--font-head);">Commercial Vehicle & MSME Loan Pre-Approval</h4>
+                            <p style="font-size:12px; color:#64748B; margin:0; line-height:1.5;">Check competitive APRs, collateral-free credit limits, and fast-track business loan approvals.</p>
+                        </div>
+                        <a href="https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5" target="_blank" rel="noopener sponsored" style="background:#FF005B; color:#FFF; font-size:12px; font-weight:800; padding:9px 16px; border-radius:6px; text-decoration:none;">Check Pre-Approved Rates →</a>
+                    </div>
                 </div>
 
                 <div class="entry-content">
@@ -988,8 +998,16 @@ for idx, art in enumerate(articles):
                 </div>
 
                 <!-- Bottom In-Article Ad Slot -->
-                <div class="in-article-ad">
-                    <span>Sponsored Content Recommendation (Responsive Bottom Ad)</span>
+                <div class="native-ad-card" style="background:linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%); border:1px solid #CBD5E1; border-left:5px solid #0BE6AF; border-radius:10px; padding:20px; margin:24px 0;">
+                    <div style="display:inline-block; background:#ECFDF5; color:#059669; font-size:10px; font-weight:800; text-transform:uppercase; padding:3px 8px; border-radius:4px; margin-bottom:10px;">Verified Lending Partner</div>
+                    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+                        <div style="font-size:28px;">⚡</div>
+                        <div style="flex:1; min-width:240px;">
+                            <h4 style="font-size:15px; font-weight:800; color:#0F172A; margin-bottom:4px; font-family:var(--font-head);">Fast-Track Digital Loan Approvals</h4>
+                            <p style="font-size:12px; color:#64748B; margin:0; line-height:1.5;">Compare pre-approved loan options with low processing charges and flexible tenure.</p>
+                        </div>
+                        <a href="https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5" target="_blank" rel="noopener sponsored" style="background:#0F172A; color:#0BE6AF; font-size:12px; font-weight:800; padding:9px 16px; border-radius:6px; text-decoration:none;">Apply Online Now →</a>
+                    </div>
                 </div>
 
                 <!-- Author Box -->

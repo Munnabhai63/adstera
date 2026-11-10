@@ -102,28 +102,41 @@ img {{ max-width: 100%; height: auto; display: block; }}
     font-weight: 700;
     margin-top: 6px;
 }}
-.header-ad {{
-    background: #F8FAFC;
-    border: 1px dashed #CBD5E1;
-    border-radius: 6px;
-    padding: 14px 28px;
-    text-align: center;
-    min-width: 320px;
-    max-width: 728px;
+.header-ad-link {{
+    text-decoration: none;
+    display: block;
     flex-grow: 1;
+    max-width: 480px;
+    min-width: 280px;
+}}
+.header-ad {{
+    background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%);
+    border: 1px solid #CBD5E1;
+    border-left: 4px solid var(--primary);
+    border-radius: 6px;
+    padding: 10px 18px;
+    text-align: left;
+    transition: all 0.2s ease;
+    cursor: pointer;
+}}
+.header-ad-link:hover .header-ad {{
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    border-color: var(--primary);
 }}
 .header-ad-title {{
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 1px;
-    color: #94A3B8;
-    font-weight: 700;
+    color: var(--primary);
+    font-weight: 800;
+    margin-bottom: 2px;
 }}
 .header-ad-sub {{
-    font-size: 12px;
-    color: #64748B;
-    font-weight: 600;
-    margin-top: 2px;
+    font-size: 13px;
+    color: var(--text-head);
+    font-weight: 700;
+    line-height: 1.3;
 }}
 
 /* 3. Navbar */
@@ -470,6 +483,151 @@ img {{ max-width: 100%; height: auto; display: block; }}
     font-weight: 600;
 }}
 
+/* Native In-Article Sponsored Card */
+.native-ad-card {{
+    background: linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%);
+    border: 1px solid #CBD5E1;
+    border-left: 5px solid var(--primary);
+    border-radius: 10px;
+    padding: 22px 24px;
+    margin: 32px 0;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.04);
+    position: relative;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}}
+.native-ad-card:hover {{
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}}
+.native-ad-badge {{
+    display: inline-block;
+    background: #EFF6FF;
+    color: var(--primary);
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-bottom: 12px;
+}}
+.native-ad-body {{
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+}}
+.native-ad-icon {{
+    font-size: 32px;
+    line-height: 1;
+    flex-shrink: 0;
+}}
+.native-ad-text {{
+    flex: 1;
+    min-width: 240px;
+}}
+.native-ad-title {{
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--text-head);
+    margin-bottom: 4px;
+    line-height: 1.35;
+}}
+.native-ad-desc {{
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin: 0;
+}}
+.native-ad-btn {{
+    display: inline-block;
+    background: var(--primary);
+    color: #FFFFFF !important;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 10px 18px;
+    border-radius: 6px;
+    text-decoration: none;
+    white-space: nowrap;
+    transition: background 0.2s ease, transform 0.15s ease;
+}}
+.native-ad-btn:hover {{
+    background: var(--primary-hover);
+    transform: scale(1.02);
+}}
+
+/* Sidebar Sponsored Widget */
+.sidebar-ad-card {{
+    background: linear-gradient(145deg, #0F172A 0%, #1E293B 100%) !important;
+    color: #F8FAFC !important;
+    border: 1px solid #334155 !important;
+    text-align: center;
+    padding: 24px 20px !important;
+}}
+.sidebar-ad-tag {{
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #38BDF8;
+    margin-bottom: 12px;
+}}
+.sidebar-ad-icon {{
+    font-size: 36px;
+    margin-bottom: 10px;
+}}
+.sidebar-ad-title {{
+    font-size: 16px;
+    font-weight: 800;
+    color: #FFFFFF;
+    line-height: 1.35;
+    margin-bottom: 8px;
+}}
+.sidebar-ad-desc {{
+    font-size: 12px;
+    color: #94A3B8;
+    line-height: 1.55;
+    margin-bottom: 18px;
+}}
+.sidebar-ad-btn {{
+    display: block;
+    width: 100%;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+    color: #FFFFFF !important;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 11px 16px;
+    border-radius: 6px;
+    text-decoration: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    transition: all 0.2s ease;
+}}
+.sidebar-ad-btn:hover {{
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}}
+
+/* Calculator Dynamic Result CTA */
+.calc-apply-btn {{
+    display: block;
+    background: linear-gradient(135deg, #10B981 0%, #059669 100%);
+    color: #FFFFFF !important;
+    font-size: 12px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    text-decoration: none;
+    text-align: center;
+    margin-top: 14px;
+    transition: all 0.2s ease;
+}}
+.calc-apply-btn:hover {{
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}}
+
 /* Author Box */
 .author-card {{
     background: #F8FAFC;
@@ -601,7 +759,9 @@ img {{ max-width: 100%; height: auto; display: block; }}
 """
 
 def render_master_page(site_config, title, desc, canonical, main_body, active_nav="Home", ticker_title=None, ticker_url=None):
+    from adsterra_links import get_adsterra_config
     domain = site_config["domain"]
+    ad_cfg = get_adsterra_config(domain)
     name = site_config["name"]
     tagline = site_config["tagline"]
     brand_sub = site_config.get("brand_sub", "Authoritative Consumer & Financial Guides")
@@ -674,10 +834,12 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
                     <a href="/" class="brand-logo">{brand_prefix}<span>{brand_suffix}</span></a>
                     <div class="brand-tag">{brand_sub}</div>
                 </div>
-                <div class="header-ad">
-                    <div class="header-ad-title">Sponsored Recommendation</div>
-                    <div class="header-ad-sub">Verified Consumer Comparison Engine</div>
-                </div>
+                <a href="{ad_cfg['url']}" target="_blank" rel="noopener sponsored" class="header-ad-link">
+                    <div class="header-ad">
+                        <div class="header-ad-title">{ad_cfg['badge']}</div>
+                        <div class="header-ad-sub">{ad_cfg['title']} ↗</div>
+                    </div>
+                </a>
             </div>
         </div>
     </header>
@@ -737,6 +899,8 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
 """
 
 def render_sidebar(site_config, recent_articles):
+    from adsterra_links import get_adsterra_config, render_sidebar_ad_widget
+    ad_cfg = get_adsterra_config(site_config["domain"])
     name = site_config["name"]
     categories = site_config["categories"]
     calc_title = site_config["calc_title"]
@@ -792,6 +956,7 @@ def render_sidebar(site_config, recent_articles):
             <div class="calc-badge">
                 <div class="calc-badge-title">{calc_res_title}</div>
                 <div class="calc-badge-val" id="sc_res">{calc_prefix}0</div>
+                <a href="{ad_cfg['url']}" target="_blank" rel="noopener sponsored" class="calc-apply-btn">{ad_cfg['calc_cta']}</a>
             </div>
             <script>
             function recalcSide() {{
@@ -822,10 +987,7 @@ def render_sidebar(site_config, recent_articles):
         </div>
 
         <!-- Sidebar Ad Unit -->
-        <div class="ad-slot-box">
-            <div class="ad-slot-label">Featured Partner</div>
-            <div class="ad-slot-spec">Responsive 300x250 Smart Display</div>
-        </div>
+        {render_sidebar_ad_widget(site_config["domain"])}
 
         <!-- Category Breakdown -->
         <div class="widget-card">

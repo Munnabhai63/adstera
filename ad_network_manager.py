@@ -22,9 +22,16 @@ DEFAULT_NETWORKS = {
         "enabled": True,
         "weight": 0.50,
         "smartlinks": [
-            "https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804",
-            "https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035",
+            "https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5",
+            "https://asiafilm.org/4/c8ee7e929c7c0f77f48b9eb7f198735b",
             "https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449",
+            "https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035",
+            "https://asiafilm.org/4/17ddb2ab1cf803847dffc03339639ae2",
+            "https://asiafilm.org/4/36bc7f04daecf4b91801beda6ea285a5",
+            "https://asiafilm.org/4/e5d95a7029b0b931e6310b08c33befa3",
+            "https://asiafilm.org/4/dd81186b26c491b694a530a285873443",
+            "https://asiafilm.org/4/080aacbe5bb90ca178d15ff864c503f7",
+            "https://asiafilm.org/4/c32806b04cb876619cbcff1c8f210313",
         ],
     },
     "propellerads": {
@@ -120,3 +127,11 @@ class AdNetworkManager:
         if total > 0:
             return {name: round(w / total, 3) for name, w in active.items()}
         return {name: round(1.0 / len(active), 3) for name in active}
+
+    def get_domain_smartlink(self, domain_or_key: str) -> str:
+        """Return the dedicated, high-eCPM Adsterra direct link for the given domain."""
+        try:
+            from adsterra_links import get_adsterra_config
+            return get_adsterra_config(domain_or_key)["url"]
+        except Exception:
+            return "https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5"
