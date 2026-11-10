@@ -7,10 +7,34 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://loanraaj.com/category/business</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loanraaj.com/category/insurance</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loanraaj.com/category/carrier</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://loanraaj.com/category/finance</loc>
+    <lastmod>2026-11-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
     <loc>https://loanraaj.com/emi-calculator</loc>
     <lastmod>2026-11-10</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.9</priority>
   </url>
   <url>
     <loc>https://loanraaj.com/21-machines-to-start-a-profitable-home-business</loc>
@@ -142,30 +166,30 @@
     <loc>https://loanraaj.com/privacy-policy</loc>
     <lastmod>2026-11-10</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://loanraaj.com/terms-and-conditions</loc>
     <lastmod>2026-11-10</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://loanraaj.com/disclaimer</loc>
     <lastmod>2026-11-10</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://loanraaj.com/about-us</loc>
     <lastmod>2026-11-10</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://loanraaj.com/contact-us</loc>
     <lastmod>2026-11-10</lastmod>
     <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
+    <priority>0.7</priority>
   </url>
 </urlset>

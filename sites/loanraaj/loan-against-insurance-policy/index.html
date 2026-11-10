@@ -548,6 +548,28 @@ img { max-width: 100%; height: auto; display: block; }
 .calc-badge-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94A3B8; }
 .calc-badge-val { font-size: 26px; font-weight: 800; color: #38BDF8; margin-top: 2px; }
 
+/* Category Header Banner */
+.cat-header-card {
+    background: #FFF;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 28px;
+    margin-top: 24px;
+    margin-bottom: 24px;
+    border-left: 6px solid var(--primary);
+}
+.cat-header-title {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--text-head);
+    margin-bottom: 8px;
+}
+.cat-header-desc {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
 /* Footer */
 .footer {
     background: #090D16;
@@ -630,7 +652,7 @@ img { max-width: 100%; height: auto; display: block; }
     <nav class="nav-wrap">
         <div class="container">
             <ul class="nav-ul">
-                <li class="nav-item"><a href="/" class="">Home</a></li><li class="nav-item"><a href="/#business" class="">Business</a></li><li class="nav-item"><a href="/#insurance" class="active">Insurance</a></li><li class="nav-item"><a href="/#carrier" class="">Carrier</a></li><li class="nav-item"><a href="/#finance" class="">Finance</a></li><li class="nav-item"><a href="/emi-calculator" class="">EMI Calculator</a></li>
+                <li class="nav-item"><a href="/" class="">Home</a></li><li class="nav-item"><a href="/category/business" class="">Business</a></li><li class="nav-item"><a href="/category/insurance" class="">Insurance</a></li><li class="nav-item"><a href="/category/carrier" class="">Carrier</a></li><li class="nav-item"><a href="/category/finance" class="active">Finance</a></li><li class="nav-item"><a href="/emi-calculator" class="">EMI Calculator</a></li>
             </ul>
         </div>
     </nav>
@@ -643,11 +665,11 @@ img { max-width: 100%; height: auto; display: block; }
                 <article class="post-paper">
                     <div class="post-crumb">
                         <a href="/">Home</a> <span>/</span>
-                        <a href="/#insurance">Insurance</a> <span>/</span>
+                        <a href="/category/finance">Finance</a> <span>/</span>
                         <span style="color:var(--text-head);">Loan Against Insurance Policy 2026: Elig...</span>
                     </div>
 
-                    <span class="cat-badge">Insurance</span>
+                    <a href="/category/finance" class="cat-badge">Finance</a>
                     <h1 class="post-h1">Loan Against Insurance Policy 2026: Eligibility &#038; How to Apply</h1>
 
                     <div class="post-meta">
@@ -811,7 +833,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">01</span>
             <div>
                 <a href="/pmegp-loan-apply-now" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">PMEGP Loan 2026: Get Up to ₹50 Lakh Business Loan With 35% Government Subsidy (Eligibility, Documents &amp; How to Apply)</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Business • 5 min read</span>
             </div>
         </div>
         
@@ -819,7 +841,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">02</span>
             <div>
                 <a href="/hotshot-trucking-insurance" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">Hotshot Trucking Insurance: What It Really Costs, What You Actually Need, and How I Help Fellow Operators Stop Paying Too Much</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Insurance • 5 min read</span>
             </div>
         </div>
         
@@ -827,7 +849,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">03</span>
             <div>
                 <a href="/commercial-auto-insurance-quotes" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">Commercial Auto Insurance Quotes: How I Stopped Guessing and Started Comparing — A Complete Guide for Owner-Operators in 2026</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Insurance • 5 min read</span>
             </div>
         </div>
         
@@ -835,7 +857,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">04</span>
             <div>
                 <a href="/bobtail-insurance-what-it-costs-what-it-covers" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">Bobtail Insurance: What It Costs, What It Covers, and Why Skipping It Was Almost the Biggest Mistake of My Trucking Career</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Insurance • 5 min read</span>
             </div>
         </div>
         
@@ -843,7 +865,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">05</span>
             <div>
                 <a href="/will-ai-replace-truck-drivers" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">Will AI Replace Truck Drivers? Here Is What the Data Actually Says in 2026</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Carrier • 5 min read</span>
             </div>
         </div>
         
@@ -870,10 +892,10 @@ img { max-width: 100%; height: auto; display: block; }
                 <div>
                     <h4 class="footer-h4">Categories</h4>
                     <ul class="footer-list">
-                        <li><a href="/#business">Business Ideas & Import</a></li>
-                        <li><a href="/#insurance">Commercial Insurance</a></li>
-                        <li><a href="/#carrier">CDL & Trucking Career</a></li>
-                        <li><a href="/#finance">Loan Guides & Schemes</a></li>
+                        <li><a href="/category/business">Business Ideas & Import</a></li>
+                        <li><a href="/category/insurance">Commercial Insurance</a></li>
+                        <li><a href="/category/carrier">CDL & Trucking Career</a></li>
+                        <li><a href="/category/finance">Loan Guides & Schemes</a></li>
                         <li><a href="/emi-calculator">Loan EMI Calculator</a></li>
                     </ul>
                 </div>

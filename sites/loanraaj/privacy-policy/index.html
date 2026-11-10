@@ -548,6 +548,28 @@ img { max-width: 100%; height: auto; display: block; }
 .calc-badge-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94A3B8; }
 .calc-badge-val { font-size: 26px; font-weight: 800; color: #38BDF8; margin-top: 2px; }
 
+/* Category Header Banner */
+.cat-header-card {
+    background: #FFF;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 28px;
+    margin-top: 24px;
+    margin-bottom: 24px;
+    border-left: 6px solid var(--primary);
+}
+.cat-header-title {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--text-head);
+    margin-bottom: 8px;
+}
+.cat-header-desc {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
 /* Footer */
 .footer {
     background: #090D16;
@@ -630,7 +652,7 @@ img { max-width: 100%; height: auto; display: block; }
     <nav class="nav-wrap">
         <div class="container">
             <ul class="nav-ul">
-                <li class="nav-item"><a href="/" class="">Home</a></li><li class="nav-item"><a href="/#business" class="">Business</a></li><li class="nav-item"><a href="/#insurance" class="">Insurance</a></li><li class="nav-item"><a href="/#carrier" class="">Carrier</a></li><li class="nav-item"><a href="/#finance" class="">Finance</a></li><li class="nav-item"><a href="/emi-calculator" class="">EMI Calculator</a></li>
+                <li class="nav-item"><a href="/" class="">Home</a></li><li class="nav-item"><a href="/category/business" class="">Business</a></li><li class="nav-item"><a href="/category/insurance" class="">Insurance</a></li><li class="nav-item"><a href="/category/carrier" class="">Carrier</a></li><li class="nav-item"><a href="/category/finance" class="">Finance</a></li><li class="nav-item"><a href="/emi-calculator" class="">EMI Calculator</a></li>
             </ul>
         </div>
     </nav>
@@ -642,21 +664,36 @@ img { max-width: 100%; height: auto; display: block; }
             <main>
                 <div class="post-paper">
                     <div class="post-crumb">
-                        <a href="/">Home</a> <span>/</span> <span>Legal</span> <span>/</span> <span>Privacy Policy</span>
+                        <a href="/">Home</a> <span>/</span> <span>Legal & Trust</span> <span>/</span> <span>Privacy Policy</span>
                     </div>
                     <h1 class="post-h1">Privacy Policy</h1>
                     <div class="post-content" style="margin-top:20px;">
                         
-    <h2>Introduction</h2>
-    <p>Welcome to LoanRaaj ("we", "our", or "us"). We respect your privacy and are committed to protecting any personal data collected when you visit our website.</p>
-    <h2>Information We Collect</h2>
-    <p>We may collect non-personally identifiable information including browser type, operating system, IP address, and pages viewed to optimize user experience and analyze readership trends.</p>
-    <h2>Cookies & Advertising Partners</h2>
-    <p>We work with trusted third-party advertising partners including Google AdSense, Adsterra, and affiliate networks. These partners may use cookies and web beacons to serve advertisements based on your prior visits to this and other websites.</p>
-    <h2>GDPR & CCPA Rights</h2>
-    <p>If you are a resident of the European Economic Area (EEA) or California, you are entitled to certain rights regarding your personal information, including the right to request access, correction, or deletion of any stored data.</p>
-    <h2>Contact</h2>
-    <p>For inquiries regarding this privacy statement, contact us at editorial@loanraaj.com.</p>
+    <h2>1. Introduction & Overview</h2>
+    <p>LoanRaaj ("we", "our", or "us") operates https://loanraaj.com (the "Site"). We are firmly committed to safeguarding the digital privacy of our visitors, readers, and registered members. This Privacy Policy outlines what information is collected, how it is processed, and your privacy rights under global regulations including the General Data Protection Regulation (GDPR) and California Consumer Privacy Act (CCPA).</p>
+
+    <h2>2. Information We Collect</h2>
+    <p>When browsing LoanRaaj, we collect two categories of information:</p>
+    <ul>
+        <li><strong>Log Files & Technical Data:</strong> Standard server logs capturing IP addresses, browser types, Internet Service Providers (ISPs), date/time stamps, referring/exit pages, and click counts. None of this data is linked to personally identifiable information.</li>
+        <li><strong>Voluntary Correspondence:</strong> When contacting our editorial or support desk, we collect your name, email address, and message contents solely to respond to your inquiry.</li>
+    </ul>
+
+    <h2>3. Cookies, Web Beacons & Third-Party Advertising</h2>
+    <p>LoanRaaj monetizes digital traffic through reputable advertising platforms, including <strong>Google AdSense, Adsterra, Monetag, and HilltopAds</strong>. These third-party vendors utilize cookies, JavaScript, and Web Beacons to measure campaign efficacy and deliver personalized advertisements based on past visits to this and other websites across the Internet.</p>
+    <ul>
+        <li><strong>Google DoubleClick DART Cookies:</strong> Google uses DART cookies to serve ads based on user visits. You can opt out of DART cookie usage by visiting the <a href="https://policies.google.com/technologies/ads" target="_blank" rel="nofollow">Google Ad and Content Network Privacy Policy</a>.</li>
+        <li><strong>Ad Choices Opt-Out:</strong> Readers can opt out of third-party behavioral advertising via the Network Advertising Initiative (NAI) or <a href="https://aboutads.info/choices" target="_blank" rel="nofollow">aboutads.info</a>.</li>
+    </ul>
+
+    <h2>4. GDPR Compliance (EEA Readers)</h2>
+    <p>Residents of the European Economic Area possess the right to access, rectify, port, or erase any personal information we retain. If you wish to execute any GDPR statutory rights, contact our Data Protection Officer at privacy@loanraaj.com.</p>
+
+    <h2>5. CCPA Privacy Rights (California Consumers)</h2>
+    <p>Under the CCPA, California consumers hold the right to request disclosure of personal data categories collected, request deletion of collected information, and demand that personal information not be sold. LoanRaaj does not sell personal user information to third-party data brokers.</p>
+
+    <h2>6. Children's Privacy Protection (COPPA)</h2>
+    <p>LoanRaaj does not knowingly solicit or collect personal identifiable information from children under the age of 13. If you believe your child submitted personal data on our portal, please contact us immediately, and we will promptly purge such records.</p>
     
                     </div>
                 </div>
@@ -714,7 +751,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">01</span>
             <div>
                 <a href="/pmegp-loan-apply-now" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">PMEGP Loan 2026: Get Up to ₹50 Lakh Business Loan With 35% Government Subsidy (Eligibility, Documents &amp; How to Apply)</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Business • 5 min read</span>
             </div>
         </div>
         
@@ -722,7 +759,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">02</span>
             <div>
                 <a href="/hotshot-trucking-insurance" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">Hotshot Trucking Insurance: What It Really Costs, What You Actually Need, and How I Help Fellow Operators Stop Paying Too Much</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Insurance • 5 min read</span>
             </div>
         </div>
         
@@ -730,7 +767,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">03</span>
             <div>
                 <a href="/commercial-auto-insurance-quotes" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">Commercial Auto Insurance Quotes: How I Stopped Guessing and Started Comparing — A Complete Guide for Owner-Operators in 2026</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Insurance • 5 min read</span>
             </div>
         </div>
         
@@ -738,7 +775,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">04</span>
             <div>
                 <a href="/bobtail-insurance-what-it-costs-what-it-covers" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">Bobtail Insurance: What It Costs, What It Covers, and Why Skipping It Was Almost the Biggest Mistake of My Trucking Career</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Insurance • 5 min read</span>
             </div>
         </div>
         
@@ -746,7 +783,7 @@ img { max-width: 100%; height: auto; display: block; }
             <span style="font-size:20px; font-weight:800; color:#CBD5E1; line-height:1;">05</span>
             <div>
                 <a href="/will-ai-replace-truck-drivers" style="font-weight:700; font-size:13px; line-height:1.4; display:block; color:var(--text-head); margin-bottom:4px;">Will AI Replace Truck Drivers? Here Is What the Data Actually Says in 2026</a>
-                <span style="font-size:11px; color:var(--text-muted);">Finance • 5 min read</span>
+                <span style="font-size:11px; color:var(--text-muted);">Carrier • 5 min read</span>
             </div>
         </div>
         
@@ -773,10 +810,10 @@ img { max-width: 100%; height: auto; display: block; }
                 <div>
                     <h4 class="footer-h4">Categories</h4>
                     <ul class="footer-list">
-                        <li><a href="/#business">Business Ideas & Import</a></li>
-                        <li><a href="/#insurance">Commercial Insurance</a></li>
-                        <li><a href="/#carrier">CDL & Trucking Career</a></li>
-                        <li><a href="/#finance">Loan Guides & Schemes</a></li>
+                        <li><a href="/category/business">Business Ideas & Import</a></li>
+                        <li><a href="/category/insurance">Commercial Insurance</a></li>
+                        <li><a href="/category/carrier">CDL & Trucking Career</a></li>
+                        <li><a href="/category/finance">Loan Guides & Schemes</a></li>
                         <li><a href="/emi-calculator">Loan EMI Calculator</a></li>
                     </ul>
                 </div>
