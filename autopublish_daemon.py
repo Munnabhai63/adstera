@@ -269,6 +269,7 @@ def publish_next_post(specific_site=None):
     
     # Format full page using site templates
     domain_url = site_info["domain"]
+    domain = site_id
     name = site_info["name"]
     categories = site_info["categories"]
     cat_slug = categories.get(category, {}).get("slug", "finance")

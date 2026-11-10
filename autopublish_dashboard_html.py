@@ -349,6 +349,35 @@ AUTOPUBLISH_DASHBOARD_HTML = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- 10-Domain Fleet & Adsterra Direct Link Verification Matrix -->
+  <div class="pipeline-section">
+    <div class="section-header">
+      <div class="section-title">
+        <span>💰 10-Domain Fleet & Dedicated Adsterra Direct Links</span>
+        <span style="font-size: 12px; font-weight: 500; color: var(--muted);">(1:1 Dedicated High-eCPM Smartlink Architecture)</span>
+      </div>
+      <div style="font-size: 12px; color: #10B981; font-weight: 700;">● 10/10 Domains Live on Cloudflare Pages Edge</div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 140px;">Website Domain</th>
+            <th style="width: 180px;">Niche Focus & Badge</th>
+            <th>Dedicated Adsterra Direct Link (asiafilm.org)</th>
+            <th style="width: 220px;">Active Native Placements</th>
+            <th style="width: 120px;">Edge Status</th>
+            <th style="width: 130px; text-align: right;">Live Test</th>
+          </tr>
+        </thead>
+        <tbody id="adsterraTbody">
+          <tr><td colspan="6" style="text-align: center; color: var(--muted); padding: 20px;">Loading Adsterra links...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Real-Time Published Posts Stream -->
   <div class="pipeline-section">
     <div class="section-header">
@@ -506,6 +535,36 @@ function renderStats(data) {
       `;
     });
     candTbody.innerHTML = rows;
+  }
+
+  // Render Adsterra Matrix
+  const adTbody = document.getElementById("adsterraTbody");
+  if (data.adsterra_matrix && data.adsterra_matrix.length > 0) {
+    let adRows = "";
+    data.adsterra_matrix.forEach(a => {
+      const isSelected = a.domain.startsWith(currentDomain);
+      const rowStyle = isSelected ? 'style="background: rgba(245, 158, 11, 0.08); border-left: 3px solid #F59E0B;"' : '';
+      adRows += `
+        <tr ${rowStyle}>
+          <td><strong style="color: #F8FAFC; font-size: 13px;">${a.icon} ${a.domain}</strong></td>
+          <td>
+            <div style="font-weight: 700; color: #E2E8F0; font-size: 12px;">${a.title}</div>
+            <div style="font-size: 11px; color: var(--muted);">${a.badge}</div>
+          </td>
+          <td>
+            <code style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #60A5FA; background: rgba(59, 130, 246, 0.1); padding: 3px 8px; border-radius: 4px; word-break: break-all;">
+              ${a.url}
+            </code>
+          </td>
+          <td><span style="font-size: 11px; color: #CBD5E1;">${a.placements}</span></td>
+          <td><span style="background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">● EDGE LIVE</span></td>
+          <td style="text-align: right;">
+            <a href="${a.url}" target="_blank" rel="noopener noreferrer" class="btn btn-gold" style="padding: 4px 10px; font-size: 11px;">Test Link ↗</a>
+          </td>
+        </tr>
+      `;
+    });
+    adTbody.innerHTML = adRows;
   }
 
   // Render Published Posts

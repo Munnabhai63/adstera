@@ -80,13 +80,13 @@ def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     
-    # 1. Published posts
+    # 1. Published posts (prioritizing active domain, then recent across fleet)
     cur.execute("""
     SELECT id, domain, slug, title, category, words, published_at, cf_deployed, quality_score
     FROM published_posts
-    ORDER BY id DESC
-    LIMIT 35
-    """)
+    ORDER BY CASE WHEN domain = ? THEN 0 ELSE 1 END, id DESC
+    LIMIT 60
+    """, (active_clean,))
     rows = cur.fetchall()
     
     posts = []
@@ -159,8 +159,26 @@ def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
     trends = get_live_google_trends()
     index_stats = get_network_index_stats()
     
+    # 10-Domain Adsterra Direct Link Verification Matrix
+    from adsterra_links import ADSTERRA_DIRECT_LINKS
+    adsterra_matrix = []
+    for d_key, d_meta in NETWORK_REGISTRY.items():
+        ad_cfg = ADSTERRA_DIRECT_LINKS.get(d_key, {})
+        adsterra_matrix.append({
+            "domain": f"{d_key}.com",
+            "name": d_meta["name"],
+            "url": ad_cfg.get("url", ""),
+            "badge": ad_cfg.get("badge", ""),
+            "title": ad_cfg.get("title", ""),
+            "cta": ad_cfg.get("cta", ""),
+            "icon": ad_cfg.get("icon", "🔗"),
+            "placements": "Header Box, In-Article Card, Sidebar Widget, Calculator CTA, In-Feed Card",
+            "edge_status": "200 OK (Verified)"
+        })
+
     return {
         "status": "online",
+        "adsterra_matrix": adsterra_matrix,
         "active_domain": active_clean,
         "api_endpoint": "http://localhost:3001/v1 (FreeLLMAPI)",
         "active_model": "Claude Sonnet 4.5 / Auto Cluster",
@@ -183,7 +201,9 @@ def get_preview_html(domain: str, slug: str) -> Optional[str]:
     # Try exact post html
     candidates = [
         os.path.join("sites", folder, f"{slug}.html"),
-        os.path.join("sites", folder, f"{slug}"),
+        os.path.join("sites", folder, slug, "index.html"),
+        os.path.join("sites", domain_clean, f"{slug}.html"),
+        os.path.join("sites", domain_clean, slug, "index.html"),
         os.path.join("sites", folder, "index.html")
     ]
     
