@@ -539,6 +539,7 @@ HTML_PAGE = """<!DOCTYPE html>
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="/autopublish" class="btn" style="text-decoration: none; background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; font-weight: 700; padding: 7px 16px; font-size: 13px; border-radius: 8px; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); border: 1px solid rgba(255,255,255,0.2); display: inline-flex; align-items: center; gap: 6px;">⚡ AutoPublish & Indexing Pipeline</a>
       <div id="statusBadge" class="status-badge stopped">
         <span class="status-dot"></span>
         <span id="statusText">STOPPED</span>
@@ -2110,6 +2111,39 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         if host_header.startswith("www."):
             host_header = host_header[4:]
 
+        if path in ("/autopublish", "/autopublish/"):
+            from autopublish_dashboard_html import AUTOPUBLISH_DASHBOARD_HTML
+            self._send_html(AUTOPUBLISH_DASHBOARD_HTML)
+            return
+
+        if path == "/api/autopublish/stats":
+            try:
+                import autopublish_service
+                from urllib.parse import parse_qs
+                query = parse_qs(parsed.query)
+                dom = query.get("domain", ["tazaloan"])[0]
+                stats = autopublish_service.get_autopublish_stats(dom)
+                self._send_json(stats)
+            except Exception as e:
+                self._send_json({"status": "error", "message": str(e)}, 500)
+            return
+
+        if path == "/api/autopublish/preview":
+            try:
+                import autopublish_service
+                from urllib.parse import parse_qs
+                query = parse_qs(parsed.query)
+                dom = query.get("domain", ["loanraaj"])[0]
+                slug = query.get("slug", [""])[0]
+                html_content = autopublish_service.get_preview_html(dom, slug)
+                if html_content:
+                    self._send_html(html_content)
+                else:
+                    self._send_html(f"<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Preview Loading...</h2><p>Preview file for {dom}/{slug} not found or being generated.</p></div>")
+            except Exception as e:
+                self._send_html(f"<h3>Preview Error: {e}</h3>")
+            return
+
         DOMAIN_FOLDERS = {
             "loanraaj.com": "loanraaj",
             "rechargetak.com": "rechargetak",
@@ -2401,6 +2435,26 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             payload = json.loads(body.decode("utf-8")) if body else {}
         except Exception:
             payload = {}
+
+        if path == "/api/autopublish/trigger":
+            try:
+                domain = payload.get("domain", "rechargetak")
+                import autopublish_service
+                res = autopublish_service.trigger_instant_publish(domain)
+                self._send_json(res)
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/autopublish/refresh-candidates":
+            try:
+                domain = payload.get("domain", "tazaloan")
+                import autopublish_service
+                candidates = autopublish_service.refresh_20_candidates(domain)
+                self._send_json({"success": True, "domain": domain, "candidates": candidates})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
 
         if path == "/api/accounts/generate":
             try:

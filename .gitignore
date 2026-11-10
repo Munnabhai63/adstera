@@ -16,6 +16,15 @@ reports/*.json
 reports/*.txt
 
 
+# Generated images & scratch
+*.png
+woblo_extracted/
+extracted_articles.json
+extracted_english_articles.json
+full_scraped_articles.json
+network_articles_checkpoint.json
+network_articles_part1.json
+
 # wrangler files
 .wrangler
 .dev.vars*

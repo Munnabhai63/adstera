@@ -79,6 +79,39 @@ class TrendsFetcher:
     def __init__(self, timeout: float = 8.0):
         self._timeout = httpx.Timeout(timeout)
 
+    def fetch_live_indian_trends_sync(self) -> list[str]:
+        """Synchronously fetch breaking trending search queries from Google Trends India RSS."""
+        url = "https://trends.google.com/trending/rss?geo=IN"
+        trends: list[str] = []
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                resp = client.get(url)
+                if resp.status_code == 200:
+                    root = ET.fromstring(resp.text)
+                    for item in root.findall(".//item"):
+                        title = item.find("title")
+                        if title is not None and title.text:
+                            trends.append(title.text.strip())
+        except Exception as exc:
+            logger.debug("Google Trends RSS sync fetch notice: %s", exc)
+        return trends
+
+    def fetch_suggest_queries_sync(self, seed: str) -> list[str]:
+        """Synchronously fetch long-tail search queries from Google Autocomplete suggest API."""
+        url = "https://suggestqueries.google.com/complete/search"
+        params = {"client": "chrome", "q": seed, "hl": "hi"}
+        queries: list[str] = []
+        try:
+            with httpx.Client(timeout=self._timeout) as client:
+                resp = client.get(url, params=params)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, list) and len(data) > 1 and isinstance(data[1], list):
+                        queries = [str(q).strip() for q in data[1] if str(q).strip()]
+        except Exception as exc:
+            logger.debug("Google Suggest sync fetch notice for '%s': %s", seed, exc)
+        return queries
+
     async def fetch_live_indian_trends(self) -> list[str]:
         """Fetch breaking trending search queries from Google Trends India RSS."""
         url = "https://trends.google.com/trending/rss?geo=IN"
