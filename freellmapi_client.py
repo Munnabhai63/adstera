@@ -87,7 +87,7 @@ class FreeLLMClient:
         model: Optional[str] = None,
     ) -> Optional[str]:
         """Send chat completion request to FreeLLMAPI router."""
-        if not self.enabled:
+        if not self.enabled or not self.is_available():
             return None
 
         chosen_model = model or self.default_model
