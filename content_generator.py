@@ -200,6 +200,7 @@ def _build_article_html(
   <title>{article_data['title']} — {domain_name}</title>
   <meta name="description" content="{article_data['desc']}">
   <link rel="canonical" href="{canonical_url}">
+  <meta name="adsterra-verification" content="A8B6C3">
   <script type="application/ld+json">
 {json.dumps(schema_ld, ensure_ascii=False, indent=2)}
   </script>

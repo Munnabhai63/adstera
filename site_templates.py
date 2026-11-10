@@ -796,6 +796,7 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
     <meta name="description" content="{desc}">
     <link rel="canonical" href="{canonical}">
     <meta name="google-site-verification" content="google31976c4df01121b2">
+    <meta name="adsterra-verification" content="A8B6C3">
     <meta property="og:title" content="{title} | {name}">
     <meta property="og:description" content="{desc}">
     <meta property="og:type" content="website">
