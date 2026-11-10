@@ -13,9 +13,11 @@ target:
   - https://rechargekar.com
   fixture: tests/fixtures/page.html
   referrers:
-  - https://www.google.com/search?q=example+keyword
-  - https://www.bing.com/search?q=example+keyword
-  - https://duckduckgo.com/?q=example+keyword
+  - https://www.google.com/search?q=instant+personal+loan+low+cibil+score
+  - https://www.google.com/search?q=best+5g+data+recharge+plans+airtel+jio
+  - https://www.google.com/search?q=gold+rate+today+24k+hallmark+price
+  - https://www.bing.com/search?q=commercial+vehicle+finance+mudra+loan
+  - https://duckduckgo.com/?q=debt+consolidation+ots+bank+settlement
   - https://www.facebook.com/
   - https://t.co/d8fK92A
   - https://www.reddit.com/r/personalfinance/

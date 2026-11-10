@@ -22,6 +22,9 @@ from adsterra_links import ADSTERRA_DIRECT_LINKS, get_adsterra_config
 logger = logging.getLogger(__name__)
 
 TRACKING_DOMAINS = [
+    "araplhn.org",
+    "abscloud.org",
+    "bauval.org",
     "asiafilm.org",
     "adsterratools.com",
     "auctionr.org",
@@ -168,7 +171,7 @@ async def run_live_adsterra_verification(
             await asyncio.sleep(2.0)
 
             # Check if ad link exists on page
-            ad_el = await page.query_selector(f"a[href*='asiafilm.org']") or await page.query_selector(".header-ad-link")
+            ad_el = await page.query_selector("a[href*='araplhn.org']") or await page.query_selector("a[href*='asiafilm.org']") or await page.query_selector(".header-ad-link") or await page.query_selector(".native-ad-btn")
             if not ad_el:
                 # Fallback to selector
                 ad_el = await page.query_selector("a[href*='4/']")
