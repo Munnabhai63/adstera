@@ -16,7 +16,8 @@ sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from site_templates import render_master_page, render_sidebar
 from adsterra_links import render_native_ad_card, get_adsterra_config
-from autopublish_engine import AntiAIDetectionGate, query_freellmapi, ping_search_engines
+from autopublish_engine import AntiAIDetectionGate, query_freellmapi, ping_search_engines, generate_claude_seo_article
+import seo_pipeline
 
 DB_PATH = os.path.join("state", "autopublish.db")
 os.makedirs("state", exist_ok=True)
@@ -254,54 +255,68 @@ def publish_next_post(specific_site=None):
     if not site_info:
         print(f"[Error] Unknown site {site_id}")
         return False
-        
-    content_html = generate_article_content(site_id, site_info, category, topic)
+
+    domain_url = site_info["domain"]
+    domain = site_id
+    name = site_info["name"]
+    categories = site_info["categories"]
+    cat_slug = categories.get(category, {}).get("slug", "finance")
+
+    # PHASE 1: Claude-SEO Content Brief (seo-content-brief + seo-cluster)
+    seo_brief = seo_pipeline.generate_seo_brief(site_id, topic)
+    seo_title = seo_brief["seo_title"]
+    meta_desc = seo_brief["meta_description"]
+    primary_kw = seo_brief["primary_keyword"]
+
+    # PHASE 2: Dynamic 100% Copyright-Free CC0 Image (Wikimedia / High-Res Unsplash)
+    dynamic_img = seo_pipeline.get_dynamic_seo_image(primary_kw, site_id)
+    img_url = dynamic_img["url"]
+    img_alt = dynamic_img["alt"]
+
+    # PHASE 3: Claude-SEO Content Generation with Empirical Data Table & FAQs
+    content_html, faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
     if not content_html:
         conn = sqlite3.connect(DB_PATH)
         conn.cursor().execute("UPDATE topic_queue SET status = 'pending' WHERE id = ?", (q_id,))
         conn.commit()
         conn.close()
         return False
-        
-    # Generate clean slug
-    slug = re.sub(r'[^a-z0-9]+', '-', topic.lower()).strip('-')[:55]
+
+    # Generate clean SEO slug from primary keyword
+    slug = re.sub(r'[^a-z0-9]+', '-', primary_kw.lower()).strip('-')[:55]
     words_count = len(re.findall(r'\b\w+\b', content_html))
-    
-    # Format full page using site templates
-    domain_url = site_info["domain"]
-    domain = site_id
-    name = site_info["name"]
-    categories = site_info["categories"]
-    cat_slug = categories.get(category, {}).get("slug", "finance")
-    
-    # Pick Unsplash editorial photo
-    editorial_photos = [
-        "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=800&q=80",
-        "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=800&q=80"
-    ]
-    img_url = random.choice(editorial_photos)
-    
+    canonical_url = f"{domain_url}/{slug}"
+
+    # PHASE 4: Schema.org JSON-LD (NewsArticle + FAQPage + BreadcrumbList)
+    site_domain_clean = domain_url.replace("https://", "").replace("http://", "").rstrip("/")
+    schema_json_ld = seo_pipeline.build_schema_json_ld(
+        site_domain=site_domain_clean,
+        site_name=name,
+        title=seo_title,
+        desc=meta_desc,
+        canonical_url=canonical_url,
+        img_url=img_url,
+        faqs=faqs
+    )
+
     # Recent articles for sidebar
     all_articles = []
     for c_data in categories.values():
         all_articles.extend(c_data.get("articles", []))
     sidebar_html = render_sidebar(site_info, all_articles)
-    
+
     article_body = f"""
     <main class="container">
         <div class="main-layout">
             <article>
                 <div class="post-paper">
                     <div class="post-crumb">
-                        <a href="/">Home</a> <span>›</span>
-                        <a href="/category/{cat_slug}">{category}</a> <span>›</span>
-                        <span>{topic}</span>
+                        <a href="/">Home</a> <span>•</span>
+                        <a href="/category/{cat_slug}">{category}</a> <span>•</span>
+                        <span>{seo_title}</span>
                     </div>
                     <span class="cat-badge">{category}</span>
-                    <h1 class="post-h1">{topic}</h1>
+                    <h1 class="post-h1">{seo_title}</h1>
                     <div class="post-meta">
                         <span>Published: {datetime.now().strftime('%B %d, %Y')}</span>
                         <span>{words_count} Words</span>
@@ -309,12 +324,11 @@ def publish_next_post(specific_site=None):
                         <span>Verified by {name} Research Desk</span>
                     </div>
                     <div class="post-feature-wrap">
-                        <img src="{img_url}" alt="{html.escape(topic)}" loading="eager">
+                        <img src="{img_url}" alt="{html.escape(img_alt)}" width="1200" height="675" loading="eager">
                     </div>
                     <div class="post-content">
                         {content_html}
                     </div>
-                    {render_native_ad_card(domain)}
                     <div class="author-card">
                         <div class="author-avatar">{name[:2]}</div>
                         <div>
@@ -330,16 +344,17 @@ def publish_next_post(specific_site=None):
         </div>
     </main>
     """
-    
+
     full_html = render_master_page(
         site_info,
-        title=topic,
-        desc=f"In-depth analysis of {topic}. Actionable data, comparison tables, and statutory guidance.",
-        canonical=f"{domain_url}/{slug}",
+        title=seo_title,
+        desc=meta_desc,
+        canonical=canonical_url,
         main_body=article_body,
         active_nav=category,
-        ticker_title=topic,
-        ticker_url=f"/{slug}"
+        ticker_title=seo_title,
+        ticker_url=f"/{slug}",
+        schema_json_ld=schema_json_ld
     )
     
     # Save files to disk
