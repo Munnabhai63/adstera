@@ -1,18 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://loantau.com/</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://loantau.com/personal-loan-guide.html</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
-  <url>
-    <loc>https://loantau.com/emi-calculator.html</loc>
-    <changefreq>daily</changefreq>
-    <priority>0.8</priority>
-  </url>
+    <url><loc>https://loantau.com</loc><priority>1.0</priority><changefreq>daily</changefreq></url><url><loc>https://loantau.com/calculator</loc><priority>0.8</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/category/truck-loans</loc><priority>0.8</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/category/used-trucks</loc><priority>0.8</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/category/tractor-loans</loc><priority>0.8</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/category/fleet-finance</loc><priority>0.8</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/commercial-truck-loan-interest-rates-2026</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/how-to-finance-tata-and-ashok-leyland-trucks</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/commercial-vehicle-loan-eligibility-criteria</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/tipper-and-trailer-financing-guide</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/used-commercial-truck-financing-guide</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/inspecting-used-truck-before-buying</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/used-truck-loan-to-value-ltv-ratios</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/transferring-rto-hypothecation-on-used-trucks</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/kisan-tractor-loan-nabard-subsidy</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/mahindra-vs-swaraj-vs-sonalika-financing</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/half-yearly-emi-structure-for-tractor-loans</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/farm-implements-and-combine-harvester-loans</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/fleet-expansion-credit-lines-transporters</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/managing-cash-flow-for-10-plus-truck-fleets</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/commercial-fleet-insurance-bundling-discounts</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/tax-depreciation-benefits-on-commercial-trucks</loc><priority>0.9</priority><changefreq>weekly</changefreq></url><url><loc>https://loantau.com/privacy-policy</loc><priority>0.5</priority><changefreq>monthly</changefreq></url><url><loc>https://loantau.com/terms-and-conditions</loc><priority>0.5</priority><changefreq>monthly</changefreq></url><url><loc>https://loantau.com/disclaimer</loc><priority>0.5</priority><changefreq>monthly</changefreq></url><url><loc>https://loantau.com/about-us</loc><priority>0.5</priority><changefreq>monthly</changefreq></url><url><loc>https://loantau.com/contact-us</loc><priority>0.5</priority><changefreq>monthly</changefreq></url>
 </urlset>

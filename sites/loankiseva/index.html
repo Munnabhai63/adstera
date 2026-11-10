@@ -1,259 +1,1031 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoanKiSeva - MSME Business Financing & Government Subsidies Portal | LoanKiSeva</title>
+    <meta name="description" content="Complete actionable guides to Pradhan Mantri Mudra Yojana, CGTMSE collateral-free loans, Stand-Up India women subsidies, and NABARD agri-finance.">
+    <link rel="canonical" href="https://loankiseva.com">
     <meta name="google-site-verification" content="google31976c4df01121b2">
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LoanKiSeva — MSME, बिजनेस लोन एवं सरकारी ऋण योजनाएं</title>
-  <meta name="description" content="छोटे व्यापारियों और स्टार्टअप्स के लिए बिना गारंटी के ₹10 लाख तक सरकारी मुद्रा लोन और बिजनेस क्रेडिट गाइड।">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --primary: #0f766e;
-      --accent: #14b8a6;
-      --bg: #f8fafc;
-      --card: #ffffff;
-      --text: #0f172a;
-      --muted: #64748b;
-      --border: #e2e8f0;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Plus Jakarta Sans', sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
-    header { background: var(--card); border-bottom: 1px solid var(--border); padding: 16px 24px; position: sticky; top: 0; z-index: 50; }
-    .header-inner { max-width: 1080px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-    .logo { font-size: 22px; font-weight: 800; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
-    .logo span { color: var(--accent); }
-    nav a { margin-left: 20px; color: var(--muted); text-decoration: none; font-weight: 500; font-size: 14px; }
-    nav a:hover { color: var(--accent); }
+    <meta property="og:title" content="LoanKiSeva - MSME Business Financing & Government Subsidies Portal | LoanKiSeva">
+    <meta property="og:description" content="Complete actionable guides to Pradhan Mantri Mudra Yojana, CGTMSE collateral-free loans, Stand-Up India women subsidies, and NABARD agri-finance.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://loankiseva.com">
+    <meta property="og:site_name" content="LoanKiSeva">
+    <style>
+:root {
+    --primary: #4F46E5;
+    --primary-hover: #4338CA;
+    --dark: #0F172A;
+    --dark-surface: #1E293B;
+    --light-bg: #F8FAFC;
+    --card-bg: #FFFFFF;
+    --border: #E2E8F0;
+    --border-light: #F1F5F9;
+    --text-head: #0F172A;
+    --text-body: #334155;
+    --text-muted: #64748B;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    background-color: var(--light-bg);
+    color: var(--text-body);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; text-decoration: none; transition: color 0.15s ease; }
+a:hover { color: var(--primary); }
+img { max-width: 100%; height: auto; display: block; }
 
-    .container { max-width: 1080px; margin: 32px auto; padding: 0 16px; display: grid; grid-template-columns: 2fr 1fr; gap: 32px; }
-    @media (max-width: 800px) { .container { grid-template-columns: 1fr; } }
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 20px;
+}
 
-    article { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; }
-    h1 { font-size: 26px; font-weight: 800; color: var(--primary); margin-bottom: 16px; line-height: 1.3; }
-    .meta { font-size: 13px; color: var(--muted); margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
-    p { margin-bottom: 18px; font-size: 16px; color: #334155; }
-    h2 { font-size: 20px; font-weight: 700; color: var(--primary); margin: 28px 0 14px; }
-    ul { margin: 0 0 20px 24px; color: #334155; }
-    li { margin-bottom: 8px; }
+/* 1. Top Bar */
+.topbar {
+    background: #090D16;
+    color: #94A3B8;
+    font-size: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid #1E293B;
+}
+.topbar-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.ticker-box {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow: hidden;
+}
+.ticker-badge {
+    background: var(--primary);
+    color: #FFF;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    flex-shrink: 0;
+}
+.ticker-text {
+    color: #CBD5E1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
 
-    /* Sponsored Adsterra Direct Link Banners */
-    .ad-link-card {
-      display: block;
-      text-decoration: none;
-      border-radius: 10px;
-      overflow: hidden;
-      margin: 24px 0;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-      cursor: pointer;
-    }
-    .ad-link-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-    }
-    
-    .ad-top-wrapper {
-      background: linear-gradient(135deg, #134e4a 0%, #0f766e 100%);
-      color: white;
-      padding: 18px 24px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 16px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .ad-top-badge {
-      display: inline-block;
-      background: #f59e0b;
-      color: #000;
-      font-size: 11px;
-      font-weight: 800;
-      padding: 2px 8px;
-      border-radius: 4px;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-    }
-    .ad-top-title {
-      font-size: 17px;
-      font-weight: 700;
-      line-height: 1.3;
-    }
-    .ad-top-subtitle {
-      font-size: 13px;
-      opacity: 0.85;
-    }
-    .ad-btn {
-      background: #22c55e;
-      color: white;
-      padding: 10px 20px;
-      border-radius: 6px;
-      font-weight: 700;
-      font-size: 14px;
-      white-space: nowrap;
-      box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
-    }
+/* 2. Main Header */
+.header {
+    background: #FFF;
+    padding: 24px 0;
+    border-bottom: 1px solid var(--border);
+}
+.header-flex {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+.brand-logo {
+    font-size: 32px;
+    font-weight: 900;
+    letter-spacing: -1px;
+    color: var(--dark);
+    line-height: 1;
+}
+.brand-logo span { color: var(--primary); }
+.brand-tag {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    letter-spacing: 1.2px;
+    font-weight: 700;
+    margin-top: 6px;
+}
+.header-ad {
+    background: #F8FAFC;
+    border: 1px dashed #CBD5E1;
+    border-radius: 6px;
+    padding: 14px 28px;
+    text-align: center;
+    min-width: 320px;
+    max-width: 728px;
+    flex-grow: 1;
+}
+.header-ad-title {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #94A3B8;
+    font-weight: 700;
+}
+.header-ad-sub {
+    font-size: 12px;
+    color: #64748B;
+    font-weight: 600;
+    margin-top: 2px;
+}
 
-    .ad-mid-wrapper {
-      background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
-      border: 2px solid #86efac;
-      padding: 20px 24px;
-      text-align: center;
-    }
-    .ad-mid-title {
-      font-size: 18px;
-      font-weight: 800;
-      color: #166534;
-      margin-bottom: 6px;
-    }
-    .ad-mid-text {
-      font-size: 14px;
-      color: #15803d;
-      margin-bottom: 12px;
-    }
+/* 3. Navbar */
+.nav-wrap {
+    background: var(--dark);
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.nav-ul {
+    display: flex;
+    list-style: none;
+    align-items: center;
+    gap: 2px;
+    overflow-x: auto;
+    white-space: nowrap;
+}
+.nav-item a {
+    display: block;
+    padding: 15px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #E2E8F0;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+.nav-item a:hover, .nav-item a.active {
+    background: var(--primary);
+    color: #FFF;
+}
 
-    .ad-side-wrapper {
-      background: linear-gradient(180deg, #eff6ff 0%, #dbeafe 100%);
-      border: 2px solid #93c5fd;
-      padding: 24px 18px;
-      text-align: center;
+/* 4. Page Grid */
+.main-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 32px;
+    margin: 32px auto;
+    align-items: start;
+}
+@media (min-width: 992px) {
+    .main-layout {
+        grid-template-columns: 8fr 4fr;
     }
-    .ad-side-icon {
-      font-size: 40px;
-      margin-bottom: 8px;
-    }
-    .ad-side-title {
-      font-size: 17px;
-      font-weight: 800;
-      color: var(--primary);
-      margin-bottom: 8px;
-      line-height: 1.3;
-    }
-    .ad-side-text {
-      font-size: 13px;
-      color: #1e3a8a;
-      margin-bottom: 16px;
-    }
+}
 
-    aside { display: flex; flex-direction: column; gap: 24px; }
-    .sidebar-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
-    .sidebar-title { font-size: 16px; font-weight: 700; color: var(--primary); margin-bottom: 16px; border-bottom: 2px solid var(--accent); padding-bottom: 8px; display: inline-block; }
-    .sidebar-list a { display: block; color: #334155; text-decoration: none; font-size: 14px; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
-    .sidebar-list a:hover { color: var(--accent); font-weight: 600; }
+/* Hero 3-Grid */
+.hero-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 18px;
+    margin-top: 26px;
+}
+@media (min-width: 768px) {
+    .hero-grid {
+        grid-template-columns: 7fr 5fr;
+    }
+}
+.hero-card {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #090D16;
+    min-height: 280px;
+}
+.hero-card.main-hero { min-height: 440px; }
+.hero-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.85;
+    transition: transform 0.35s ease;
+}
+.hero-card:hover img { transform: scale(1.03); }
+.hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(9,13,22,0) 25%, rgba(9,13,22,0.92) 100%);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    color: #FFF;
+}
+.hero-badge {
+    align-self: flex-start;
+    background: var(--primary);
+    color: #FFF;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 10px;
+}
+.hero-h1 {
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.3;
+    color: #FFF;
+    margin-bottom: 8px;
+}
+.hero-card.main-hero .hero-h1 { font-size: 28px; }
+.hero-meta {
+    font-size: 12px;
+    color: #94A3B8;
+}
 
-    .btn-apply { display: inline-block; background: var(--primary); color: white; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 16px; margin: 16px 0 24px; text-align: center; box-shadow: 0 4px 14px rgba(15, 23, 42, 0.2); }
-    .btn-apply:hover { background: var(--accent); transform: translateY(-1px); }
+/* Feed Cards */
+.feed-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+@media (min-width: 600px) {
+    .feed-card { flex-direction: row; }
+}
+.feed-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 20px -3px rgba(0,0,0,0.06);
+}
+.feed-thumb {
+    width: 100%;
+    height: 190px;
+    border-radius: 6px;
+    overflow: hidden;
+    background: #E2E8F0;
+    flex-shrink: 0;
+}
+@media (min-width: 600px) {
+    .feed-thumb {
+        width: 250px;
+        height: 170px;
+    }
+}
+.feed-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.feed-info { display: flex; flex-direction: column; justify-content: center; }
+.feed-cat {
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+}
+.feed-title {
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-head);
+    line-height: 1.35;
+    margin-bottom: 8px;
+}
+.feed-desc {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 10px;
+}
+.feed-meta {
+    font-size: 12px;
+    color: #94A3B8;
+}
 
-    footer { background: var(--card); border-top: 1px solid var(--border); padding: 24px; text-align: center; color: var(--muted); font-size: 13px; margin-top: 60px; }
-  </style>
+/* Single Post Container */
+.post-paper {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 24px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.04);
+}
+@media (min-width: 768px) {
+    .post-paper { padding: 44px 38px; }
+}
+.post-crumb {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+.cat-badge {
+    background: #EFF6FF;
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    display: inline-block;
+    margin-bottom: 14px;
+}
+.post-h1 {
+    font-size: 28px;
+    font-weight: 900;
+    line-height: 1.25;
+    color: var(--text-head);
+    letter-spacing: -0.5px;
+    margin-bottom: 16px;
+}
+@media (min-width: 768px) {
+    .post-h1 { font-size: 36px; }
+}
+.post-meta {
+    display: flex;
+    gap: 16px;
+    font-size: 13px;
+    color: var(--text-muted);
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border-light);
+    margin-bottom: 26px;
+    flex-wrap: wrap;
+}
+.post-feature-wrap {
+    border-radius: 8px;
+    overflow: hidden;
+    margin-bottom: 30px;
+    max-height: 480px;
+    background: #E2E8F0;
+    border: 1px solid var(--border);
+}
+.post-feature-wrap img { width: 100%; height: 100%; object-fit: cover; }
+
+/* In-Post Typography & Clean Layout */
+.post-content {
+    font-size: 17px;
+    line-height: 1.85;
+    color: var(--text-body);
+}
+.post-content p { margin-bottom: 22px; }
+.post-content h2 {
+    font-size: 24px;
+    font-weight: 800;
+    color: var(--text-head);
+    margin: 38px 0 16px 0;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--border-light);
+    position: relative;
+}
+.post-content h2::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 48px;
+    height: 2px;
+    background: var(--primary);
+}
+.post-content h3 {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-head);
+    margin: 28px 0 12px 0;
+}
+.post-content h4 {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text-head);
+    margin: 22px 0 10px 0;
+}
+.post-content ul, .post-content ol {
+    margin: 18px 0 24px 26px;
+}
+.post-content li {
+    margin-bottom: 10px;
+    line-height: 1.75;
+}
+.post-content strong {
+    color: var(--text-head);
+    font-weight: 700;
+}
+.post-content blockquote {
+    margin: 26px 0;
+    padding: 16px 22px;
+    background: #F8FAFC;
+    border-left: 4px solid var(--primary);
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: #475569;
+}
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    margin: 28px 0;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+.article-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    text-align: left;
+}
+.article-table th {
+    background: #F8FAFC;
+    color: var(--text-head);
+    font-weight: 700;
+    padding: 12px 16px;
+    border-bottom: 2px solid var(--border);
+}
+.article-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border-light);
+    color: var(--text-body);
+}
+.article-table tr:hover { background: #F8FAFC; }
+.article-inner-img {
+    margin: 28px 0;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+}
+
+/* Ad Banners */
+.ad-slot-box {
+    background: #F8FAFC;
+    border: 1px dashed #CBD5E1;
+    border-radius: 8px;
+    padding: 18px;
+    margin: 28px 0;
+    text-align: center;
+}
+.ad-slot-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #94A3B8;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+.ad-slot-spec {
+    font-size: 12px;
+    color: #64748B;
+    font-weight: 600;
+}
+
+/* Author Box */
+.author-card {
+    background: #F8FAFC;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 22px;
+    margin-top: 38px;
+    display: flex;
+    gap: 18px;
+    align-items: center;
+}
+.author-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--dark);
+    color: #FFF;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 900;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+/* Sidebar & Sticky Column */
+.sidebar-col {
+    position: sticky;
+    top: 75px;
+}
+.widget-card {
+    background: #FFFFFF;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 24px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.widget-title {
+    font-size: 14px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-head);
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary);
+    margin-bottom: 16px;
+}
+.calc-field { margin-bottom: 14px; }
+.calc-field label { display: block; font-size: 12px; font-weight: 700; color: #475569; margin-bottom: 4px; }
+.calc-field input[type="number"] {
+    width: 100%;
+    padding: 9px 12px;
+    border: 1px solid #CBD5E1;
+    border-radius: 5px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.calc-badge {
+    background: #0F172A;
+    color: #FFF;
+    border-radius: 6px;
+    padding: 16px;
+    text-align: center;
+    margin-top: 14px;
+}
+.calc-badge-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #94A3B8; }
+.calc-badge-val { font-size: 26px; font-weight: 800; color: #38BDF8; margin-top: 2px; }
+
+/* Category Header Banner */
+.cat-header-card {
+    background: #FFF;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 32px 28px;
+    margin-top: 24px;
+    margin-bottom: 24px;
+    border-left: 6px solid var(--primary);
+}
+.cat-header-title {
+    font-size: 28px;
+    font-weight: 900;
+    color: var(--text-head);
+    margin-bottom: 8px;
+}
+.cat-header-desc {
+    font-size: 15px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+/* Footer */
+.footer {
+    background: #090D16;
+    color: #94A3B8;
+    margin-top: 60px;
+    padding-top: 50px;
+    border-top: 4px solid var(--primary);
+}
+.footer-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 36px;
+    padding-bottom: 44px;
+}
+@media (min-width: 768px) {
+    .footer-grid { grid-template-columns: 2fr 1fr 1fr; }
+}
+.footer-h4 {
+    font-size: 15px;
+    font-weight: 800;
+    color: #FFF;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 16px;
+}
+.footer-list { list-style: none; }
+.footer-list li { margin-bottom: 10px; font-size: 13px; }
+.footer-list a { color: #94A3B8; }
+.footer-list a:hover { color: #FFF; }
+.footer-btm {
+    background: #06090F;
+    padding: 22px 0;
+    font-size: 12px;
+    color: #64748B;
+    text-align: center;
+    border-top: 1px solid #1E293B;
+}
+</style>
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "LoanKiSeva",
+        "url": "https://loankiseva.com",
+        "description": "MSME Business Financing & Government Subsidies Portal"
+    }
+    </script>
 </head>
 <body>
-
-  <header>
-    <div class="header-inner">
-      <a href="/" class="logo">🏛️ LoanKiSeva<span>.com</span></a>
-      <nav>
-        <a href="/">होम</a>
-        <a href="https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804" target="_blank" rel="noopener noreferrer">ऑफ़र्स</a>
-        <a href="https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035" target="_blank" rel="noopener noreferrer">गाइड</a>
-        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer">सपोर्ट</a>
-      </nav>
-    </div>
-  </header>
-
-  <div class="container">
-    <main>
-      <article>
-        <!-- Top Sponsored Adsterra Direct Link Unit -->
-        <a href="https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
-          <div class="ad-top-wrapper">
-            <div>
-              <span class="ad-top-badge">Sponsored Deal</span>
-              <div class="ad-top-title">⚡ LoanKiSeva Verified Partner Offer 2026</div>
-              <div class="ad-top-subtitle">MSME, बिजनेस लोन एवं सरकारी ऋण योजनाएं • 100% ऑनलाइन क्लेम करें • स्पेशल डिस्काउंट</div>
+    <!-- Topbar -->
+    <div class="topbar">
+        <div class="container">
+            <div class="topbar-flex">
+                <div class="ticker-box">
+                    <span class="ticker-badge">Trending</span>
+                    <a href="/pmmy-mudra-loan-apply-online" class="ticker-text">Pradhan Mantri Mudra Yojana (PMMY): Shishu, Kishor & Tarun Loan Approval Process</a>
+                </div>
+                <div style="font-size:11px; color:#64748B;">November 2026 Edition</div>
             </div>
-            <div class="ad-btn">Claim Offer →</div>
-          </div>
-        </a>
-
-        <h1>नया व्यापार शुरू करने या बढ़ाने के लिए आसान बिजनेस लोन कैसे प्राप्त करें?</h1>
-        <div class="meta">अपडेटेड: 2026 • विशेषज्ञ द्वारा सत्यापित • 4 मिनट पढ़ने का समय</div>
-
-        <p>भारत सरकार की विभिन्न ऋण योजनाओं और कमर्शियल बैंकों के माध्यम से अब एमएसएमई (MSME) सेक्टर को आसानी से कोलैटरल-फ्री (बिना किसी गारंटी) बिजनेस लोन उपलब्ध कराया जा रहा है।</p>
-
-        <h2>1. पीएम मुद्रा लोन की प्रमुख श्रेणियां</h2>
-        <p>मुद्रा योजना के तहत तीन स्तरों पर ऋण प्रदान किया जाता है:</p>
-        <ul>
-          <li><strong>शिशु लोन:</strong> ₹50,000 तक का लोन नए और छोटे उद्यमों के लिए।</li>
-          <li><strong>किशोर लोन:</strong> ₹50,000 से लेकर ₹5 लाख तक का लोन व्यापार विस्तार के लिए।</li>
-          <li><strong>तरुण लोन:</strong> ₹5 लाख से ₹10 लाख तक का लोन स्थापित व्यवसायों के लिए।</li>
-        </ul>
-
-        <a href="https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035" target="_blank" rel="noopener noreferrer" class="btn-apply" data-ad-slot="direct-link">🏛️ बिजनेस लोन पात्रता और ब्याज दरें चेक करें →</a>
-
-        <h2>2. आवेदन के लिए आवश्यक कागज़ात</h2>
-        <p>उद्यम आधार (Udyam Registration), जीएसटी रिटर्न (यदि लागू हो), व्यवसाय का पता प्रमाण और बैंक खाते का 6 महीने का स्टेटमेंट आवश्यक होता है।</p>
-
-        <!-- Mid/Bottom Sponsored Adsterra Direct Link Unit -->
-        <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
-          <div class="ad-mid-wrapper">
-            <span class="ad-top-badge" style="background:#22c55e; color:white;">Special Recommendation</span>
-            <div class="ad-mid-title">🚀 Instant Business Credit Line: Up to ₹10 Lakhs Collateral-Free</div>
-            <div class="ad-mid-text">सरकारी सब्सिडी योजनाओं और न्यूनतम ब्याज दरों के साथ बिजनेस लोन के लिए तुरंत अप्लाई करें।</div>
-            <div class="ad-btn" style="background:#16a34a; display:inline-block;">Click Here to Access →</div>
-          </div>
-        </a>
-
-        <h2>3. सुरक्षा और गोपनीयता निर्देश</h2>
-        <p>अपनी वित्तीय और व्यक्तिगत जानकारी केवल आधिकारिक और एसएसएल सुरक्षित (HTTPS) प्लेटफ़ॉर्म्स पर ही दर्ज करें। किसी भी अनजान व्यक्ति के साथ अपना बैंक ओटीपी (OTP) या यूपीआई पिन कभी साझा न करें।</p>
-      </article>
-    </main>
-
-    <aside>
-      <!-- Sidebar Sponsored Adsterra Direct Link Unit -->
-      <a href="https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804" target="_blank" rel="noopener noreferrer" class="ad-link-card" data-ad-slot="direct-link">
-        <div class="ad-side-wrapper">
-          <div class="ad-side-icon">🏛️</div>
-          <span class="ad-top-badge">Verified Partner</span>
-          <div class="ad-side-title">LoanKiSeva Quick Deals</div>
-          <div class="ad-side-text">Fast approval and instant discount directly to your account.</div>
-          <div class="ad-btn" style="background:var(--primary); display:inline-block;">Access Now →</div>
         </div>
-      </a>
+    </div>
 
-      <div class="sidebar-card">
-        <div class="sidebar-title">लोकप्रिय श्रेणियाँ &amp; ऑफर्स</div>
-        <div class="sidebar-list">
-          <a href="https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">👉 आज के टॉप 5 एक्सक्लूसिव ऑफर्स →</a>
-          <a href="https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">📱 मोबाइल और वॉलेट डिस्काउंट कोड्स →</a>
-          <a href="https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">💳 शून्य प्रोसेसिंग फीस इंस्टेंट कूपन →</a>
-          <a href="https://auctionr.org/4/a5bfea4c2c6f44a99100a526d75bc804" target="_blank" rel="noopener noreferrer" data-ad-slot="direct-link">🎁 नए यूज़र्स के लिए विशेष वाउचर्स →</a>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-flex">
+                <div>
+                    <a href="/" class="brand-logo">LOAN<span>KISEVA</span></a>
+                    <div class="brand-tag">MSME, Mudra & Government Credit Schemes</div>
+                </div>
+                <div class="header-ad">
+                    <div class="header-ad-title">Sponsored Recommendation</div>
+                    <div class="header-ad-sub">Verified Consumer Comparison Engine</div>
+                </div>
+            </div>
         </div>
-      </div>
+    </header>
+
+    <!-- Navigation -->
+    <nav class="nav-wrap">
+        <div class="container">
+            <ul class="nav-ul">
+                <li class="nav-item"><a href="/" class="active">Home</a></li><li class="nav-item"><a href="/category/mudra-loans" class="">Mudra Loans</a></li><li class="nav-item"><a href="/category/msme-credit" class="">MSME Credit</a></li><li class="nav-item"><a href="/category/women-entrepreneurship" class="">Women Entrepreneurship</a></li><li class="nav-item"><a href="/category/agriculture-dairy" class="">Agriculture & Dairy</a></li><li class="nav-item"><a href="/calculator" class="">Calculator</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Main Body Content -->
     
-<!-- INTERNAL_ARTICLES_NAV -->
-<div class="sidebar-card" style="margin-top:16px;"><div class="sidebar-title">मुख्य लेख एवं गाइड</div><div class="sidebar-list">
-  <a href="/personal-loan-guide.html" style="display:block;margin:6px 0;color:#2563eb;text-decoration:none;">📄 पर्सनल लोन कैसे लें — ब्याज दर, जरूरी दस... →</a>
-  <a href="/emi-calculator.html" style="display:block;margin:6px 0;color:#2563eb;text-decoration:none;">📄 लोन ईएमआई कैलकुलेटर — मासिक किस्त और कुल... →</a>
-</div></div>
-</aside>
-  </div>
+        <main class="container">
+            
+        <div class="hero-grid">
+            <div class="hero-card main-hero">
+                <img src="https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=800&q=80" alt="Pradhan Mantri Mudra Yojana (PMMY): Shishu, Kishor &amp; Tarun Loan Approval Process" loading="eager">
+                <div class="hero-overlay">
+                    <span class="hero-badge">Mudra Loans</span>
+                    <a href="/pmmy-mudra-loan-apply-online" class="hero-h1">Pradhan Mantri Mudra Yojana (PMMY): Shishu, Kishor & Tarun Loan Approval Process</a>
+                    <div class="hero-meta">1880 words · 8 min read · Comprehensive Guide</div>
+                </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:18px;">
+                <div class="hero-card">
+                    <img src="https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=800&q=80" alt="Zero Collateral Guarantee under Mudra Loans: What to Do If the Bank Demands Security" loading="lazy">
+                    <div class="hero-overlay">
+                        <span class="hero-badge">Mudra Loans</span>
+                        <a href="/mudra-loan-without-collateral-rules" class="hero-h1">Zero Collateral Guarantee under Mudra Loans: What to Do If the Bank Demands Security</a>
+                        <div class="hero-meta">1720 words · Industry Analysis</div>
+                    </div>
+                </div>
+                <div class="hero-card">
+                    <img src="https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=800&q=80" alt="Top 5 Reasons Mudra Loan Applications Get Rejected &amp; How to Fix Them" loading="lazy">
+                    <div class="hero-overlay">
+                        <span class="hero-badge">Mudra Loans</span>
+                        <a href="/top-reasons-mudra-loans-get-rejected" class="hero-h1">Top 5 Reasons Mudra Loan Applications Get Rejected & How to Fix Them</a>
+                        <div class="hero-meta">1640 words · Verified Rates</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+            <div class="main-layout">
+                <section>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:2px solid var(--border); padding-bottom:10px;">
+                        <h2 style="font-size:20px; font-weight:900; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-head);">Latest Intelligence & Guides</h2>
+                        <span style="font-size:12px; color:var(--text-muted); font-weight:700;">16 In-Depth Publications</span>
+                    </div>
+                    
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=800&q=80" alt="What is a Mudra Card? How Small Business Owners Use It as a Working Capital Credit Line" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Mudra Loans</div>
+                    <a href="/mudra-card-usage-and-cash-credit" class="feed-title">What is a Mudra Card? How Small Business Owners Use It as a Working Capital Credit Line</a>
+                    <p class="feed-desc">A Mudra Card operates as a RuPay debit card linked to your cash credit limit, allowing you to draw funds from ATMs as needed while paying interest only on the utilized sum.</p>
+                    <div class="feed-meta">1530 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80" alt="CGTMSE Scheme: How to Secure up to ₹5 Crore Collateral-Free Business Finance" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">MSME Credit</div>
+                    <a href="/cgtmse-collateral-free-loan-scheme" class="feed-title">CGTMSE Scheme: How to Secure up to ₹5 Crore Collateral-Free Business Finance</a>
+                    <p class="feed-desc">Scale your manufacturing or service enterprise. A step-by-step blueprint to securing institutional credit backed by the Credit Guarantee Fund Trust for Micro and Small Enterprises.</p>
+                    <div class="feed-meta">1850 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1581092335397-9583fe92d232?auto=format&fit=crop&w=800&q=80" alt="Machinery &amp; Capital Equipment Financing for MSMEs: Rates, LTV &amp; Tax Depreciation" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">MSME Credit</div>
+                    <a href="/msme-machinery-and-equipment-finance" class="feed-title">Machinery & Capital Equipment Financing for MSMEs: Rates, LTV & Tax Depreciation</a>
+                    <p class="feed-desc">Acquire CNC machines, packaging lines, or commercial equipment with 80% to 90% loan-to-value (LTV) and accelerated 15% to 30% income tax depreciation benefits.</p>
+                    <div class="feed-meta">1720 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1507679799987-c73779587ccf?auto=format&fit=crop&w=800&q=80" alt="How Udyam Registration Unlocks Lower Interest Rates &amp; Priority Sector Bank Lending" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">MSME Credit</div>
+                    <a href="/udyam-registration-benefits-for-loans" class="feed-title">How Udyam Registration Unlocks Lower Interest Rates & Priority Sector Bank Lending</a>
+                    <p class="feed-desc">Why a free government Udyam certificate is the single most valuable document for small business owners: priority bank lending, delayed payment protection, and tender exemptions.</p>
+                    <div class="feed-meta">1610 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+                <div class="ad-slot-box">
+                    <div class="ad-slot-label">Sponsored Recommendation</div>
+                    <div class="ad-slot-spec">Responsive In-Feed Native Display Unit</div>
+                </div>
+                
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80" alt="TReDS Invoice Discounting: How MSMEs Unlock Cash Frozen in Corporate Receivables" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">MSME Credit</div>
+                    <a href="/treds-platform-invoice-discounting" class="feed-title">TReDS Invoice Discounting: How MSMEs Unlock Cash Frozen in Corporate Receivables</a>
+                    <p class="feed-desc">Stop waiting 90 days for corporate invoices to clear. How TReDS electronic auction portals (RXIL, M1xchange, Innoトレ) unlock instant cash at 7% to 9% interest.</p>
+                    <div class="feed-meta">1560 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=800&q=80" alt="Stand-Up India Scheme: Secure ₹10 Lakh to ₹1 Crore for Women-Led Greenfields" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Women Entrepreneurship</div>
+                    <a href="/stand-up-india-scheme-for-women" class="feed-title">Stand-Up India Scheme: Secure ₹10 Lakh to ₹1 Crore for Women-Led Greenfields</a>
+                    <p class="feed-desc">The Stand-Up India initiative mandates every commercial bank branch to finance at least one women-led greenfield enterprise in manufacturing, services, or trading.</p>
+                    <div class="feed-meta">1820 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&w=800&q=80" alt="SBI Stree Shakti Package: Concessional Working Capital for Women Business Owners" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Women Entrepreneurship</div>
+                    <a href="/stree-shakti-package-sbi-benefits" class="feed-title">SBI Stree Shakti Package: Concessional Working Capital for Women Business Owners</a>
+                    <p class="feed-desc">Explore State Bank of India's flagship women entrepreneurship credit package: 0.50% interest rate concessions and lowered margin requirements.</p>
+                    <div class="feed-meta">1680 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1573497491208-6b1acb260507?auto=format&fit=crop&w=800&q=80" alt="Mahila Udyam Nidhi: Low-Interest Soft Loans to Upgrade Small Women Enterprises" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Women Entrepreneurship</div>
+                    <a href="/mahila-udyam-nidhi-scheme-guide" class="feed-title">Mahila Udyam Nidhi: Low-Interest Soft Loans to Upgrade Small Women Enterprises</a>
+                    <p class="feed-desc">Offered through SIDBI, this scheme provides soft loan assistance to bridge equity gaps for women modernizing tiny and micro industrial units.</p>
+                    <div class="feed-meta">1590 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1573496799652-408c2ac9fe98?auto=format&fit=crop&w=800&q=80" alt="Top 5 Central &amp; State Government Subsidies Available Exclusively for Women Startups" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Women Entrepreneurship</div>
+                    <a href="/government-subsidies-for-women-startups" class="feed-title">Top 5 Central & State Government Subsidies Available Exclusively for Women Startups</a>
+                    <p class="feed-desc">From interest subventions to electricity duty exemptions and capital subsidies, review top state-level policies supporting women-founded ventures.</p>
+                    <div class="feed-meta">1630 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80" alt="Kisan Credit Card (KCC): How Farmers Get Working Capital at 4% Effective Interest" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Agriculture & Dairy</div>
+                    <a href="/kisan-credit-card-kcc-low-interest" class="feed-title">Kisan Credit Card (KCC): How Farmers Get Working Capital at 4% Effective Interest</a>
+                    <p class="feed-desc">Under the central interest subvention scheme, prompt-repaying farmers access crop loans up to ₹3 Lakhs at an effective annual interest rate of just 4%.</p>
+                    <div class="feed-meta">1810 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1527153857715-3908f2ae5e81?auto=format&fit=crop&w=800&q=80" alt="NABARD Dairy Farming Loan &amp; Subsidy 2026: Setup a 10-Cow Commercial Dairy Unit" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Agriculture & Dairy</div>
+                    <a href="/nabard-dairy-farming-loan-subsidy" class="feed-title">NABARD Dairy Farming Loan & Subsidy 2026: Setup a 10-Cow Commercial Dairy Unit</a>
+                    <p class="feed-desc">Commercial dairy farming blueprint: animal shed construction, milch cattle acquisition (Murrah buffaloes / HF cows), milking machines, and 25% to 33% capital subsidies.</p>
+                    <div class="feed-meta">1750 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1548550023-2bdb3c5beed7?auto=format&fit=crop&w=800&q=80" alt="Commercial Broiler &amp; Layer Poultry Farm Loans: Subsidies, Infrastructure &amp; Approvals" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Agriculture & Dairy</div>
+                    <a href="/commercial-poultry-farming-loan-guide" class="feed-title">Commercial Broiler & Layer Poultry Farm Loans: Subsidies, Infrastructure & Approvals</a>
+                    <p class="feed-desc">How to finance a 5,000-bird modern environmentally controlled poultry shed, feed storage silos, and biosecurity protocols with bank financing.</p>
+                    <div class="feed-meta">1640 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+            <article class="feed-card">
+                <div class="feed-thumb">
+                    <img src="https://images.unsplash.com/photo-1574943320219-553eb213f72d?auto=format&fit=crop&w=800&q=80" alt="Negotiable Warehouse Receipt (e-NWR) Loans: Avoid Distress Selling of Harvested Crops" loading="lazy">
+                </div>
+                <div class="feed-info">
+                    <div class="feed-cat">Agriculture & Dairy</div>
+                    <a href="/warehouse-receipt-financing-for-crops" class="feed-title">Negotiable Warehouse Receipt (e-NWR) Loans: Avoid Distress Selling of Harvested Crops</a>
+                    <p class="feed-desc">Don't sell your harvest at bottom prices during peak season. Store grains in WDRA-registered warehouses and borrow 70% of commodity value to wait for price rallies.</p>
+                    <div class="feed-meta">1580 words · Detailed Sector Benchmark</div>
+                </div>
+            </article>
+            
+                </section>
+                
+    <aside class="sidebar-col">
+        <!-- Interactive Tool Widget -->
+        <div class="widget-card">
+            <div class="widget-title">MSME & Mudra Subsidized EMI Calculator</div>
+            <div class="calc-field">
+                <label id="lbl1">Sanctioned Scheme Amount ($ / ₹)</label>
+                <input type="number" id="sc_in1" value="500000" oninput="recalcSide()">
+            </div>
+            <div class="calc-field">
+                <label id="lbl2">Repayment Horizon (Years)</label>
+                <input type="number" id="sc_in2" value="5" oninput="recalcSide()">
+            </div>
+            <div class="calc-field">
+                <label id="lbl3">Subsidized Interest Rate (%)</label>
+                <input type="number" id="sc_in3" value="8.5" oninput="recalcSide()">
+            </div>
+            <div class="calc-badge">
+                <div class="calc-badge-title">Monthly Subsidized EMI</div>
+                <div class="calc-badge-val" id="sc_res">₹0</div>
+            </div>
+            <script>
+            function recalcSide() {
+                var v1 = parseFloat(document.getElementById('sc_in1').value) || 0;
+                var v2 = parseFloat(document.getElementById('sc_in2').value) || 0;
+                var v3 = parseFloat(document.getElementById('sc_in3').value) || 0;
+                var res = 0;
+                var type = "emi";
+                if (type === "emi") {
+                    var r = (v3 / 12) / 100;
+                    var n = (v2 > 0 ? v2 : 5) * 12;
+                    if (r > 0 && n > 0 && v1 > 0) {
+                        res = Math.round((v1 * r * Math.pow(1 + r, n)) / (Math.pow(1 + r, n) - 1));
+                    }
+                } else if (type === "savings") {
+                    res = Math.round(v1 * 12 * (v2 / 100) * (v3 > 0 ? v3 : 1));
+                } else if (type === "cashback") {
+                    res = Math.round((v1 * (v2 / 100) * 12) + (v3 * 100));
+                } else if (type === "gold") {
+                    res = Math.round(v1 * (v2 / 24) * (v3 > 0 ? (v3/1000) : 7500));
+                } else {
+                    res = Math.round((v1 * v2 * 12) / 100);
+                }
+                document.getElementById('sc_res').innerText = "₹" + res.toLocaleString();
+            }
+            window.addEventListener('DOMContentLoaded', recalcSide);
+            </script>
+        </div>
 
-  <footer>
-    <p>© 2026 LoanKiSeva.com — All Rights Reserved. Disclaimer: We are an informational blog assisting users with authentic guides and curated offers.</p>
-  </footer>
+        <!-- Sidebar Ad Unit -->
+        <div class="ad-slot-box">
+            <div class="ad-slot-label">Featured Partner</div>
+            <div class="ad-slot-spec">Responsive 300x250 Smart Display</div>
+        </div>
 
-  <script>
-    // Smart Direct Link Popunder on first touch/click
-    var adTriggered = false;
-    document.addEventListener('click', function(e) {
-      if (e.target.closest('[data-ad-slot]')) return;
-      if (!adTriggered) {
-        adTriggered = true;
-        window.open('https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449', '_blank');
-      }
-    });
-  </script>
+        <!-- Category Breakdown -->
+        <div class="widget-card">
+            <div class="widget-title">Browse Sectors</div>
+            <ul style="list-style:none;">
+                
+        <li style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:13px;">
+            <a href="/category/mudra-loans" style="font-weight:600; color:var(--text-body);">🏛️ Mudra Loans</a>
+            <span style="background:#F1F5F9; color:#64748B; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px;">4</span>
+        </li>
+        
+        <li style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:13px;">
+            <a href="/category/msme-credit" style="font-weight:600; color:var(--text-body);">🏭 MSME Credit</a>
+            <span style="background:#F1F5F9; color:#64748B; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px;">4</span>
+        </li>
+        
+        <li style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:13px;">
+            <a href="/category/women-entrepreneurship" style="font-weight:600; color:var(--text-body);">👩‍💼 Women Entrepreneurship</a>
+            <span style="background:#F1F5F9; color:#64748B; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px;">4</span>
+        </li>
+        
+        <li style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:13px;">
+            <a href="/category/agriculture-dairy" style="font-weight:600; color:var(--text-body);">🌾 Agriculture & Dairy</a>
+            <span style="background:#F1F5F9; color:#64748B; font-size:11px; font-weight:700; padding:2px 8px; border-radius:10px;">4</span>
+        </li>
+        
+            </ul>
+        </div>
+
+        <!-- Trending Articles -->
+        <div class="widget-card">
+            <div class="widget-title">Trending Guides</div>
+            
+        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-light);">
+            <div style="font-size:10px; font-weight:800; color:var(--primary); text-transform:uppercase;">Mudra Loans</div>
+            <a href="/pmmy-mudra-loan-apply-online" style="font-size:13px; font-weight:700; color:var(--text-head); line-height:1.4; display:block; margin-top:2px;">
+                Pradhan Mantri Mudra Yojana (PMMY): Shishu, Kishor & Tarun Loan Approval Process
+            </a>
+        </div>
+        
+        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-light);">
+            <div style="font-size:10px; font-weight:800; color:var(--primary); text-transform:uppercase;">Mudra Loans</div>
+            <a href="/mudra-loan-without-collateral-rules" style="font-size:13px; font-weight:700; color:var(--text-head); line-height:1.4; display:block; margin-top:2px;">
+                Zero Collateral Guarantee under Mudra Loans: What to Do If the Bank Demands Security
+            </a>
+        </div>
+        
+        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-light);">
+            <div style="font-size:10px; font-weight:800; color:var(--primary); text-transform:uppercase;">Mudra Loans</div>
+            <a href="/top-reasons-mudra-loans-get-rejected" style="font-size:13px; font-weight:700; color:var(--text-head); line-height:1.4; display:block; margin-top:2px;">
+                Top 5 Reasons Mudra Loan Applications Get Rejected & How to Fix Them
+            </a>
+        </div>
+        
+        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-light);">
+            <div style="font-size:10px; font-weight:800; color:var(--primary); text-transform:uppercase;">Mudra Loans</div>
+            <a href="/mudra-card-usage-and-cash-credit" style="font-size:13px; font-weight:700; color:var(--text-head); line-height:1.4; display:block; margin-top:2px;">
+                What is a Mudra Card? How Small Business Owners Use It as a Working Capital Credit Line
+            </a>
+        </div>
+        
+        <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border-light);">
+            <div style="font-size:10px; font-weight:800; color:var(--primary); text-transform:uppercase;">MSME Credit</div>
+            <a href="/cgtmse-collateral-free-loan-scheme" style="font-size:13px; font-weight:700; color:var(--text-head); line-height:1.4; display:block; margin-top:2px;">
+                CGTMSE Scheme: How to Secure up to ₹5 Crore Collateral-Free Business Finance
+            </a>
+        </div>
+        
+        </div>
+    </aside>
+    
+            </div>
+        </main>
+        
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-grid">
+                <div>
+                    <div style="font-size:22px; font-weight:900; color:#FFF; margin-bottom:12px;">LOAN<span style="color:var(--primary);">KISEVA</span></div>
+                    <p style="font-size:13px; line-height:1.7; color:#94A3B8; margin-bottom:16px;">
+                        LoanKiSeva is an independent research publication committed to transparent consumer education, regulatory clarity, and reliable decision-making tools.
+                    </p>
+                    <div style="font-size:11px; color:#64748B;">
+                        Disclaimer: Editorial opinions are solely our own. We do not provide banking, underwriting, or credit services directly.
+                    </div>
+                </div>
+                <div>
+                    <h4 class="footer-h4">Core Categories</h4>
+                    <ul class="footer-list">
+                        <li><a href="/category/mudra-loans">Mudra Loans</a></li><li><a href="/category/msme-credit">MSME Credit</a></li><li><a href="/category/women-entrepreneurship">Women Entrepreneurship</a></li><li><a href="/category/agriculture-dairy">Agriculture & Dairy</a></li>
+                        <li><a href="/calculator">Interactive Calculator</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="footer-h4">Trust & Compliance</h4>
+                    <ul class="footer-list">
+                        <li><a href="/privacy-policy">Privacy Policy</a></li>
+                        <li><a href="/terms-and-conditions">Terms & Conditions</a></li>
+                        <li><a href="/disclaimer">Disclaimer & Disclosures</a></li>
+                        <li><a href="/about-us">About Editorial Team</a></li>
+                        <li><a href="/contact-us">Contact & Grievance</a></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        <div class="footer-btm">
+            <div class="container">
+                © 2026 LoanKiSeva. All Rights Reserved. Built for speed, high-eCPM monetization and user trust.
+            </div>
+        </div>
+    </footer>
 </body>
 </html>

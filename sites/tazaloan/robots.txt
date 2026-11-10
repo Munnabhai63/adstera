@@ -1,3 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /sw.js
+
 Sitemap: https://tazaloan.com/sitemap.xml
