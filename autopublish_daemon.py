@@ -274,17 +274,28 @@ def publish_next_post(specific_site=None):
     img_alt = dynamic_img["alt"]
 
     # PHASE 3: Claude-SEO Content Generation with Empirical Data Table & FAQs
-    content_html, faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
-    if not content_html:
+    raw_content_html, raw_faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+    if not raw_content_html:
         conn = sqlite3.connect(DB_PATH)
         conn.cursor().execute("UPDATE topic_queue SET status = 'pending' WHERE id = ?", (q_id,))
         conn.commit()
         conn.close()
         return False
 
+    # PHASE 4: AUTOMATED CONTENT QUALITY & UI FINISH GATE (agency-ui-finish-gate-reviewer + article-writing)
+    from content_quality_gate import ContentQualityFinishGate
+    sanitized_html = ContentQualityFinishGate.sanitize_raw_html(raw_content_html)
+    content_html, faqs, quality_meta = ContentQualityFinishGate.format_editorial_layout(
+        clean_html=sanitized_html,
+        title=seo_title,
+        domain_key=site_id,
+        primary_kw=primary_kw
+    )
+    print(f"[{site_id}] Content Quality Finish-Gate Score: {quality_meta['score']}/100 (Words: {quality_meta['word_count']}, FAQs: {quality_meta['faq_count']})")
+
     # Generate clean SEO slug from primary keyword
     slug = re.sub(r'[^a-z0-9]+', '-', primary_kw.lower()).strip('-')[:55]
-    words_count = len(re.findall(r'\b\w+\b', content_html))
+    words_count = quality_meta['word_count']
     canonical_url = f"{domain_url}/{slug}"
 
     # PHASE 4: Schema.org JSON-LD (NewsArticle + FAQPage + BreadcrumbList)

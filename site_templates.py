@@ -756,6 +756,239 @@ img {{ max-width: 100%; height: auto; display: block; }}
     text-align: center;
     border-top: 1px solid #1E293B;
 }}
+
+/* ==========================================================================
+   AGENCY UI FINISH-GATE: HIGH-END EDITORIAL ARTICLE DESIGN TOKENS
+   ========================================================================== */
+
+/* 1. Hero Feature Image */
+.post-feature-wrap {{
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    max-height: 480px;
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 24px 0 32px 0;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    background: #0F172A;
+    border: 1px solid rgba(226, 232, 240, 0.8);
+}}
+.post-feature-wrap img {{
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+    transition: transform 0.3s ease;
+}}
+.post-feature-wrap:hover img {{
+    transform: scale(1.02);
+}}
+
+/* 2. Executive Summary / Key Takeaways Box */
+.executive-summary-box {{
+    background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+    border: 1px solid #86EFAC;
+    border-left: 5px solid #16A34A;
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 24px 0 32px 0;
+    box-shadow: 0 4px 12px rgba(22, 163, 74, 0.06);
+}}
+.summary-badge {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: #16A34A;
+    color: #FFFFFF;
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    margin-bottom: 12px;
+}}
+.summary-text {{
+    font-size: 16px;
+    font-weight: 500;
+    line-height: 1.65;
+    color: #14532D;
+    margin: 0;
+}}
+
+/* 3. Section Headings (H2, H3) with Decorative Badges */
+.post-content h2 {{
+    font-size: 26px;
+    font-weight: 800;
+    color: #0F172A;
+    margin: 42px 0 18px 0;
+    padding-bottom: 12px;
+    border-bottom: 2px solid #E2E8F0;
+    position: relative;
+    letter-spacing: -0.3px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}}
+.post-content h2::after {{
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 56px;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary) 0%, #38BDF8 100%);
+    border-radius: 3px;
+}}
+.post-content h3 {{
+    font-size: 20px;
+    font-weight: 700;
+    color: #1E293B;
+    margin: 30px 0 12px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}}
+.post-content p {{
+    font-size: 17px;
+    line-height: 1.85;
+    color: #334155;
+    margin-bottom: 22px;
+}}
+.post-content p.lead {{
+    font-size: 19px;
+    font-weight: 500;
+    line-height: 1.75;
+    color: #1E293B;
+    padding: 6px 0;
+    border-left: 3px solid var(--primary);
+    padding-left: 16px;
+    margin-bottom: 26px;
+}}
+
+/* 4. Pro Comparison Data Table */
+.table-responsive {{
+    width: 100%;
+    overflow-x: auto;
+    margin: 32px 0;
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+    border: 1px solid #CBD5E1;
+}}
+.article-table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+    text-align: left;
+    background: #FFFFFF;
+}}
+.article-table thead th {{
+    background: #0F172A;
+    color: #F8FAFC;
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    padding: 14px 18px;
+    border: none;
+}}
+.article-table tbody td {{
+    padding: 14px 18px;
+    border-bottom: 1px solid #E2E8F0;
+    color: #334155;
+    font-weight: 500;
+}}
+.article-table tbody tr:nth-child(even) {{
+    background: #F8FAFC;
+}}
+.article-table tbody tr:hover {{
+    background: #F1F5F9;
+}}
+.table-badge {{
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+}}
+.badge-green {{ background: #DCFCE7; color: #15803D; }}
+.badge-blue {{ background: #E0F2FE; color: #0369A1; }}
+.badge-gold {{ background: #FEF9C3; color: #A16207; }}
+
+/* 5. Sleek Interactive FAQ Cards */
+.faq-section {{
+    margin: 46px 0 24px 0;
+    padding-top: 24px;
+    border-top: 1px solid #E2E8F0;
+}}
+.faq-card {{
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+    transition: all 0.2s ease;
+    border-left: 4px solid var(--primary);
+}}
+.faq-card:hover {{
+    border-color: var(--primary);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.07);
+}}
+.faq-question {{
+    font-size: 17px;
+    font-weight: 800;
+    color: #0F172A;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}}
+.faq-answer {{
+    font-size: 15px;
+    line-height: 1.7;
+    color: #475569;
+    margin: 0;
+}}
+
+/* 6. Step-by-Step Action Cards */
+.guide-steps {{
+    list-style: none;
+    padding: 0;
+    margin: 28px 0;
+    counter-reset: step-counter;
+}}
+.guide-steps li {{
+    counter-increment: step-counter;
+    position: relative;
+    padding: 16px 20px 16px 60px;
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    font-size: 16px;
+    line-height: 1.6;
+    color: #334155;
+}}
+.guide-steps li::before {{
+    content: counter(step-counter);
+    position: absolute;
+    left: 18px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
+    height: 28px;
+    background: var(--primary);
+    color: #FFFFFF;
+    font-weight: 800;
+    font-size: 14px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}}
 """
 
 def render_master_page(site_config, title, desc, canonical, main_body, active_nav="Home", ticker_title=None, ticker_url=None, schema_json_ld=""):
