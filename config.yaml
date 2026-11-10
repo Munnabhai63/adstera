@@ -352,3 +352,20 @@ anomaly_detection:
   degraded_max_pct: 35.0
   min_dwell_s: 22.0
   auto_resume: true
+
+email_service:
+  # Multi-Email Provisioning with Sonjj (SmailPro) API & Credit Guard
+  enabled: true
+  provider: 'sonjj'
+  daily_limit: 10          # Maximum 10 real API calls per day to strictly protect user credits
+  max_uses_per_email: 3    # Re-use active cached emails up to 3 times
+  expiry_minutes: 1440     # 24-hour temporary inbox lifetime
+  test_mode: false
+
+freellm:
+  # FreeLLMAPI Aggregator Client (7.4B tokens/mo across 34 providers)
+  enabled: true
+  url: 'http://localhost:3001'
+  model: 'auto'
+  timeout: 20.0
+

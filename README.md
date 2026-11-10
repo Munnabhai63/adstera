@@ -218,6 +218,9 @@ adstera/
 ├── persist.py
 ├── cmp.py
 ├── db.py
+├── email_client.py      # Sonjj disposable email & OTP extraction client with credit guards
+├── freellmapi_client.py # FreeLLMAPI AI content & high-intent persona inquiry client
+├── freellmapi_daemon.py # Supervisor watchdog for local FreeLLMAPI service
 ├── tests/
 │   ├── audit.py
 │   ├── smoke.py

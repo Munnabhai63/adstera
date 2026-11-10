@@ -148,6 +148,19 @@ CREATE TABLE IF NOT EXISTS published_posts (
     published_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes'))
 );
 
+CREATE TABLE IF NOT EXISTS email_cache (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    email           TEXT UNIQUE NOT NULL,
+    domain          TEXT NOT NULL,
+    provider        TEXT NOT NULL DEFAULT 'sonjj',
+    created_at      TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes')),
+    expires_at      TEXT NOT NULL,
+    last_used_at    TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes')),
+    use_count       INTEGER NOT NULL DEFAULT 1,
+    is_active       INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_email_cache_active ON email_cache(is_active, expires_at);
+
 """
 
 
