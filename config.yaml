@@ -265,23 +265,23 @@ geo_routing:
   - NL
   - CH
   - SE
-  - false
+  - 'NO'
   - DK
   - NZ
   - SG
-  tier1_targets:
+  tier1_targets: &id001
   - https://loanraaj.com
+  - https://rechargetak.com
   - https://tazaloan.com
   - https://karzseva.com
-  tier2_targets:
-  - https://tazarokda.com
-  - https://loankiseva.com
-  - https://tazabhav.com
-  tier3_targets:
-  - https://rechargetak.com
   - https://rechargepur.com
   - https://rechargekar.com
+  - https://tazarokda.com
+  - https://tazabhav.com
+  - https://loankiseva.com
   - https://loantau.com
+  tier2_targets: *id001
+  tier3_targets: *id001
 ecpm_feedback:
   enabled: true
   top_earner_share: 0.6
