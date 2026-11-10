@@ -527,6 +527,14 @@ async def run_session(
 
         page = await context.new_page()
 
+        # Real-time Adsterra network handshake tracking
+        try:
+            import adsterra_funnel
+            adsterra_funnel.attach_adsterra_listener(page, domain=target_domain, proxy_id=proxy.proxy_id)
+            context.on("page", lambda p: adsterra_funnel.attach_adsterra_listener(p, domain=target_domain, proxy_id=proxy.proxy_id))
+        except Exception as e_af:
+            logger.debug("Adsterra tracker attach notice: %s", e_af)
+
         # Resilient 3-tier navigation with error recovery
         nav_kwargs: dict = {"wait_until": "domcontentloaded", "timeout": 25000}
         if referrer:

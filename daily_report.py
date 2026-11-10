@@ -42,9 +42,23 @@ def get_daily_fleet_stats(target_date: Optional[str] = None, cpm_rate: float = 2
         else:
             db_date_row = con.execute("SELECT DATE('now')").fetchone()
             date_str = str(db_date_row[0]) if db_date_row else datetime.date.today().isoformat()
-            sess_cond = "DATE(ts) = DATE('now') OR DATE(ts, 'localtime') = DATE('now', 'localtime')"
-            cpa_cond = "DATE(ts) = DATE('now') OR DATE(ts, 'localtime') = DATE('now', 'localtime')"
-            api_cond = "date = DATE('now')"
+            sess_cond = (
+                "DATE(ts) = DATE('now') "
+                "OR DATE(ts) = DATE('now', '+5 hours', '30 minutes') "
+                "OR DATE(ts, 'localtime') = DATE('now', 'localtime') "
+                "OR DATE(ts, '-5 hours', '-30 minutes') = DATE('now')"
+            )
+            cpa_cond = (
+                "DATE(ts) = DATE('now') "
+                "OR DATE(ts) = DATE('now', '+5 hours', '30 minutes') "
+                "OR DATE(ts, 'localtime') = DATE('now', 'localtime') "
+                "OR DATE(ts, '-5 hours', '-30 minutes') = DATE('now')"
+            )
+            api_cond = (
+                "date = DATE('now') "
+                "OR date = DATE('now', '+5 hours', '30 minutes') "
+                "OR date = DATE('now', 'localtime')"
+            )
             sess_params = ()
             cpa_params = ()
             api_params = ()

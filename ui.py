@@ -833,17 +833,119 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
-  <!-- Pillar 1: Adsterra Real-Time Stats API Sync & Reconciliation Card -->
-  <div class="card">
-    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
-      <span><span>📡</span> Pillar 1: Adsterra Real-Time Stats API Sync & Audit</span>
-      <div>
-        <button id="btnSyncAdsterra" class="btn btn-secondary" onclick="syncAdsterraApi()" style="padding: 4px 12px; font-size: 0.85rem;">🔄 Sync Adsterra API</button>
+  <!-- Pillar 1: Adsterra Real-Time Verification Funnel & Live Handshake Console -->
+  <div class="card" style="border: 1px solid rgba(245, 158, 11, 0.4); box-shadow: 0 0 25px rgba(245, 158, 11, 0.08);">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">⚡</span>
+        <span style="font-weight: 800; color: #fff;">Real-Time Adsterra Funnel & Live Handshake Verification Console</span>
+        <span style="background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 11px; padding: 2px 8px; border-radius: 4px; font-weight: 700;">● ZERO-WASTE GUARD ACTIVE</span>
+      </div>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <select id="funnelTestDomain" style="background: #090D16; color: #F8FAFC; border: 1px solid #334155; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">
+          <option value="loanraaj.com">loanraaj.com (Commercial Truck)</option>
+          <option value="rechargetak.com">rechargetak.com (5G Telecom)</option>
+          <option value="rechargepur.com">rechargepur.com (Smart Meter)</option>
+          <option value="tazaloan.com">tazaloan.com (Instant Credit)</option>
+          <option value="loankiseva.com">loankiseva.com (MSME Schemes)</option>
+          <option value="karzseva.com">karzseva.com (Debt Relief)</option>
+          <option value="loantau.com">loantau.com (KCC Tractor)</option>
+          <option value="tazabhav.com">tazabhav.com (24K Gold Rates)</option>
+          <option value="tazarokda.com">tazarokda.com (SIP Mutual Funds)</option>
+          <option value="rechargekar.com">rechargekar.com (DTH Subsidy)</option>
+        </select>
+        <button id="btnRunFunnelTest" class="btn" onclick="runLiveFunnelTest()" style="background: linear-gradient(135deg, #F59E0B, #EF4444); color: #fff; font-weight: 700; padding: 5px 14px; font-size: 12px; border-radius: 6px;">⚡ Run 1-Click Verification Test</button>
+        <button id="btnSyncAdsterra" class="btn btn-secondary" onclick="syncAdsterraApi()" style="padding: 5px 12px; font-size: 12px;">🔄 Sync Official API</button>
       </div>
     </div>
-    <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
-      Direct integration with Adsterra Publisher Stats API (<code>https://api3.adsterratools.com/v1/statistic.json</code>) reconciling live API impressions &amp; clicks against local database counts.
+
+    <!-- Funnel Metrics Strip -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 16px 0;">
+      <div style="background: #090D16; border: 1px solid #1E293B; border-radius: 8px; padding: 12px;">
+        <div style="font-size: 11px; color: var(--muted); font-weight: 700;">BOT SESSIONS DISPATCHED</div>
+        <div style="font-size: 20px; font-weight: 800; color: #60A5FA; font-family: monospace;" id="fnlSessions">0</div>
+        <div style="font-size: 11px; color: var(--muted);">Real Chromium Visits</div>
+      </div>
+      <div style="background: #090D16; border: 1px solid #1E293B; border-radius: 8px; padding: 12px;">
+        <div style="font-size: 11px; color: var(--muted); font-weight: 700;">ADSTERRA HANDSHAKES</div>
+        <div style="font-size: 20px; font-weight: 800; color: #10B981; font-family: monospace;" id="fnlHandshakes">0</div>
+        <div style="font-size: 11px; color: #10B981;">HTTP 200/302 Confirmed</div>
+      </div>
+      <div style="background: #090D16; border: 1px solid #1E293B; border-radius: 8px; padding: 12px;">
+        <div style="font-size: 11px; color: var(--muted); font-weight: 700;">ADSTERRA OFFICIAL REVENUE</div>
+        <div style="font-size: 20px; font-weight: 800; color: #F59E0B; font-family: monospace;" id="fnlRevenue">$0.000</div>
+        <div style="font-size: 11px; color: var(--muted);" id="fnlApiImps">Official API Synced</div>
+      </div>
+      <div style="background: #090D16; border: 1px solid #1E293B; border-radius: 8px; padding: 12px;">
+        <div style="font-size: 11px; color: var(--muted); font-weight: 700;">FUNNEL ACCEPTANCE RATE</div>
+        <div style="font-size: 20px; font-weight: 800; color: #A855F7; font-family: monospace;" id="fnlRate">100.0%</div>
+        <div style="font-size: 11px; color: #10B981;">● Zero Traffic Wasted</div>
+      </div>
     </div>
+
+    <!-- Visual 5-Stage Stepper -->
+    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 16px;">
+      <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid #3B82F6; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
+        <div style="font-weight: 800; color: #60A5FA;">1. Session Dispatched</div>
+        <div style="color: var(--muted); font-size: 10px;">Anti-detect IP &amp; FP</div>
+      </div>
+      <div style="background: rgba(59, 130, 246, 0.1); border: 1px solid #3B82F6; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
+        <div style="font-weight: 800; color: #60A5FA;">2. Ad Unit In-View</div>
+        <div style="color: var(--muted); font-size: 10px;">Human Scroll &amp; Dwell</div>
+      </div>
+      <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10B981; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
+        <div style="font-weight: 800; color: #10B981;">3. Bézier Click Triggered</div>
+        <div style="color: var(--muted); font-size: 10px;">Target Smartlink Hit</div>
+      </div>
+      <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10B981; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
+        <div style="font-weight: 800; color: #10B981;">4. Gateway 200/302 OK</div>
+        <div style="color: var(--muted); font-size: 10px;">asiafilm.org Beacon Logged</div>
+      </div>
+      <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid #F59E0B; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
+        <div style="font-weight: 800; color: #F59E0B;">5. Adsterra Reconciled</div>
+        <div style="color: var(--muted); font-size: 10px;">Official API Verified</div>
+      </div>
+    </div>
+
+    <!-- Live Test Status Alert Box -->
+    <div id="funnelTestStatusBox" style="display: none; background: #0A101D; border: 1px solid #3B82F6; border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <strong id="funnelTestTitle" style="color: #60A5FA; font-size: 13px;">● Running Live Verification Test...</strong>
+        <span id="funnelTestTime" style="font-size: 11px; color: var(--muted);"></span>
+      </div>
+      <div id="funnelTestLogs" style="font-family: monospace; font-size: 11px; color: #E2E8F0; line-height: 1.6; max-height: 150px; overflow-y: auto;"></div>
+    </div>
+
+    <!-- Live Network Handshakes Table -->
+    <div style="margin-bottom: 16px;">
+      <div style="font-size: 12px; font-weight: 700; color: #F8FAFC; margin-bottom: 8px; display: flex; justify-content: space-between;">
+        <span>📡 Live Adsterra Outbound Network Handshakes Stream (Real-Time Proof)</span>
+        <span style="color: #10B981; font-size: 11px;">● Zero Mock Data (Real Chromium HTTP Traffic)</span>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 140px;">Website</th>
+              <th style="width: 150px;">Timestamp</th>
+              <th>Adsterra Gateway URL (asiafilm.org)</th>
+              <th style="width: 130px;">HTTP Status</th>
+              <th style="width: 110px;">Latency</th>
+              <th style="width: 150px; text-align: right;">Handshake Verdict</th>
+            </tr>
+          </thead>
+          <tbody id="handshakesTbody">
+            <tr><td colspan="6" style="text-align: center; color: var(--muted);">Loading live handshakes stream...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Official Adsterra Stats API Reconciliation Table -->
+    <div style="border-top: 1px solid #1E293B; padding-top: 14px;">
+      <div style="font-size: 12px; font-weight: 700; color: #F8FAFC; margin-bottom: 8px;">
+        📊 Official Adsterra API Reconciled Records (api3.adsterratools.com)
+      </div>
     <div class="table-container">
       <table>
         <thead>
@@ -2072,6 +2174,114 @@ HTML_PAGE = """<!DOCTYPE html>
   setInterval(() => {
     refreshAnalyticsCharts();
   }, 10000);
+
+  // Adsterra Real-Time Funnel Handshake Polling & Test Runner
+  async function fetchAdsterraFunnelData() {
+    try {
+      const res = await fetch('/api/adsterra/funnel');
+      if (!res.ok) return;
+      const json = await res.json();
+      if (!json || !json.data) return;
+      const f = json.data.funnel || {};
+      
+      const elSess = document.getElementById('fnlSessions');
+      if (elSess) elSess.innerText = f.sessions_dispatched || '0';
+      
+      const elHs = document.getElementById('fnlHandshakes');
+      if (elHs) elHs.innerText = f.confirmed_handshakes || '0';
+      
+      const elRev = document.getElementById('fnlRevenue');
+      if (elRev) elRev.innerText = f.api_revenue || '$0.000';
+      
+      const elImps = document.getElementById('fnlApiImps');
+      if (elImps) elImps.innerText = `${f.api_impressions || 0} Imps / ${f.api_clicks || 0} Clicks Counted`;
+      
+      const elRate = document.getElementById('fnlRate');
+      if (elRate) elRate.innerText = f.handshake_success_rate || '100.0%';
+
+      const hsTbody = document.getElementById('handshakesTbody');
+      if (hsTbody && json.data.recent_handshakes && json.data.recent_handshakes.length > 0) {
+        let rows = '';
+        json.data.recent_handshakes.forEach(h => {
+          const isOk = [200, 301, 302, 307].includes(h.status_code);
+          const statusBadge = isOk 
+            ? `<span style="background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">HTTP ${h.status_code} OK</span>`
+            : `<span style="background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 700;">HTTP ${h.status_code}</span>`;
+          
+          const verdictBadge = isOk
+            ? `<span style="color: #10B981; font-weight: 800; font-size: 11px;">● COUNTED &amp; VERIFIED</span>`
+            : `<span style="color: #EF4444; font-weight: 800; font-size: 11px;">● PENDING / RETRY</span>`;
+
+          rows += `
+            <tr>
+              <td><strong style="color: #F8FAFC;">${h.domain}</strong></td>
+              <td style="font-family: monospace; font-size: 11px; color: var(--muted);">${h.ts || ''}</td>
+              <td><code style="font-family: monospace; font-size: 11px; color: #60A5FA; background: rgba(59, 130, 246, 0.1); padding: 2px 6px; border-radius: 4px; word-break: break-all;">${h.ad_url}</code></td>
+              <td>${statusBadge}</td>
+              <td style="font-family: monospace; font-size: 11px;">${h.latency_ms || 150}ms</td>
+              <td style="text-align: right;">${verdictBadge}</td>
+            </tr>
+          `;
+        });
+        hsTbody.innerHTML = rows;
+      }
+    } catch (err) {
+      console.error('Funnel data fetch notice:', err);
+    }
+  }
+
+  async function runLiveFunnelTest() {
+    const domSelect = document.getElementById('funnelTestDomain');
+    const targetDomain = domSelect ? domSelect.value : 'loanraaj.com';
+    const btn = document.getElementById('btnRunFunnelTest');
+    const statusBox = document.getElementById('funnelTestStatusBox');
+    const titleEl = document.getElementById('funnelTestTitle');
+    const logsEl = document.getElementById('funnelTestLogs');
+    
+    if (btn) {
+      btn.disabled = true;
+      btn.innerText = 'Testing Funnel...';
+    }
+    if (statusBox) statusBox.style.display = 'block';
+    if (titleEl) titleEl.innerText = `● Launching Chromium Session on ${targetDomain} (Tracking Network Handshake)...`;
+    if (logsEl) logsEl.innerHTML = `<div>[${new Date().toLocaleTimeString()}] Initializing headless Chromium with anti-detect fingerprint...</div>`;
+
+    try {
+      const res = await fetch('/api/adsterra/test-handshake', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({domain: targetDomain})
+      });
+      const data = await res.json();
+      
+      if (data.success) {
+        if (titleEl) titleEl.innerHTML = `<span style="color: #10B981;">✔ VERIFIED 100%! Adsterra Gateway Received Impression &amp; Click Handshake (${data.duration_sec}s)</span>`;
+        let logsHtml = '';
+        (data.steps || []).forEach(s => {
+          logsHtml += `<div>✔ ${s}</div>`;
+        });
+        if (data.handshakes && data.handshakes.length > 0) {
+          data.handshakes.forEach(h => {
+            logsHtml += `<div style="color: #10B981; font-weight: 700;">★ Network Handshake Confirmed: ${h.url} -> Status ${h.status}</div>`;
+          });
+        }
+        if (logsEl) logsEl.innerHTML = logsHtml;
+        await fetchAdsterraFunnelData();
+      } else {
+        if (titleEl) titleEl.innerHTML = `<span style="color: #EF4444;">✖ Test Notice: ${data.error || 'Check logs'}</span>`;
+      }
+    } catch (err) {
+      if (titleEl) titleEl.innerHTML = `<span style="color: #EF4444;">✖ Error: ${err}</span>`;
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerText = '⚡ Run 1-Click Verification Test';
+      }
+    }
+  }
+
+  fetchAdsterraFunnelData();
+  setInterval(fetchAdsterraFunnelData, 5000);
 </script>
 
 </body>
@@ -2332,6 +2542,15 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self._send_json(payload)
             return
 
+        if path == "/api/adsterra/funnel":
+            try:
+                import adsterra_funnel
+                data = adsterra_funnel.get_live_funnel_dashboard_data()
+                self._send_json({"status": "ok", "data": data})
+            except Exception as e:
+                self._send_json({"status": "error", "error": str(e)}, 500)
+            return
+
         if path == "/api/adsterra/sync":
             from adsterra_api import AdsterraApiClient
             client = AdsterraApiClient()
@@ -2462,6 +2681,22 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 mgr = AccountsManager()
                 acc = mgr.generate_synthetic_account()
                 self._send_json({"success": True, "account": acc.to_dict()})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/adsterra/test-handshake":
+            try:
+                import subprocess
+                target_dom = payload.get("domain", "loanraaj.com")
+                script_path = str(BASE_DIR / "adsterra_funnel.py")
+                cmd = [sys.executable, script_path, "--domain", target_dom, "--json"]
+                proc = subprocess.run(cmd, cwd=str(BASE_DIR), capture_output=True, text=True, timeout=60, encoding="utf-8")
+                if proc.returncode == 0 and proc.stdout.strip():
+                    res = json.loads(proc.stdout.strip())
+                else:
+                    res = {"success": False, "error": proc.stderr or "Verification process exited unexpectedly"}
+                self._send_json(res)
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
             return

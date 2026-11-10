@@ -90,7 +90,8 @@ def test_end_to_end_competitor_analysis_and_db_logging():
 def test_cli_execution_with_fixture():
     """Verify CLI tool executes cleanly against fixture with returncode 0."""
     import subprocess
-    cmd = ["py", "-3.12", "competitor_intel.py", "--fixture", str(FIXTURE_PATH)]
+    import sys
+    cmd = [sys.executable, "competitor_intel.py", "--fixture", str(FIXTURE_PATH)]
     res = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8")
     assert res.returncode == 0
     assert "COMPETITOR INTELLIGENCE AUDIT REPORT" in res.stdout

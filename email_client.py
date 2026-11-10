@@ -142,19 +142,17 @@ class SonjjEmailClient:
         """Store newly provisioned email in local SQLite cache."""
         try:
             with db._conn() as con:
-                expires_at = (
-                    datetime.datetime.now() + datetime.timedelta(minutes=expiry_minutes)
-                ).strftime("%Y-%m-%d %H:%M:%S")
+                modifier = f"+{int(expiry_minutes)} minutes"
                 con.execute(
                     """
                     INSERT INTO email_cache (email, domain, provider, expires_at, use_count, is_active)
-                    VALUES (?, ?, 'sonjj', ?, 0, 1)
+                    VALUES (?, ?, 'sonjj', datetime('now', '+5 hours', '30 minutes', ?), 0, 1)
                     ON CONFLICT(email) DO UPDATE SET 
                         use_count = 0,
                         expires_at = excluded.expires_at,
                         is_active = 1
                     """,
-                    (email, domain, expires_at),
+                    (email, domain, modifier),
                 )
         except Exception as e:
             logger.warning("Failed to cache email %s: %s", email, e)
@@ -198,8 +196,8 @@ class SonjjEmailClient:
         """
         rng = rng or random.Random()
 
-        # Step 0: Immediate test mode / disabled guard (guarantees zero real calls or side effects)
-        if self.test_mode or not self.enabled or not self.api_key:
+        # Step 0: Test mode guard (guarantees synthetic generation for offline unit tests)
+        if self.test_mode:
             from accounts_manager import AccountsManager
             acc_mgr = AccountsManager()
             acc = acc_mgr.generate_synthetic_account()
@@ -212,7 +210,7 @@ class SonjjEmailClient:
                 "name": acc.name,
             }
 
-        # Step 1: Reuse existing active email if possible
+        # Step 1: Reuse existing active email if possible (0 API calls, 0 credits spent)
         if not force_new:
             cached = self._get_active_cached_email()
             if cached:
@@ -224,6 +222,20 @@ class SonjjEmailClient:
                     "source": "cache",
                     "is_real": True,
                 }
+
+        # Step 2: Disabled guard / missing API key (guarantees zero real calls when unconfigured)
+        if not self.enabled or not self.api_key:
+            from accounts_manager import AccountsManager
+            acc_mgr = AccountsManager()
+            acc = acc_mgr.generate_synthetic_account()
+            return {
+                "email": acc.email,
+                "domain": acc.email.split("@")[-1],
+                "source": "synthetic",
+                "is_real": False,
+                "persona": acc.persona,
+                "name": acc.name,
+            }
 
         # Step 2: Check Daily Credit Cap Guard
         today_creations = self._count_creations_today()

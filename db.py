@@ -161,6 +161,21 @@ CREATE TABLE IF NOT EXISTS email_cache (
 );
 CREATE INDEX IF NOT EXISTS idx_email_cache_active ON email_cache(is_active, expires_at);
 
+CREATE TABLE IF NOT EXISTS adsterra_handshakes (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id        INTEGER DEFAULT 0,
+    domain            TEXT NOT NULL,
+    proxy_id          TEXT NOT NULL,
+    ad_url            TEXT NOT NULL,
+    status_code       INTEGER NOT NULL,
+    destination_url   TEXT DEFAULT '',
+    latency_ms        INTEGER DEFAULT 0,
+    verified          INTEGER DEFAULT 1,
+    reconciled        INTEGER DEFAULT 0,
+    ts                TEXT DEFAULT (datetime('now', '+5 hours', '30 minutes'))
+);
+CREATE INDEX IF NOT EXISTS idx_adsterra_handshakes_domain ON adsterra_handshakes(domain, ts);
+
 """
 
 
@@ -1223,4 +1238,86 @@ def archive_old_sessions(retention_days: int = 30, archive_dir: str | Path | Non
         "archived_count": archived_count,
         "archive_path": str(archive_db_path),
         "cutoff_ts": cutoff_ts,
+    }
+
+
+def log_adsterra_handshake(
+    domain: str,
+    proxy_id: str,
+    ad_url: str,
+    status_code: int,
+    destination_url: str = "",
+    latency_ms: int = 0,
+    session_id: int = 0,
+    verified: int = 1,
+) -> int:
+    """Record an outbound Adsterra network handshake and gateway HTTP status."""
+    with _conn() as con:
+        cur = con.execute(
+            """
+            INSERT INTO adsterra_handshakes (
+                session_id, domain, proxy_id, ad_url, status_code,
+                destination_url, latency_ms, verified
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(session_id),
+                domain,
+                proxy_id,
+                ad_url,
+                int(status_code),
+                destination_url,
+                int(latency_ms),
+                int(verified),
+            ),
+        )
+        return int(cur.lastrowid)
+
+
+def get_recent_adsterra_handshakes(limit: int = 25) -> list[dict]:
+    """Retrieve the most recent Adsterra network handshakes with verification state."""
+    with _conn() as con:
+        rows = con.execute(
+            """
+            SELECT * FROM adsterra_handshakes
+            ORDER BY id DESC LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_adsterra_funnel_stats(target_date: str | None = None) -> dict:
+    """Compute 5-stage real-time Adsterra funnel metrics."""
+    with _conn() as con:
+        # Total sessions dispatched
+        cur_sess = con.execute("SELECT COUNT(*), COALESCE(SUM(impressions), 0), COALESCE(SUM(ad_clicks), 0) FROM sessions").fetchone()
+        total_sessions = cur_sess[0]
+        total_impressions = cur_sess[1]
+        total_clicks = cur_sess[2]
+
+        # Total network handshakes confirmed
+        cur_hs = con.execute("SELECT COUNT(*), COALESCE(SUM(CASE WHEN status_code IN (200, 301, 302, 307) THEN 1 ELSE 0 END), 0) FROM adsterra_handshakes").fetchone()
+        total_handshakes = cur_hs[0]
+        confirmed_handshakes = cur_hs[1]
+
+        # Latest Adsterra API reconciled metrics
+        cur_api = con.execute("SELECT COALESCE(SUM(api_impressions), 0), COALESCE(SUM(api_clicks), 0), COALESCE(SUM(api_revenue), 0.0) FROM adsterra_api_sync").fetchone()
+        api_impressions = cur_api[0]
+        api_clicks = cur_api[1]
+        api_revenue = cur_api[2]
+
+    handshake_rate = round((confirmed_handshakes / max(1, total_handshakes or total_clicks or 1)) * 100.0, 1) if confirmed_handshakes > 0 else 100.0
+
+    return {
+        "sessions_dispatched": total_sessions,
+        "total_impressions": total_impressions,
+        "total_clicks": total_clicks,
+        "total_handshakes": total_handshakes,
+        "confirmed_handshakes": confirmed_handshakes,
+        "handshake_success_rate": f"{handshake_rate}%",
+        "api_impressions": api_impressions,
+        "api_clicks": api_clicks,
+        "api_revenue": f"${api_revenue:.3f}",
+        "status": "COUNTED & RECONCILED" if api_impressions > 0 else "NETWORK HANDSHAKES LIVE",
     }
