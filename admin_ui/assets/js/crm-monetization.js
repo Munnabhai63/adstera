@@ -449,6 +449,149 @@
     });
   }
 
+  function renderLiveAudit(payload) {
+    if (!payload || payload.status !== "ok") return;
+    const metaEl = document.getElementById("u4ZeroWasteMeta");
+    const sum = payload.summary || {};
+    if (metaEl) {
+      metaEl.textContent = `Window: ${payload.start_date || ""} to ${payload.finish_date || ""} | Official Imps: ${sum.api_total_impressions || 0} | Clicks: ${sum.api_total_clicks || 0} | Avg CPM: $${Number(sum.api_avg_cpm || 0).toFixed(3)} | Server Sync: ${payload.db_last_update_time || "Live"}`;
+    }
+
+    const zwBody = document.getElementById("u4ZeroWasteBody");
+    if (zwBody) {
+      clearChildren(zwBody);
+      const domList = Array.isArray(payload.by_domain) ? payload.by_domain : [];
+      if (domList.length === 0) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 7;
+        td.className = "text-center text-body-secondary py-4";
+        td.textContent = "No domain audit records returned.";
+        tr.appendChild(td);
+        zwBody.appendChild(tr);
+      } else {
+        domList.forEach((d) => {
+          const tr = document.createElement("tr");
+
+          const thDom = document.createElement("th");
+          thDom.scope = "row";
+          const domStrong = document.createElement("div");
+          domStrong.className = "fw-semibold";
+          domStrong.textContent = String(d.domain || "");
+          const domSub = document.createElement("small");
+          domSub.className = "text-body-secondary font-monospace";
+          domSub.textContent = d.adsterra_domain_id ? `ID #${d.adsterra_domain_id}` : "";
+          thDom.appendChild(domStrong);
+          thDom.appendChild(domSub);
+          tr.appendChild(thDom);
+
+          const tdBeacons = document.createElement("td");
+          tdBeacons.className = "tabular-nums small";
+          tdBeacons.textContent = `${d.verified_beacons || 0} (${d.impression_beacons || 0} imp / ${d.click_beacons || 0} clk)`;
+          tr.appendChild(tdBeacons);
+
+          const tdApiImps = document.createElement("td");
+          tdApiImps.className = "tabular-nums fw-bold";
+          tdApiImps.textContent = String(d.api_impressions ?? 0);
+          tr.appendChild(tdApiImps);
+
+          const tdClicksCtr = document.createElement("td");
+          tdClicksCtr.className = "tabular-nums";
+          tdClicksCtr.textContent = `${d.api_clicks ?? 0} (${Number(d.api_ctr || 0).toFixed(2)}%)`;
+          tr.appendChild(tdClicksCtr);
+
+          const tdCpmRev = document.createElement("td");
+          tdCpmRev.className = "tabular-nums";
+          tdCpmRev.textContent = `$${Number(d.api_cpm || 0).toFixed(3)} / $${Number(d.api_revenue || 0).toFixed(3)}`;
+          tr.appendChild(tdCpmRev);
+
+          const tdRatio = document.createElement("td");
+          const rBadge = document.createElement("span");
+          const ratio = Number(d.count_ratio_pct || 0);
+          rBadge.className = ratio >= 85 || d.api_impressions > 0 ? "badge bg-label-success tabular-nums" : "badge bg-label-info tabular-nums";
+          rBadge.textContent = d.api_impressions > 0 ? `${ratio.toFixed(0)}% Counted` : "Queued";
+          tdRatio.appendChild(rBadge);
+          tr.appendChild(tdRatio);
+
+          const tdDiag = document.createElement("td");
+          const diagText = document.createElement("div");
+          diagText.className = "small fw-medium";
+          diagText.textContent = String(d.diagnosis || "");
+          const actText = document.createElement("div");
+          actText.className = "small text-success";
+          actText.textContent = String(d.auto_action || "");
+          tdDiag.appendChild(diagText);
+          tdDiag.appendChild(actText);
+          tr.appendChild(tdDiag);
+
+          zwBody.appendChild(tr);
+        });
+      }
+    }
+
+    const plBody = document.getElementById("u4PlacementsBody");
+    if (plBody) {
+      clearChildren(plBody);
+      const plList = Array.isArray(payload.by_placement) ? payload.by_placement : [];
+      if (plList.length === 0) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 8;
+        td.className = "text-center text-body-secondary py-4";
+        td.textContent = "No placement-level impressions recorded in this window.";
+        tr.appendChild(td);
+        plBody.appendChild(tr);
+      } else {
+        plList.forEach((p) => {
+          const tr = document.createElement("tr");
+
+          const thPid = document.createElement("th");
+          thPid.scope = "row";
+          thPid.className = "font-monospace small tabular-nums";
+          thPid.textContent = `#${p.placement_id || ""}`;
+          tr.appendChild(thPid);
+
+          const tdLabel = document.createElement("td");
+          tdLabel.className = "fw-semibold";
+          tdLabel.textContent = String(p.label || "");
+          tr.appendChild(tdLabel);
+
+          const tdImps = document.createElement("td");
+          tdImps.className = "tabular-nums";
+          tdImps.textContent = String(p.impressions ?? 0);
+          tr.appendChild(tdImps);
+
+          const tdClicks = document.createElement("td");
+          tdClicks.className = "tabular-nums";
+          tdClicks.textContent = String(p.clicks ?? 0);
+          tr.appendChild(tdClicks);
+
+          const tdCtr = document.createElement("td");
+          tdCtr.className = "tabular-nums";
+          tdCtr.textContent = `${Number(p.ctr || 0).toFixed(2)}%`;
+          tr.appendChild(tdCtr);
+
+          const tdCpm = document.createElement("td");
+          tdCpm.className = "tabular-nums fw-semibold";
+          tdCpm.textContent = `$${Number(p.cpm || 0).toFixed(3)}`;
+          tr.appendChild(tdCpm);
+
+          const tdRev = document.createElement("td");
+          tdRev.className = "tabular-nums text-success";
+          tdRev.textContent = `$${Number(p.revenue || 0).toFixed(3)}`;
+          tr.appendChild(tdRev);
+
+          const tdRole = document.createElement("td");
+          tdRole.className = "small text-body-secondary";
+          tdRole.textContent = String(p.role_note || "");
+          tr.appendChild(tdRole);
+
+          plBody.appendChild(tr);
+        });
+      }
+    }
+  }
+
   function renderLeads(payload) {
     const summary = payload?.summary || {};
     const leads = Array.isArray(payload?.leads) ? payload.leads : [];
@@ -699,7 +842,27 @@
     });
   }
 
+  async function refreshLiveAudit(showToast = false) {
+    const btn = document.getElementById("u4BtnRunLiveAudit");
+    if (showToast) setActionButtonBusy(btn, true, "Auditing...");
+    try {
+      const resp = await fetch("/api/adsterra/live-audit", { cache: "no-store" });
+      if (resp.ok) {
+        const data = await resp.json();
+        renderLiveAudit(data);
+        if (showToast) {
+          toast(`3-Layer Zero-Waste Audit synced (${data?.summary?.api_total_impressions || 0} official imps)`, "success");
+        }
+      }
+    } catch (err) {
+      if (showToast) toast(`Live audit error: ${err.message || err}`, "error");
+    } finally {
+      if (showToast) setActionButtonBusy(btn, false);
+    }
+  }
+
   // --- Data Refresh ---
+  let initialAuditDone = false;
   async function refreshMonetization() {
     if (isRefreshing) return;
     isRefreshing = true;
@@ -739,6 +902,10 @@
       if (rAuto.status === "fulfilled" && rAuto.value.ok) {
         const aData = await rAuto.value.json();
         renderSmartlinks(aData.adsterra_matrix);
+      }
+      if (!initialAuditDone) {
+        initialAuditDone = true;
+        refreshLiveAudit(false);
       }
     } catch (err) {
       toast(`Monetization telemetry error: ${err.message || err}`, "error");
@@ -813,6 +980,7 @@
       const data = await resp.json().catch(() => ({}));
       if (resp.ok && data.status === "ok") {
         renderAdsterraSync(data.records);
+        refreshLiveAudit(false);
         toast(`Adsterra API synced: ${data.synced_count || 0} records reconciled`, "success");
       } else {
         toast(data.error || "Adsterra API sync failed", "error");
@@ -1058,6 +1226,7 @@
 
     document.getElementById("u4BtnRunFunnel")?.addEventListener("click", runLiveHandshake);
     document.getElementById("u4BtnSyncApi")?.addEventListener("click", syncOfficialAdsterraApi);
+    document.getElementById("u4BtnRunLiveAudit")?.addEventListener("click", () => refreshLiveAudit(true));
     document.getElementById("u4BtnSyncPlacements")?.addEventListener("click", syncBannerPlacements);
     document.getElementById("u4BtnInjectLocal")?.addEventListener("click", () => deployBannerSlots(false));
     document.getElementById("u4BtnDeployCf")?.addEventListener("click", () => deployBannerSlots(true));

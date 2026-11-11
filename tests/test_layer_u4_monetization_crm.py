@@ -17,6 +17,8 @@ def test_monetization_view_structure_and_a11y_contracts() -> None:
     assert 'id="u4BannerForm"' in html
     assert 'id="u4BvSnippet"' in html
     assert 'aria-describedby="u4BvSnippetErr"' in html
+    assert 'id="u4ZeroWasteTable"' in html
+    assert 'id="u4PlacementsTable"' in html
 
     # Accessible Toolbar & Responsive Table Regions per modern-web-guidance
     assert 'role="toolbar"' in html
@@ -68,6 +70,7 @@ def test_live_u4_routes_and_non_destructive_apis() -> None:
     # Read-only APIs serving U4
     for endpoint, key in (
         ("/api/adsterra/funnel", "status"),
+        ("/api/adsterra/live-audit", "by_domain"),
         ("/api/adsterra/banners", "domains"),
         ("/api/leads", "leads"),
         ("/api/serp/preview", "queries"),

@@ -3381,6 +3381,20 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"status": "error", "error": str(e)}, 500)
             return
 
+        if path == "/api/adsterra/live-audit":
+            try:
+                import asyncio
+                from adsterra_api import AdsterraApiClient
+                q = parse_qs(parsed.query)
+                start_d = q.get("start_date", [None])[0]
+                finish_d = q.get("finish_date", [None])[0]
+                client = AdsterraApiClient()
+                audit_payload = asyncio.run(client.fetch_full_live_audit(start_date=start_d, finish_date=finish_d))
+                self._send_json(audit_payload)
+            except Exception as e:
+                self._send_json({"status": "error", "error": str(e)}, 500)
+            return
+
         if path == "/api/adsterra/sync":
             from adsterra_api import AdsterraApiClient
             client = AdsterraApiClient()

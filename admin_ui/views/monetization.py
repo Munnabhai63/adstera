@@ -321,7 +321,7 @@ def _render_streams_tabs_card() -> str:
           <h6 class="mb-0">Official Adsterra API Reconciliation</h6>
           <small class="text-body-secondary">api3.adsterratools.com</small>
         </div>
-        <div tabindex="0" role="region" aria-labelledby="u4SyncCaption" class="table-wrapper u3-table-region">
+        <div tabindex="0" role="region" aria-labelledby="u4SyncCaption" class="table-wrapper u3-table-region mb-5">
           <table class="table table-hover align-middle mb-0 u4-sync-table" id="u4SyncTable">
             <caption id="u4SyncCaption" class="visually-hidden">Adsterra official API reconciliation records</caption>
             <thead>
@@ -340,6 +340,64 @@ def _render_streams_tabs_card() -> str:
             <tbody id="u4SyncBody">
               <tr>
                 <td colspan="9" class="text-center text-body-secondary py-4">Click &ldquo;Sync Adsterra API&rdquo; above to reconcile live records.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex flex-wrap justify-content-between align-items-center mb-2 gap-2">
+          <div>
+            <h6 class="mb-0">3-Layer Zero-Waste Domain Audit &amp; Root-Cause CPM Diagnostic</h6>
+            <small class="text-body-secondary" id="u4ZeroWasteMeta">Bot Sessions vs. HTTP 200 Beacons vs. Official Adsterra API</small>
+          </div>
+          <button type="button" class="btn btn-xs btn-outline-primary" id="u4BtnRunLiveAudit">
+            <i class="icon-base ti tabler-stethoscope icon-14px me-1"></i>Refresh 3-Layer Audit
+          </button>
+        </div>
+        <div tabindex="0" role="region" aria-labelledby="u4ZwCaption" class="table-wrapper u3-table-region mb-5">
+          <table class="table table-hover align-middle mb-0 u4-zw-table" id="u4ZeroWasteTable">
+            <caption id="u4ZwCaption" class="visually-hidden">Zero-waste 3-layer domain reconciliation and CPM diagnostic</caption>
+            <thead>
+              <tr>
+                <th scope="col">Domain</th>
+                <th scope="col">Beacons (HTTP 200)</th>
+                <th scope="col">API Imps</th>
+                <th scope="col">Clicks / CTR</th>
+                <th scope="col">eCPM / Rev</th>
+                <th scope="col">Count Ratio</th>
+                <th scope="col">Root-Cause Diagnosis &amp; Auto-Action</th>
+              </tr>
+            </thead>
+            <tbody id="u4ZeroWasteBody">
+              <tr>
+                <td colspan="7" class="text-center text-body-secondary py-4">Loading 3-Layer Zero-Waste Audit...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+          <h6 class="mb-0">Adsterra Placement-Level Breakdown (Popunder / Native / 728x90 / 300x250 / Smartlink)</h6>
+          <small class="text-body-secondary">Official Placement Group-By</small>
+        </div>
+        <div tabindex="0" role="region" aria-labelledby="u4PlCaption" class="table-wrapper u3-table-region">
+          <table class="table table-hover align-middle mb-0 u4-pl-table" id="u4PlacementsTable">
+            <caption id="u4PlCaption" class="visually-hidden">Adsterra placement level CPM and impression breakdown</caption>
+            <thead>
+              <tr>
+                <th scope="col">Placement</th>
+                <th scope="col">Domain &bull; Unit</th>
+                <th scope="col">API Imps</th>
+                <th scope="col">Clicks</th>
+                <th scope="col">CTR</th>
+                <th scope="col">eCPM</th>
+                <th scope="col">Revenue</th>
+                <th scope="col">Unit Role</th>
+              </tr>
+            </thead>
+            <tbody id="u4PlacementsBody">
+              <tr>
+                <td colspan="8" class="text-center text-body-secondary py-4">Loading placement-level telemetry...</td>
               </tr>
             </tbody>
           </table>

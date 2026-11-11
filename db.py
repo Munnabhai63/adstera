@@ -1304,6 +1304,48 @@ def get_recent_adsterra_handshakes(limit: int = 25) -> list[dict]:
     return [dict(r) for r in rows]
 
 
+def get_domain_handshake_counts(date_str: str | None = None) -> dict[str, dict[str, int]]:
+    """Return per-domain verified Adsterra network beacon counts (impression scripts + smartlink clicks)."""
+    with _conn() as con:
+        if date_str:
+            rows = con.execute(
+                """
+                SELECT domain,
+                       COUNT(*) AS total_beacons,
+                       COALESCE(SUM(CASE WHEN status_code IN (200, 301, 302, 303, 307) THEN 1 ELSE 0 END), 0) AS verified_beacons,
+                       COALESCE(SUM(CASE WHEN (ad_url LIKE '%bauval.org%' OR ad_url LIKE '%abscloud.org%') AND status_code IN (200, 301, 302, 303, 307) THEN 1 ELSE 0 END), 0) AS impression_beacons,
+                       COALESCE(SUM(CASE WHEN (ad_url LIKE '%araplhn.org%' OR ad_url LIKE '%asiafilm.org%') AND status_code IN (200, 301, 302, 303, 307) THEN 1 ELSE 0 END), 0) AS click_beacons
+                FROM adsterra_handshakes
+                WHERE date(ts) = ?
+                GROUP BY domain
+                """,
+                (date_str,),
+            ).fetchall()
+        else:
+            rows = con.execute(
+                """
+                SELECT domain,
+                       COUNT(*) AS total_beacons,
+                       COALESCE(SUM(CASE WHEN status_code IN (200, 301, 302, 303, 307) THEN 1 ELSE 0 END), 0) AS verified_beacons,
+                       COALESCE(SUM(CASE WHEN (ad_url LIKE '%bauval.org%' OR ad_url LIKE '%abscloud.org%') AND status_code IN (200, 301, 302, 303, 307) THEN 1 ELSE 0 END), 0) AS impression_beacons,
+                       COALESCE(SUM(CASE WHEN (ad_url LIKE '%araplhn.org%' OR ad_url LIKE '%asiafilm.org%') AND status_code IN (200, 301, 302, 303, 307) THEN 1 ELSE 0 END), 0) AS click_beacons
+                FROM adsterra_handshakes
+                GROUP BY domain
+                """
+            ).fetchall()
+    out: dict[str, dict[str, int]] = {}
+    for r in rows:
+        dom = str(r["domain"]).lower().strip()
+        out[dom] = {
+            "total_beacons": int(r["total_beacons"] or 0),
+            "verified_beacons": int(r["verified_beacons"] or 0),
+            "impression_beacons": int(r["impression_beacons"] or 0),
+            "click_beacons": int(r["click_beacons"] or 0),
+        }
+    return out
+
+
+
 def get_adsterra_funnel_stats(target_date: str | None = None) -> dict:
     """Compute 5-stage real-time Adsterra funnel metrics."""
     with _conn() as con:

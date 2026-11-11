@@ -117,8 +117,20 @@ _EU_UK_COUNTRIES = {
     "PT", "RO", "SE", "SI", "SK", "GB", "UK",
 }
 
-# Ad selectors to look for on the page
+# Ad selectors to look for on the page (including all 6 live Adsterra unit types)
 _AD_SELECTORS = [
+    "a.native-ad-btn",
+    "a.calc-apply-btn",
+    "a.sidebar-ad-btn",
+    "a.header-ad-link",
+    "a[href*='araplhn.org']",
+    "a[href*='asiafilm.org']",
+    ".adsterra-banner-slot iframe",
+    ".adsterra-native-wrap a",
+    ".adsterra-native-wrap iframe",
+    "div[id^='container-'] a",
+    "div[id^='container-'] iframe",
+    "iframe[src*='bauval.org']",
     "iframe[src*='adsterra']",
     "iframe[src*='highperformanceformat']",
     "iframe[src*='effectivegatecpm']",
@@ -140,14 +152,50 @@ _AD_SELECTORS = [
 ]
 
 
+async def _ensure_ad_slots_rendered_and_viewed(page: Page, rng: random.Random, use_fixture: bool = False) -> None:
+    """
+    Zero-Waste Viewability Engine:
+    1. Waits briefly for Adsterra `bauval.org` & `abscloud.org` scripts to inject DOM/iframe nodes.
+    2. Smoothly scrolls each `[data-ad-slot^='adsterra-']` (`728x90`, `native`, `300x250`) into the active
+       viewport and pauses 1.5–2.8s so Adsterra's IntersectionObserver registers a 100% viewable impression.
+    """
+    if use_fixture:
+        return
+    try:
+        await asyncio.sleep(rng.uniform(1.2, 2.0))
+        slot_selectors = [
+            "[data-ad-slot='adsterra-728x90']",
+            "[data-ad-slot='adsterra-native']",
+            "[data-ad-slot='adsterra-300x250']",
+            "div[id^='container-']",
+        ]
+        for sel in slot_selectors:
+            try:
+                el = await page.query_selector(sel)
+                if el:
+                    await el.scroll_into_view_if_needed(timeout=2500)
+                    await asyncio.sleep(rng.uniform(1.4, 2.4))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 async def _count_impressions(page: Page) -> int:
-    """Count visible ad elements/iframes on the page."""
+    """Count visible ad elements/iframes on the page (deduplicated by bounding box)."""
     count = 0
+    seen_boxes: set[tuple[int, int]] = set()
     for sel in _AD_SELECTORS:
         try:
             elems = await page.query_selector_all(sel)
             for e in elems:
                 if await e.is_visible():
+                    box = await e.bounding_box()
+                    if box and box.get("width", 0) > 0 and box.get("height", 0) > 0:
+                        key = (int(round(box["x"] / 12.0)), int(round(box["y"] / 12.0)))
+                        if key in seen_boxes:
+                            continue
+                        seen_boxes.add(key)
                     count += 1
         except Exception:
             pass
@@ -261,6 +309,18 @@ async def _attempt_ad_click(
 
     candidates = await get_in_view_ad_candidates(page)
     if not candidates:
+        # Smoothly bring a high-CPM Adsterra unit back into the viewport before clicking
+        for fallback_sel in ("a.native-ad-btn", "a.calc-apply-btn", "a.sidebar-ad-btn", "a.header-ad-link", "a[href*='araplhn.org']", ".adsterra-banner-slot iframe", ".fake-ad"):
+            try:
+                el = await page.query_selector(fallback_sel)
+                if el and await el.is_visible():
+                    await el.scroll_into_view_if_needed(timeout=2000)
+                    await asyncio.sleep(rng.uniform(0.6, 1.1))
+                    break
+            except Exception:
+                pass
+        candidates = await get_in_view_ad_candidates(page)
+    if not candidates:
         return 0
 
     filtered = filter_ad_candidates_for_proxy(candidates, proxy_id)
@@ -275,22 +335,36 @@ async def _attempt_ad_click(
         record_clicked_ad_slot(proxy_id, candidate["selector"])
         logger.debug("Smart clicked ad slot %s on proxy %s at (%.0f, %.0f)", candidate["selector"], proxy_id, tx, ty)
 
-        # Handle popunder / new tab with human dwell and Pillar 2 lead conversion
-        await asyncio.sleep(rng.uniform(0.6, 1.4))
+        # Handle popunder / new advertiser tab with human dwell, scroll, and Pillar 2 lead conversion
+        await asyncio.sleep(rng.uniform(1.0, 2.0))
+        if len(page.context.pages) <= 1 and candidate.get("element"):
+            try:
+                await candidate["element"].evaluate("el => { if (typeof el.click === 'function') el.click(); }")
+                await asyncio.sleep(1.2)
+            except Exception:
+                pass
         pages = page.context.pages
         for extra_page in pages[1:]:
             try:
+                try:
+                    await extra_page.wait_for_load_state("domcontentloaded", timeout=8000)
+                except Exception:
+                    pass
                 from lead_engine import LeadConversionEngine
                 engine = LeadConversionEngine()
                 if engine.should_attempt_conversion(rng=rng):
                     logger.info("Pillar 2: Attempting CPL lead form conversion on %s", extra_page.url)
                     await engine.fill_and_submit_lead(page=extra_page, domain=domain, rng=rng)
                 else:
-                    popunder_dwell = rng.uniform(8.0, 16.0)
+                    popunder_dwell = rng.uniform(14.0, 26.0)
                     t_start = time.time()
                     while time.time() - t_start < popunder_dwell:
-                        await human.idle_drift(extra_page, rng, duration_s=0.5)
-                        await asyncio.sleep(rng.uniform(2.0, 4.0))
+                        try:
+                            await extra_page.evaluate("window.scrollBy({top: 180, behavior: 'smooth'});")
+                        except Exception:
+                            pass
+                        await human.idle_drift(extra_page, rng, duration_s=0.6)
+                        await asyncio.sleep(rng.uniform(2.5, 4.5))
             except Exception as le_exc:
                 logger.debug("Lead Engine execution notice: %s", le_exc)
             finally:
@@ -717,9 +791,14 @@ async def run_session(
                 target_domain, domain_safety["reason"]
             )
 
+        ad_min_wait = max(6.5, min(20.0, rng.lognormvariate(2.4, 0.45)))
+
         # Page callback for multi-page sessions
         async def on_page_loaded(pg: Page, url: str, page_num: int) -> None:
             nonlocal result, scroll_done, ad_clicks_done, last_idle, last_ad_attempt
+
+            # Stage 2 Zero-Waste Viewability: ensure all Adsterra slots enter viewport & fire beacons
+            await _ensure_ad_slots_rendered_and_viewed(pg, rng, use_fixture=use_fixture)
 
             # ADV-3 & ADV-5: Human Reading Speed Scroll and Text Reading Heatmap Mouse
             if rng.random() < cfg["target"]["scroll_prob"]:
@@ -728,8 +807,10 @@ async def run_session(
             if rng.random() < 0.65:
                 await human.text_reading_mouse(pg, rng)
 
+            # Refresh impression count after viewport scroll & script rendering
+            result["impressions"] = max(result["impressions"], await _count_impressions(pg))
+
             # Smart Ad click probability check (BHV-5 lognormal delay + Viewport & Safe CTR check)
-            ad_min_wait = max(6.5, rng.lognormvariate(2.8, 0.6))  # BHV-5 lognormal click delay (mean ~20-25s)
             if (
                 not suppress_clicks
                 and time.time() - t_on_page > ad_min_wait
@@ -761,6 +842,19 @@ async def run_session(
             sleep_chunk = min(idle_interval, remaining)
             await asyncio.sleep(sleep_chunk)
             remaining -= sleep_chunk
+
+            # Stage 3 Dwell-Loop Smart Click Check: if ad_min_wait was reached during dwell, execute click now
+            if (
+                not suppress_clicks
+                and scroll_done
+                and time.time() - t_on_page >= ad_min_wait
+                and ad_clicks_done < cfg["target"]["ad_clicks_max"]
+            ):
+                clicks = await _attempt_ad_click(
+                    page, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain
+                )
+                ad_clicks_done += clicks
+                result["ad_clicks"] += clicks
 
             if remaining > 0:
                 # Step 10: Multi-step idle fidgets with micro-drifts

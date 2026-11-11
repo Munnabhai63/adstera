@@ -85,3 +85,33 @@ def test_custom_api_key_override():
     client = AdsterraApiClient(api_key="real_production_token_123456789")
     assert client.api_key == "real_production_token_123456789"
     assert client.is_mock_mode() is False
+
+
+def test_three_layer_zero_waste_audit_and_diagnostics():
+    import asyncio
+    from adsterra_api import diagnose_domain_metrics, load_local_adsterra_ZeroWaste_maps
+
+    dom_map, place_map = load_local_adsterra_ZeroWaste_maps()
+    assert dom_map.get("6190678") == "rechargetak.com"
+    assert dom_map.get("6190730") == "tazarokda.com"
+    assert len(place_map) >= 30
+
+    # Log a verified beacon into SQLite
+    db.log_adsterra_handshake(
+        domain="rechargetak.com",
+        proxy_id="mobile_adb",
+        ad_url="https://bauval.org/21/65d56d25dab0c59a0903ae9786585b4c",
+        status_code=200,
+        verified=1,
+    )
+
+    client = AdsterraApiClient()
+    audit = asyncio.run(client.fetch_full_live_audit(force_mock=True))
+    assert audit["status"] == "ok"
+    assert "summary" in audit
+    assert len(audit["by_domain"]) >= 10
+
+    diag_zero_clicks = diagnose_domain_metrics(28, 0, 0.0, 0.041, 4)
+    assert diag_zero_clicks["health"] == "LOW_CTR_FLOOR_CPM"
+    assert "0 Clicks" in diag_zero_clicks["diagnosis"]
+
