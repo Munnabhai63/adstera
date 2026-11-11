@@ -1216,6 +1216,79 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Layer 6: Push Notification Foundation Card -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <span>🔔 Layer 6: Push Notification Foundation (VAPID P-256 + OneSignal Collect-Only)</span>
+      <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <span id="pushModeBadge" style="font-size: 11px; background: rgba(34, 197, 94, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3);">🔒 COLLECT ONLY (DELIVERY LOCKED)</span>
+        <button id="btnPushSetup" class="btn btn-secondary" onclick="toggleOneSignalBox()" style="padding: 4px 10px; font-size: 11px;">🔑 Setup OneSignal</button>
+        <button id="btnPushVapid" class="btn btn-secondary" onclick="rotateVapidKeys()" style="padding: 4px 10px; font-size: 11px;">🔐 Rotate VAPID</button>
+        <button id="btnPushInject" class="btn btn-secondary" onclick="syncPushSitesHtml()" style="padding: 4px 10px; font-size: 11px;">💉 Sync Sites HTML</button>
+        <button id="btnPushLockTest" class="btn btn-secondary" onclick="testPushDeliveryLock()" style="padding: 4px 10px; font-size: 11px;">🚫 Test Delivery Lock</button>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
+      Collects Web Push subscribers via local RFC 8292 P-256 VAPID keys &amp; optional OneSignal Web SDK v16 without dispatching campaigns during testing phase. Keeps Monetag <code>/sw.js</code> untouched alongside dedicated <code>/push-sw.js</code> and <code>/OneSignalSDKWorker.js</code>.
+    </div>
+
+    <div id="pushSetupBox" style="display: none; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+      <div style="font-size: 12px; font-weight: 600; color: #38bdf8; margin-bottom: 6px;">Optional OneSignal Free-Tier App ID Setup (Saved locally in gitignored state/push_network.json)</div>
+      <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px; line-height: 1.5;">
+        1. Create a free OneSignal account (10,000 subscribers free) &rarr; Web Push setup.<br>
+        2. <code>/OneSignalSDKWorker.js</code> is already deployed across all 10 sites.<br>
+        3. Paste your UUID App ID below (plus optional REST API Key for audience sync), then click <b>Sync Sites HTML</b>.
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr 160px; gap: 8px; margin-bottom: 8px;">
+        <input id="pushOsAppId" type="text" placeholder="OneSignal App ID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)" style="background: rgba(2, 6, 23, 0.9); color: #e2e8f0; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-family: monospace; font-size: 11px;">
+        <input id="pushOsRestKey" type="password" placeholder="Optional OneSignal REST API Key (kept secret)" style="background: rgba(2, 6, 23, 0.9); color: #e2e8f0; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-family: monospace; font-size: 11px;">
+        <input id="pushOsDomain" type="text" placeholder="Global (blank) or domain.com" style="background: rgba(2, 6, 23, 0.9); color: #e2e8f0; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-family: monospace; font-size: 11px;">
+      </div>
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <span id="pushSetupMsg" style="font-size: 11px; color: var(--muted);">VAPID collection works standalone even before OneSignal is linked.</span>
+        <button id="btnPushSaveOs" class="btn btn-primary" onclick="saveOneSignalConfig()" style="padding: 5px 12px; font-size: 11px;">💾 Save OneSignal</button>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px;">
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">VAPID P-256 Key</div>
+        <div id="pushVapidFp" style="font-size: 0.9rem; font-weight: 700; color: #38bdf8; font-family: monospace;">Loading…</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Active Provider</div>
+        <div id="pushProviderLabel" style="font-size: 0.95rem; font-weight: 700; color: #facc15;">VAPID Local</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Collected Subscribers</div>
+        <div id="pushSubTotal" style="font-size: 1.05rem; font-weight: 700; color: #4ade80;">0 <span id="pushAllowRate" style="font-size: 11px; color: var(--muted);">(0% allow)</span></div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">10-Site Injection</div>
+        <div id="pushSitesReady" style="font-size: 1.05rem; font-weight: 700; color: #4ade80;">0 / 10</div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Collector Script</th>
+            <th>push-sw.js</th>
+            <th>OneSignal SW</th>
+            <th>Subscribers</th>
+            <th>Provider</th>
+            <th>Delivery Mode</th>
+          </tr>
+        </thead>
+        <tbody id="pushTbody">
+          <tr><td colspan="7" style="text-align: center; color: var(--muted);">Loading Layer 6 Push status…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Pillar 5: Dual-ISP Carrier Hot-Failover Engine Card -->
   <div class="card">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -2499,6 +2572,164 @@ HTML_PAGE = """<!DOCTYPE html>
     }
   }
 
+  function escPush(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function toggleOneSignalBox() {
+    const box = document.getElementById('pushSetupBox');
+    if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function fetchPushStatus() {
+    try {
+      const res = await fetch('/api/push/status');
+      const data = await res.json();
+      if (!data.success) return;
+      const vapid = data.vapid || {};
+      const os = data.onesignal || {};
+      const stats = data.subscribers || {};
+      const sites = data.sites_coverage || {};
+
+      const badge = document.getElementById('pushModeBadge');
+      if (badge) {
+        if (os.delivery_locked !== false) {
+          badge.style.background = 'rgba(34, 197, 94, 0.15)';
+          badge.style.color = '#4ade80';
+          badge.style.borderColor = 'rgba(34, 197, 94, 0.35)';
+          badge.innerText = '🔒 COLLECT ONLY (DELIVERY LOCKED)';
+        } else {
+          badge.style.background = 'rgba(248, 113, 113, 0.18)';
+          badge.style.color = '#f87171';
+          badge.style.borderColor = 'rgba(248, 113, 113, 0.4)';
+          badge.innerText = '📡 DELIVERY UNLOCKED';
+        }
+      }
+
+      const fpEl = document.getElementById('pushVapidFp');
+      const provEl = document.getElementById('pushProviderLabel');
+      const subEl = document.getElementById('pushSubTotal');
+      const readyEl = document.getElementById('pushSitesReady');
+
+      if (fpEl) fpEl.innerText = vapid.fingerprint ? (vapid.fingerprint + ' (' + String(vapid.public_key || '').slice(0, 10) + '…)') : 'Pending';
+      if (provEl) provEl.innerText = os.configured ? 'OneSignal + VAPID' : 'VAPID P-256 Local';
+      const allowPct = Math.round((stats.allow_rate || 0) * 100);
+      if (subEl) subEl.innerHTML = `${Number(stats.total_subscribers || 0).toLocaleString()} <span style="font-size:11px; color:var(--muted);">(${allowPct}% allow)</span>`;
+      if (readyEl) readyEl.innerText = `${sites.ready_domains || 0} / ${sites.total_domains || 10}`;
+
+      const tbody = document.getElementById('pushTbody');
+      if (tbody) {
+        const rows = sites.domains || [];
+        const byDom = stats.by_domain || {};
+        if (rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--muted);">No domain coverage data yet.</td></tr>';
+        } else {
+          tbody.innerHTML = rows.map(r => {
+            const subCnt = byDom[r.domain] || 0;
+            const okBadge = '<span class="status-badge status-ok">READY</span>';
+            const missBadge = '<span class="status-badge status-warn">MISSING</span>';
+            const lockBadge = os.delivery_locked !== false ? '<span class="status-badge status-ok">COLLECT ONLY</span>' : '<span class="status-badge status-warn">LIVE</span>';
+            const provName = (os.domain_app_ids && os.domain_app_ids[r.domain]) || os.app_id ? 'OneSignal+VAPID' : 'VAPID P-256';
+            return `
+              <tr>
+                <td><strong>${escPush(r.domain)}</strong></td>
+                <td>${r.has_collector ? okBadge : missBadge}</td>
+                <td>${r.has_push_sw ? okBadge : missBadge}</td>
+                <td>${r.has_onesignal_sw ? okBadge : missBadge}</td>
+                <td>${Number(subCnt).toLocaleString()}</td>
+                <td style="font-size: 11px; color: #cbd5e1;">${escPush(provName)}</td>
+                <td>${lockBadge}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      }
+    } catch (e) {
+      console.error('Push status error:', e);
+    }
+  }
+
+  async function saveOneSignalConfig() {
+    const appId = (document.getElementById('pushOsAppId')?.value || '').trim();
+    const restKey = (document.getElementById('pushOsRestKey')?.value || '').trim();
+    const domain = (document.getElementById('pushOsDomain')?.value || '').trim();
+    const msg = document.getElementById('pushSetupMsg');
+    try {
+      const res = await fetch('/api/push/onesignal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ app_id: appId, rest_api_key: restKey, domain })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (msg) { msg.style.color = '#4ade80'; msg.innerText = 'OneSignal config saved safely. Click Sync Sites HTML to inject.'; }
+        const rkEl = document.getElementById('pushOsRestKey');
+        if (rkEl) rkEl.value = '';
+        await fetchPushStatus();
+      } else {
+        if (msg) { msg.style.color = '#f87171'; msg.innerText = data.error || 'Invalid OneSignal config'; }
+      }
+    } catch (e) {
+      if (msg) { msg.style.color = '#f87171'; msg.innerText = 'Failed to save OneSignal config'; }
+    }
+  }
+
+  async function rotateVapidKeys() {
+    const btn = document.getElementById('btnPushVapid');
+    if (btn) btn.innerText = '⏳ Rotating…';
+    try {
+      const res = await fetch('/api/push/vapid/generate', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Rotated P-256 VAPID keypair (fp: ' + (data.vapid && data.vapid.fingerprint) + '). Sync Sites HTML to update.');
+      }
+      await fetchPushStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '🔐 Rotate VAPID';
+    }
+  }
+
+  async function syncPushSitesHtml() {
+    const btn = document.getElementById('btnPushInject');
+    if (btn) btn.innerText = '⏳ Injecting…';
+    try {
+      const res = await fetch('/api/push/inject', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Synced Layer 6 Push Foundation across ' + ((data.summary && data.summary.sites_processed) || 10) + ' domains.');
+      }
+      await fetchPushStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '💉 Sync Sites HTML';
+    }
+  }
+
+  async function testPushDeliveryLock() {
+    const btn = document.getElementById('btnPushLockTest');
+    if (btn) btn.innerText = '⏳ Checking…';
+    try {
+      const res = await fetch('/api/push/deliver-test', { method: 'POST' });
+      const data = await res.json();
+      if (data.success && data.result && data.result.status === 'blocked_testing_phase') {
+        showToast('Delivery Lock Verified: ' + data.result.reason);
+      } else {
+        showToast('Push delivery check status: ' + (data.result && data.result.status));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '🚫 Test Delivery Lock';
+    }
+  }
+
   async function fetchFailoverStatus() {
     try {
       const res = await fetch('/api/failover/status');
@@ -2623,6 +2854,7 @@ HTML_PAGE = """<!DOCTYPE html>
   previewSerpQueries();
   fetchTelegramStatus();
   fetchGscStatus();
+  fetchPushStatus();
   fetchFailoverStatus();
   refreshAnalyticsCharts();
   setInterval(() => {
@@ -3160,6 +3392,30 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": False, "error": str(exc)}, 500)
             return
 
+        if path == "/api/push/status":
+            try:
+                import vapid_keys
+                import push_manager
+                import push_foundation
+                cfg = read_config()
+                pn_cfg = cfg.get("push_notifications", {}) or {}
+                vapid_pub = vapid_keys.get_public_vapid_status(
+                    state_path=pn_cfg.get("vapid_keys_path") or vapid_keys.DEFAULT_VAPID_STATE_PATH
+                )
+                os_status = push_manager.OneSignalPushClient(cfg=cfg).get_status()
+                sub_stats = db.get_push_subscriber_stats()
+                cov = push_foundation.audit_sites_push_coverage()
+                self._send_json({
+                    "success": True,
+                    "vapid": vapid_pub,
+                    "onesignal": os_status,
+                    "subscribers": sub_stats,
+                    "sites_coverage": cov,
+                })
+            except Exception as exc:
+                self._send_json({"success": False, "error": str(exc)}, 500)
+            return
+
         if path == "/api/config":
             cfg = read_config()
             proxies_txt = read_proxies()
@@ -3400,6 +3656,65 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": True, "saved": saved, "auth": mgr.get_status()})
             except ValueError as ve:
                 self._send_json({"success": False, "error": str(ve)}, 400)
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/push/onesignal":
+            try:
+                import push_manager
+                data_in = payload if isinstance(payload, dict) else {}
+                client = push_manager.OneSignalPushClient(cfg=read_config())
+                saved = client.save_credentials(
+                    app_id=str(data_in.get("app_id", "")),
+                    rest_api_key=str(data_in.get("rest_api_key", "")),
+                    domain=str(data_in.get("domain", "")),
+                    domain_app_ids=data_in.get("domain_app_ids") if isinstance(data_in.get("domain_app_ids"), dict) else None,
+                )
+                self._send_json({"success": True, "onesignal": saved})
+            except ValueError as ve:
+                self._send_json({"success": False, "error": str(ve)}, 400)
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/push/vapid/generate":
+            try:
+                import vapid_keys
+                cfg = read_config()
+                pn_cfg = cfg.get("push_notifications", {}) or {}
+                vapid_path = pn_cfg.get("vapid_keys_path") or vapid_keys.DEFAULT_VAPID_STATE_PATH
+                subject = pn_cfg.get("vapid_subject") or vapid_keys.DEFAULT_VAPID_SUBJECT
+                vapid_keys.load_or_create_vapid_keys(state_path=vapid_path, subject=subject, force_rotate=True)
+                self._send_json({"success": True, "vapid": vapid_keys.get_public_vapid_status(state_path=vapid_path)})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/push/inject":
+            try:
+                import push_foundation
+                cfg = read_config()
+                summary = push_foundation.inject_push_all_sites(dry_run=False, cfg=cfg)
+                cov = push_foundation.audit_sites_push_coverage()
+                self._send_json({"success": True, "summary": summary, "sites_coverage": cov})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/push/deliver-test":
+            try:
+                import push_manager
+                cfg = read_config()
+                mgr = push_manager.build_from_config(cfg)
+                data_in = payload if isinstance(payload, dict) else {}
+                res = mgr.dispatch_campaign_guarded(
+                    title=str(data_in.get("title", "Test Push Alert")),
+                    message=str(data_in.get("message", "Testing-phase collect-only verification")),
+                    url=str(data_in.get("url", "https://loanraaj.com/")),
+                    domain=str(data_in.get("domain", "loanraaj.com")),
+                )
+                self._send_json({"success": True, "result": res})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
             return

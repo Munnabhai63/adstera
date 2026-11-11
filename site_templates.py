@@ -993,6 +993,7 @@ img {{ max-width: 100%; height: auto; display: block; }}
 
 def render_master_page(site_config, title, desc, canonical, main_body, active_nav="Home", ticker_title=None, ticker_url=None, schema_json_ld=""):
     from adsterra_links import get_adsterra_config, render_adsterra_scripts, render_display_banner, ADSTERRA_BANNER_CSS
+    from push_foundation import render_push_script_block
     domain = site_config["domain"]
     ad_cfg = get_adsterra_config(domain)
     name = site_config["name"]
@@ -1132,6 +1133,7 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
         </div>
     </footer>
     {render_adsterra_scripts(domain)}
+    {render_push_script_block(domain)}
 </body>
 </html>
 """

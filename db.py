@@ -176,6 +176,23 @@ CREATE TABLE IF NOT EXISTS adsterra_handshakes (
 );
 CREATE INDEX IF NOT EXISTS idx_adsterra_handshakes_domain ON adsterra_handshakes(domain, ts);
 
+CREATE TABLE IF NOT EXISTS push_subscribers (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    domain            TEXT NOT NULL,
+    provider          TEXT NOT NULL DEFAULT 'vapid_local',
+    subscription_id   TEXT DEFAULT '',
+    endpoint          TEXT NOT NULL,
+    p256dh            TEXT DEFAULT '',
+    auth_secret       TEXT DEFAULT '',
+    proxy_id          TEXT DEFAULT '',
+    geo_country       TEXT DEFAULT '',
+    permission_status TEXT NOT NULL DEFAULT 'granted',
+    collect_only      INTEGER NOT NULL DEFAULT 1,
+    ts                TEXT DEFAULT (datetime('now')),
+    UNIQUE(domain, endpoint)
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscribers_domain ON push_subscribers(domain, ts);
+
 """
 
 
@@ -1320,4 +1337,97 @@ def get_adsterra_funnel_stats(target_date: str | None = None) -> dict:
         "api_clicks": api_clicks,
         "api_revenue": f"${api_revenue:.3f}",
         "status": "COUNTED & RECONCILED" if api_impressions > 0 else "NETWORK HANDSHAKES LIVE",
+    }
+
+def upsert_push_subscriber(
+    domain: str,
+    endpoint: str,
+    provider: str = "vapid_local",
+    subscription_id: str = "",
+    p256dh: str = "",
+    auth_secret: str = "",
+    proxy_id: str = "",
+    geo_country: str = "",
+    permission_status: str = "granted",
+    collect_only: bool = True,
+) -> int:
+    """Store or refresh a collected push subscription without delivering campaigns."""
+    clean_dom = (domain or "loanraaj.com").strip().lower().replace("https://", "").replace("http://", "").split("/")[0]
+    clean_ep = (endpoint or "").strip()
+    if not clean_ep:
+        return 0
+    with _conn() as con:
+        con.execute(
+            """
+            INSERT INTO push_subscribers
+                (domain, provider, subscription_id, endpoint, p256dh, auth_secret,
+                 proxy_id, geo_country, permission_status, collect_only)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(domain, endpoint) DO UPDATE SET
+                provider = excluded.provider,
+                subscription_id = CASE WHEN excluded.subscription_id != '' THEN excluded.subscription_id ELSE push_subscribers.subscription_id END,
+                p256dh = CASE WHEN excluded.p256dh != '' THEN excluded.p256dh ELSE push_subscribers.p256dh END,
+                auth_secret = CASE WHEN excluded.auth_secret != '' THEN excluded.auth_secret ELSE push_subscribers.auth_secret END,
+                proxy_id = excluded.proxy_id,
+                geo_country = excluded.geo_country,
+                permission_status = excluded.permission_status,
+                collect_only = excluded.collect_only,
+                ts = datetime('now')
+            """,
+            (
+                clean_dom,
+                provider or "vapid_local",
+                subscription_id or "",
+                clean_ep,
+                p256dh or "",
+                auth_secret or "",
+                proxy_id or "",
+                (geo_country or "").upper(),
+                permission_status or "granted",
+                1 if collect_only else 0,
+            ),
+        )
+        row = con.execute(
+            "SELECT id FROM push_subscribers WHERE domain = ? AND endpoint = ?",
+            (clean_dom, clean_ep),
+        ).fetchone()
+        return int(row[0]) if row else 0
+
+
+def get_push_subscriber_stats(domain: str = "") -> dict:
+    """Return non-secret Layer 6 push subscriber totals and event rates."""
+    clean_dom = (domain or "").strip().lower().replace("https://", "").replace("http://", "").split("/")[0]
+    with _conn() as con:
+        if clean_dom:
+            total = con.execute("SELECT COUNT(*) FROM push_subscribers WHERE domain = ?", (clean_dom,)).fetchone()[0]
+            prov_rows = con.execute(
+                "SELECT provider, COUNT(*) FROM push_subscribers WHERE domain = ? GROUP BY provider",
+                (clean_dom,),
+            ).fetchall()
+            dom_rows = con.execute(
+                "SELECT domain, COUNT(*) FROM push_subscribers WHERE domain = ? GROUP BY domain",
+                (clean_dom,),
+            ).fetchall()
+            recent_rows = con.execute(
+                "SELECT id, domain, provider, subscription_id, geo_country, permission_status, collect_only, ts FROM push_subscribers WHERE domain = ? ORDER BY id DESC LIMIT 15",
+                (clean_dom,),
+            ).fetchall()
+        else:
+            total = con.execute("SELECT COUNT(*) FROM push_subscribers").fetchone()[0]
+            prov_rows = con.execute(
+                "SELECT provider, COUNT(*) FROM push_subscribers GROUP BY provider"
+            ).fetchall()
+            dom_rows = con.execute(
+                "SELECT domain, COUNT(*) FROM push_subscribers GROUP BY domain"
+            ).fetchall()
+            recent_rows = con.execute(
+                "SELECT id, domain, provider, subscription_id, geo_country, permission_status, collect_only, ts FROM push_subscribers ORDER BY id DESC LIMIT 15"
+            ).fetchall()
+    return {
+        "total_subscribers": int(total or 0),
+        "by_provider": {r[0]: int(r[1]) for r in prov_rows},
+        "by_domain": {r[0]: int(r[1]) for r in dom_rows},
+        "today_events": push_today_count(),
+        "allow_rate": round(push_allow_rate(clean_dom), 4),
+        "recent": [dict(r) for r in recent_rows],
     }

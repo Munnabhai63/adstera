@@ -338,6 +338,20 @@ async def _handle_push_async(
                 geo_country=proxy_country,
                 geo_tier=geo_tier,
             )
+            sub = push_result.get("subscription")
+            if push_result["action"] == "allow" and isinstance(sub, dict) and sub.get("endpoint"):
+                db.upsert_push_subscriber(
+                    domain=domain,
+                    endpoint=str(sub.get("endpoint") or ""),
+                    provider=str(sub.get("provider") or "vapid_local"),
+                    subscription_id=str(sub.get("subscription_id") or ""),
+                    p256dh=str(sub.get("p256dh") or ""),
+                    auth_secret=str(sub.get("auth") or ""),
+                    proxy_id=proxy.proxy_id,
+                    geo_country=proxy_country,
+                    permission_status="granted",
+                    collect_only=bool(push_result.get("collect_only", True)),
+                )
             logger.info(
                 "Push[%s]: action=%s delay=%.1fs domain=%s",
                 proxy.proxy_id,

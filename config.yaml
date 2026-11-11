@@ -323,6 +323,15 @@ push_notifications:
   min_delay_s: 7.0
   max_delay_s: 25.0
   skip_eu_uk: true
+  collect_only: true
+  delivery_enabled: false
+  vapid_subject: mailto:admin@loanraaj.com
+  vapid_keys_path: state/vapid_keys.json
+  network_state_path: state/push_network.json
+  onesignal:
+    enabled: true
+    app_id: ''
+    domain_app_ids: {}
 cpa_stacking:
   enabled: true
   attempt_prob: 0.08

@@ -833,5 +833,72 @@
     <!-- Adsterra Monetization Engine -->
     <script data-cfasync="false" src="https://abscloud.org/1/469818ae009e95c4d51277eb83956347"></script>
     <script data-cfasync="false" src="https://bauval.org/14/33f1a7d198b5423ebc2a315b8eb76d52"></script>
+
+    <!-- PUSH_FOUNDATION_START -->
+<script>
+window.__ADSTERRA_PUSH__ = {"domain":"loanraaj.com","vapidPublicKey":"BC3DSotXYXBkxL1cqH3GJkzmzFv3SwdNI1iNiKz4CIE0L_vjo8Fd7nVXUCG2g1acS1XmCN8jM9QT6ywADiyF02A","onesignalAppId":"","provider":"vapid_local","collectOnly":true,"promptDelayMs":7000};
+(function() {
+  try {
+    const cfg = window.__ADSTERRA_PUSH__;
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return;
+    function urlB64ToUint8(b64) {
+      const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+      const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+      const out = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
+      return out;
+    }
+    async function collectVapidSubscription() {
+      if (!cfg.vapidPublicKey) return null;
+      const reg = await navigator.serviceWorker.register('/push-sw.js', { scope: '/' });
+      if (!reg || !reg.pushManager) return null;
+      let sub = await reg.pushManager.getSubscription();
+      if (!sub && Notification.permission === 'granted') {
+        try {
+          sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(cfg.vapidPublicKey) });
+        } catch (_e) {}
+      }
+      if (sub && sub.toJSON) {
+        const j = sub.toJSON();
+        const rec = { provider: cfg.provider, endpoint: j.endpoint || sub.endpoint || '', p256dh: (j.keys && j.keys.p256dh) || '', auth: (j.keys && j.keys.auth) || '', collectOnly: cfg.collectOnly };
+        window.__PUSH_SUBSCRIPTION__ = rec;
+        try { localStorage.setItem('adsterra_push_sub', JSON.stringify(rec)); } catch (_s) {}
+      } else {
+        const tryOptIn = function() {
+          try {
+            if (sessionStorage.getItem('adsterra_push_prompted') || Notification.permission !== 'default' || window.scrollY < 200) return;
+            sessionStorage.setItem('adsterra_push_prompted', '1');
+            window.removeEventListener('scroll', tryOptIn);
+            Notification.requestPermission().then(function(p) {
+              if (p === 'granted') collectVapidSubscription().catch(function() {});
+            }).catch(function() {});
+          } catch (_p) {}
+        };
+        setTimeout(function() { window.addEventListener('scroll', tryOptIn, { passive: true }); }, cfg.promptDelayMs || 9000);
+      }
+      return reg;
+    }
+    if (cfg.onesignalAppId) {
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      window.OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({ appId: cfg.onesignalAppId, serviceWorkerPath: '/OneSignalSDKWorker.js', serviceWorkerParam: { scope: '/' }, allowLocalhostAsSecureOrigin: true });
+        if (OneSignal.User && OneSignal.User.PushSubscription) {
+          OneSignal.User.PushSubscription.addEventListener('change', function(ev) {
+            const cur = ev && ev.current ? ev.current : {};
+            window.__PUSH_SUBSCRIPTION__ = { provider: 'onesignal', subscription_id: cur.id || '', endpoint: cur.token || '', collectOnly: cfg.collectOnly };
+          });
+        }
+      });
+      const osScript = document.createElement('script');
+      osScript.src = 'https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js';
+      osScript.defer = true;
+      document.head.appendChild(osScript);
+    } else {
+      collectVapidSubscription().catch(function() {});
+    }
+  } catch (_err) {}
+})();
+</script>
+<!-- PUSH_FOUNDATION_END -->
 </body>
 </html>
