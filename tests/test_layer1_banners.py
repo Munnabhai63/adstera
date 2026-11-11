@@ -251,7 +251,12 @@ def test_live_ui_banner_vault_endpoint() -> None:
             payload = json.loads(resp.read().decode("utf-8"))
         assert payload["status"] == "ok"
         assert len(payload["domains"]) == 10
-        with urllib.request.urlopen("http://127.0.0.1:5050/", timeout=4) as resp_html:
+        with urllib.request.urlopen("http://127.0.0.1:5050/", timeout=4) as resp_crm:
+            assert resp_crm.status == 200
+            crm_body = resp_crm.read().decode("utf-8", errors="ignore")
+        assert 'id="u4BannerVaultCard"' in crm_body
+
+        with urllib.request.urlopen("http://127.0.0.1:5050/classic", timeout=4) as resp_html:
             assert resp_html.status == 200
             body = resp_html.read().decode("utf-8", errors="ignore")
         assert 'id="bannerVaultCard"' in body

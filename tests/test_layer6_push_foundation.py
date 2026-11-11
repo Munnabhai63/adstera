@@ -80,7 +80,15 @@ def test_vapid_p256_keygen_pkcs8_and_dotnet_verification() -> None:
         '$ok=$ec.VerifyData($data,$sig);'
         '$ec.Dispose();$k.Dispose();Write-Output $ok'
     )
-    out = subprocess.check_output(["powershell", "-NoProfile", "-Command", ps_script], text=True, timeout=15).strip()
+    res = subprocess.run(
+        ["powershell", "-NoProfile", "-Command", "-"],
+        input=ps_script,
+        capture_output=True,
+        text=True,
+        timeout=15,
+        check=True,
+    )
+    out = res.stdout.strip()
     assert out == "True", f"Windows ECDsaCng rejected signature: {out!r}"
 
 

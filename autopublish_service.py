@@ -247,23 +247,95 @@ def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
         "index_stats": index_stats
     }
 
-def get_preview_html(domain: str, slug: str) -> Optional[str]:
-    """Loads exact rendered HTML file for iframe preview."""
+_VOID_HTML_TAGS = frozenset({
+    "area", "base", "br", "col", "embed", "hr", "img", "input",
+    "link", "meta", "source", "track", "wbr",
+})
+
+
+def sanitize_preview_html(raw_html: str) -> str:
+    """Strip <script> tags, inline on* handlers, and javascript: URIs for safe sandboxed previews."""
+    import html as _html
+    from html.parser import HTMLParser
+
+    class _SafePreviewSanitizer(HTMLParser):
+        def __init__(self) -> None:
+            super().__init__(convert_charrefs=False)
+            self._skip_script = False
+            self._out: list[str] = []
+
+        def handle_starttag(self, tag: str, attrs) -> None:
+            t = tag.lower()
+            if t == "script":
+                self._skip_script = True
+                return
+            safe_attrs: list[str] = []
+            for k, v in attrs:
+                kl = k.lower()
+                if kl.startswith("on"):
+                    continue
+                if v is not None and kl in ("href", "src", "action", "formaction") and v.strip().lower().startswith("javascript:"):
+                    continue
+                if v is None:
+                    safe_attrs.append(k)
+                else:
+                    safe_attrs.append(f'{k}="{_html.escape(v, quote=True)}"')
+            attr_str = (" " + " ".join(safe_attrs)) if safe_attrs else ""
+            self._out.append(f"<{tag}{attr_str}>")
+
+        def handle_startendtag(self, tag: str, attrs) -> None:
+            self.handle_starttag(tag, attrs)
+
+        def handle_endtag(self, tag: str) -> None:
+            t = tag.lower()
+            if t == "script":
+                self._skip_script = False
+                return
+            if t not in _VOID_HTML_TAGS:
+                self._out.append(f"</{tag}>")
+
+        def handle_data(self, data: str) -> None:
+            if not self._skip_script:
+                self._out.append(data)
+
+        def handle_entityref(self, name: str) -> None:
+            if not self._skip_script:
+                self._out.append(f"&{name};")
+
+        def handle_charref(self, name: str) -> None:
+            if not self._skip_script:
+                self._out.append(f"&#{name};")
+
+        def handle_decl(self, decl: str) -> None:
+            self._out.append(f"<!{decl}>")
+
+        def get_html(self) -> str:
+            return "".join(self._out)
+
+    parser = _SafePreviewSanitizer()
+    parser.feed(raw_html)
+    parser.close()
+    return parser.get_html()
+
+
+def get_preview_html(domain: str, slug: str, safe: bool = False) -> Optional[str]:
+    """Loads exact rendered HTML file for iframe preview (optionally script-sanitized for sandboxed CRM previews)."""
     domain_clean = domain.replace(".com", "")
     folder = f"{domain_clean}.com"
-    
+
     # Try exact post html
     candidates = [
         os.path.join("sites", folder, f"{slug}.html"),
         os.path.join("sites", folder, slug, "index.html"),
         os.path.join("sites", folder, "index.html")
     ]
-    
+
     for path in candidates:
         if os.path.isfile(path):
             with open(path, "r", encoding="utf-8", errors="replace") as f:
-                return f.read()
-                
+                content = f.read()
+                return sanitize_preview_html(content) if safe else content
+
     return None
 
 def trigger_instant_publish(site_id: str) -> Dict[str, Any]:

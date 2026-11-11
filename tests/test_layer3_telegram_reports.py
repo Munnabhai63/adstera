@@ -273,6 +273,11 @@ def test_live_ui_telegram_status_and_daily_report_button() -> None:
 
     with urllib.request.urlopen("http://127.0.0.1:5050/", timeout=8) as resp:
         assert resp.status == 200
+        crm_body = resp.read().decode("utf-8", errors="replace")
+        assert "u5BtnTgDailyReport" in crm_body
+
+    with urllib.request.urlopen("http://127.0.0.1:5050/classic", timeout=8) as resp:
+        assert resp.status == 200
         html_body = resp.read().decode("utf-8", errors="replace")
         assert "btnTgDailyReport" in html_body
         assert "sendTelegramDailyReport" in html_body

@@ -539,6 +539,7 @@ HTML_PAGE = """<!DOCTYPE html>
       </div>
     </div>
     <div style="display: flex; align-items: center; gap: 10px;">
+      <a href="/" class="btn" style="text-decoration: none; background: linear-gradient(135deg, #7367f0, #5e50ee); color: #fff; font-weight: 700; padding: 7px 14px; font-size: 13px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); display: inline-flex; align-items: center; gap: 6px;">✨ Vuexy CRM UI</a>
       <a href="/autopublish" class="btn" style="text-decoration: none; background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; font-weight: 700; padding: 7px 16px; font-size: 13px; border-radius: 8px; box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); border: 1px solid rgba(255,255,255,0.2); display: inline-flex; align-items: center; gap: 6px;">⚡ AutoPublish & Indexing Pipeline</a>
       <div id="statusBadge" class="status-badge stopped">
         <span class="status-dot"></span>
@@ -2987,22 +2988,62 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         # Silence routine access logs
         pass
 
-    def _send_json(self, data: dict, status: int = 200) -> None:
+    def _send_json(
+        self,
+        data: dict,
+        status: int = 200,
+        extra_headers: list[tuple[str, str]] | None = None,
+    ) -> None:
         raw = json.dumps(data).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        for h_k, h_v in (extra_headers or []):
+            self.send_header(h_k, h_v)
         self.end_headers()
         self.wfile.write(raw)
 
-    def _send_html(self, html: str) -> None:
+    def _send_html(
+        self,
+        html: str,
+        status: int = 200,
+        extra_headers: list[tuple[str, str]] | None = None,
+    ) -> None:
         raw = html.encode("utf-8")
-        self.send_response(200)
+        self.send_response(status)
         self.send_header("Content-Type", "text/html; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
+        for h_k, h_v in (extra_headers or []):
+            self.send_header(h_k, h_v)
         self.end_headers()
         self.wfile.write(raw)
+
+    def _send_redirect(
+        self,
+        location: str,
+        extra_headers: list[tuple[str, str]] | None = None,
+    ) -> None:
+        self.send_response(302)
+        self.send_header("Location", location)
+        self.send_header("Cache-Control", "no-store")
+        for h_k, h_v in (extra_headers or []):
+            self.send_header(h_k, h_v)
+        self.end_headers()
+
+    def _require_crm_unlocked(self) -> bool:
+        from admin_ui import profile_auth
+        if profile_auth.is_crm_locked(self.headers.get("Cookie")):
+            self._send_json({"ok": False, "locked": True, "error": "CRM session is locked."}, status=401)
+            return False
+        return True
+
+    def _redirect_if_crm_locked(self) -> bool:
+        from admin_ui import profile_auth
+        if profile_auth.is_crm_locked(self.headers.get("Cookie")):
+            self._send_redirect("/crm/login")
+            return True
+        return False
 
     def _banner_inventory_payload(self) -> dict:
         import adsterra_links
@@ -3023,15 +3064,65 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         if host_header.startswith("www."):
             host_header = host_header[4:]
 
+        if path.startswith("/crm-assets/"):
+            rel_asset = path[len("/crm-assets/"):].lstrip("/")
+            assets_root = Path("admin_ui/assets").resolve()
+            asset_file = (assets_root / rel_asset).resolve()
+            if asset_file.is_relative_to(assets_root) and asset_file.is_file():
+                ext = asset_file.suffix.lower()
+                mime_map = {
+                    ".css": "text/css; charset=utf-8",
+                    ".js": "application/javascript; charset=utf-8",
+                    ".json": "application/json; charset=utf-8",
+                    ".svg": "image/svg+xml",
+                    ".png": "image/png",
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".ico": "image/x-icon",
+                    ".woff2": "font/woff2",
+                    ".woff": "font/woff",
+                    ".ttf": "font/ttf",
+                }
+                ctype = mime_map.get(ext, "application/octet-stream")
+                raw_bytes = asset_file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", ctype)
+                self.send_header("Content-Length", str(len(raw_bytes)))
+                self.send_header("Cache-Control", "public, max-age=3600")
+                self.end_headers()
+                self.wfile.write(raw_bytes)
+                return
+            self.send_error(HTTPStatus.NOT_FOUND, "Asset Not Found")
+            return
+
+        if path in ("/crm/login", "/crm/login/"):
+            from admin_ui import profile_auth
+            from admin_ui.views import render_login_view
+            q = parse_qs(parsed.query)
+            err = "Invalid operator credentials. Please try again." if q.get("error") else ""
+            prof = profile_auth.load_profile()
+            self._send_html(render_login_view(prof, error_msg=err), extra_headers=[("Cache-Control", "no-store")])
+            return
+
+        if path in ("/crm", "/crm/"):
+            if self._redirect_if_crm_locked():
+                return
+            from admin_ui.shell import render_crm_shell
+            self._send_html(render_crm_shell(), extra_headers=[("Cache-Control", "no-store")])
+            return
+
         if path in ("/autopublish", "/autopublish/"):
+            if self._redirect_if_crm_locked():
+                return
             from autopublish_dashboard_html import AUTOPUBLISH_DASHBOARD_HTML
             self._send_html(AUTOPUBLISH_DASHBOARD_HTML)
             return
 
         if path == "/api/autopublish/stats":
+            if not self._require_crm_unlocked():
+                return
             try:
                 import autopublish_service
-                from urllib.parse import parse_qs
                 query = parse_qs(parsed.query)
                 dom = query.get("domain", ["tazaloan"])[0]
                 stats = autopublish_service.get_autopublish_stats(dom)
@@ -3042,18 +3133,22 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/autopublish/preview":
             try:
+                import html as _html
                 import autopublish_service
-                from urllib.parse import parse_qs
                 query = parse_qs(parsed.query)
                 dom = query.get("domain", ["loanraaj"])[0]
                 slug = query.get("slug", [""])[0]
-                html_content = autopublish_service.get_preview_html(dom, slug)
+                safe_mode = query.get("safe", ["0"])[0] == "1"
+                html_content = autopublish_service.get_preview_html(dom, slug, safe=safe_mode)
                 if html_content:
                     self._send_html(html_content)
                 else:
-                    self._send_html(f"<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Preview Loading...</h2><p>Preview file for {dom}/{slug} not found or being generated.</p></div>")
+                    self._send_html(
+                        f"<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Preview Loading...</h2><p>Preview file for {_html.escape(dom)}/{_html.escape(slug)} not found or being generated.</p></div>"
+                    )
             except Exception as e:
-                self._send_html(f"<h3>Preview Error: {e}</h3>")
+                import html as _html
+                self._send_html(f"<h3>Preview Error: {_html.escape(str(e))}</h3>")
             return
 
         DOMAIN_FOLDERS = {
@@ -3123,6 +3218,15 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                         return
 
         if path in ("", "/", "/admin", "/dashboard"):
+            if self._redirect_if_crm_locked():
+                return
+            from admin_ui.shell import render_crm_shell
+            self._send_html(render_crm_shell(), extra_headers=[("Cache-Control", "no-store")])
+            return
+
+        if path in ("/classic", "/classic/"):
+            if self._redirect_if_crm_locked():
+                return
             cfg = read_config()
             net_mode = cfg.get("network", {}).get("mode", "proxy")
             raw_urls = cfg.get("target", {}).get("urls") or ([cfg.get("target", {}).get("url")] if cfg.get("target", {}).get("url") else [])
@@ -3147,6 +3251,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
             self._send_html(rendered)
             return
+
+        if path.startswith("/api/"):
+            if not self._require_crm_unlocked():
+                return
 
         if path == "/api/status":
             db.init()
@@ -3422,6 +3530,23 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"config": cfg, "proxies": proxies_txt})
             return
 
+        if path == "/api/profile":
+            from admin_ui import profile_auth
+            cfg = read_config()
+            cookie_hdr = self.headers.get("Cookie")
+            self._send_json({
+                "ok": True,
+                "profile": profile_auth.load_profile(),
+                "connections": profile_auth.get_connections_summary(cfg=cfg),
+                "sessions": profile_auth.list_active_sessions(cookie_hdr),
+            })
+            return
+
+        if path == "/api/notifications":
+            from admin_ui import profile_auth
+            self._send_json({"ok": True, **profile_auth.get_notifications()})
+            return
+
         if path == "/api/adb/status":
             import mobile_adb
             try:
@@ -3446,10 +3571,114 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length > 0 else b"{}"
-        try:
-            payload = json.loads(body.decode("utf-8")) if body else {}
-        except Exception:
-            payload = {}
+        ctype = (self.headers.get("Content-Type") or "").lower()
+        is_form_post = "application/x-www-form-urlencoded" in ctype
+        if is_form_post:
+            form_qs = parse_qs(body.decode("utf-8", errors="ignore"))
+            payload = {k: v[0] for k, v in form_qs.items() if v}
+        else:
+            try:
+                payload = json.loads(body.decode("utf-8")) if body else {}
+            except Exception:
+                payload = {}
+
+        if path == "/api/auth/login":
+            from admin_ui import profile_auth
+            mode = str(payload.get("mode") or "login").strip().lower()
+            ident = str(payload.get("identifier") or "")
+            pw = str(payload.get("password") or "")
+            remember = str(payload.get("remember", True)).lower() not in ("0", "false", "no", "")
+            prof = profile_auth.load_profile()
+
+            if mode == "setup" and not prof.get("has_password"):
+                ok, msg, _ = profile_auth.set_password(pw, confirm_password=pw)
+                if not ok:
+                    if is_form_post:
+                        self._send_redirect("/crm/login?error=invalid")
+                    else:
+                        self._send_json({"ok": False, "error": msg}, status=400)
+                    return
+            elif not profile_auth.verify_credentials(ident, pw):
+                if is_form_post:
+                    self._send_redirect("/crm/login?error=invalid")
+                else:
+                    self._send_json({"ok": False, "error": "Invalid operator credentials."}, status=401)
+                return
+
+            tok = profile_auth.create_session_token(self.headers.get("User-Agent", ""), remember=remember)
+            max_age_part = "; Max-Age=2592000" if remember else ""
+            cookie_hdr = f"{profile_auth.COOKIE_NAME}={tok}; Path=/; HttpOnly; SameSite=Lax{max_age_part}"
+            if is_form_post:
+                self._send_redirect("/", extra_headers=[("Set-Cookie", cookie_hdr)])
+            else:
+                self._send_json({"ok": True, "redirect": "/"}, extra_headers=[("Set-Cookie", cookie_hdr)])
+            return
+
+        if path == "/api/auth/logout":
+            from admin_ui import profile_auth
+            profile_auth.revoke_session_and_lock(self.headers.get("Cookie"))
+            clear_hdr = f"{profile_auth.COOKIE_NAME}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax"
+            self._send_json({"ok": True, "redirect": "/crm/login"}, extra_headers=[("Set-Cookie", clear_hdr)])
+            return
+
+        if path == "/api/auth/unlock-dev":
+            from admin_ui import profile_auth
+            ok, msg = profile_auth.unlock_without_password()
+            self._send_json({"ok": ok, "msg": msg, "redirect": "/" if ok else ""}, status=200 if ok else 403)
+            return
+
+        # Enforce CRM lock uniformly across all sensitive/mutating POST endpoints beyond /api/auth/*
+        if not self._require_crm_unlocked():
+            return
+
+        if path == "/api/profile":
+            from admin_ui import profile_auth
+            ok, msg, prof = profile_auth.save_profile(payload)
+            self._send_json({"ok": ok, "msg": msg if ok else "", "error": "" if ok else msg, "profile": prof}, status=200 if ok else 400)
+            return
+
+        if path == "/api/profile/password":
+            from admin_ui import profile_auth
+            action = str(payload.get("action") or "set_password").strip().lower()
+            if action == "toggle_gate":
+                ok, msg, prof = profile_auth.set_require_login(bool(payload.get("require_login")))
+            elif action == "clear_password":
+                ok, msg, prof = profile_auth.clear_password(str(payload.get("current_password") or ""))
+            else:
+                ok, msg, prof = profile_auth.set_password(
+                    new_password=str(payload.get("new_password") or ""),
+                    confirm_password=str(payload.get("confirm_password") or ""),
+                    current_password=str(payload.get("current_password") or ""),
+                )
+            extra_hdrs: list[tuple[str, str]] = []
+            if ok and action in ("set_password", "toggle_gate") and prof.get("has_password"):
+                if not profile_auth.validate_session_cookie(self.headers.get("Cookie")):
+                    tok = profile_auth.create_session_token(self.headers.get("User-Agent", ""), remember=True)
+                    extra_hdrs.append((
+                        "Set-Cookie",
+                        f"{profile_auth.COOKIE_NAME}={tok}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000",
+                    ))
+            self._send_json(
+                {"ok": ok, "msg": msg if ok else "", "error": "" if ok else msg, "profile": prof},
+                status=200 if ok else 400,
+                extra_headers=extra_hdrs,
+            )
+            return
+
+        if path == "/api/notifications/read":
+            from admin_ui import profile_auth
+            notif_state = profile_auth.mark_notifications_read(
+                notif_ids=payload.get("ids"),
+                mark_all=bool(payload.get("all")),
+            )
+            self._send_json({"ok": True, **notif_state})
+            return
+
+        if path == "/api/notifications/test":
+            from admin_ui import profile_auth
+            db.record_alert_log("OPERATOR_TEST", "INFO", "Live Notification Bell check passed.", domain="system", sent_live=False)
+            self._send_json({"ok": True, **profile_auth.get_notifications()})
+            return
 
         if path == "/api/autopublish/trigger":
             try:

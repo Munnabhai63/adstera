@@ -30,3 +30,6 @@ network_articles_part1.json
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# Isolated clone of user-supplied CMS template (never modify original source)
+cms_template_clone/

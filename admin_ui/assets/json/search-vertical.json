@@ -1,0 +1,31 @@
+{
+  "suggestions": {
+    "Workspaces": [
+      { "name": "Overview & Live Ops", "icon": "tabler-smart-home", "url": "#overview" },
+      { "name": "Operator Profile & Auth Lock", "icon": "tabler-user-shield", "url": "#profile" },
+      { "name": "AutoPublish & 20-Topic CMS", "icon": "tabler-sparkles", "url": "#autopublish" },
+      { "name": "Monetization & Banners", "icon": "tabler-currency-dollar", "url": "#monetization" }
+    ],
+    "Operations & Growth": [
+      { "name": "Network, Proxies & ADB", "icon": "tabler-network", "url": "#network" },
+      { "name": "Growth, GSC SEO & Push", "icon": "tabler-trending-up", "url": "#growth" },
+      { "name": "System Settings", "icon": "tabler-settings", "url": "#settings" },
+      { "name": "Classic Dashboard (/classic)", "icon": "tabler-arrow-back-up", "url": "/classic" }
+    ]
+  },
+  "navigation": {
+    "workspaces": [
+      { "name": "Overview & Live Ops (U1+U2)", "icon": "tabler-smart-home", "url": "#overview" },
+      { "name": "Operator Profile & Security (U2.5)", "icon": "tabler-user-shield", "url": "#profile" },
+      { "name": "AutoPublish & 20-Topic CMS (U3)", "icon": "tabler-sparkles", "url": "#autopublish" },
+      { "name": "Monetization & Adsterra Vault (U4)", "icon": "tabler-currency-dollar", "url": "#monetization" },
+      { "name": "Network, Proxies & ADB (U5)", "icon": "tabler-network", "url": "#network" },
+      { "name": "Growth, GSC SEO & Push (U5)", "icon": "tabler-trending-up", "url": "#growth" },
+      { "name": "System & API Settings (U5)", "icon": "tabler-settings", "url": "#settings" }
+    ],
+    "classic": [
+      { "name": "Classic Fleet Control Panel (/classic)", "icon": "tabler-layout-dashboard", "url": "/classic" },
+      { "name": "Classic AutoPublish Pipeline (/autopublish)", "icon": "tabler-rocket", "url": "/autopublish" }
+    ]
+  }
+}
