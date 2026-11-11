@@ -109,6 +109,16 @@ def test_lead_form_detection_and_human_submission():
 
 
 def test_today_leads_summary():
+    db.record_lead_conversion(
+        domain="loanraaj.com",
+        advertiser_url="https://araplhn.org/4/17dc693c036f3b211f48887d232add4b",
+        email="lead_summary_test@newszig.com",
+        persona_name="Ritu Yadav",
+        fields_filled=3,
+        dwell_sec=18.5,
+        status="submitted",
+        bounty_est=2.50,
+    )
     summary = db.today_leads_summary()
     assert "today_leads" in summary
     assert "estimated_bounty" in summary

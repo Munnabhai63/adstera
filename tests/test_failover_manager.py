@@ -8,8 +8,17 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+import db
 from failover_manager import DualTransportManager
 from pool import GeoInfo, Proxy
+
+
+@pytest.fixture(autouse=True)
+def _isolated_db_and_env(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "test_failover_sessions.db")
+    db.init()
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "")
 
 
 @pytest.fixture

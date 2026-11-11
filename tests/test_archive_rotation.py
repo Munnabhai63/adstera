@@ -8,7 +8,8 @@ import datetime
 import db
 
 
-def test_archive_old_sessions():
+def test_archive_old_sessions(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "test_archive_sessions.db")
     db.init()
     # Insert an old session older than 35 days
     old_ts = (datetime.datetime.now() - datetime.timedelta(days=40)).strftime("%Y-%m-%d %H:%M:%S")

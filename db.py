@@ -838,14 +838,14 @@ def record_adsterra_sync(
 
 
 def get_latest_adsterra_sync(domain: str | None = None, limit: int = 20) -> list[dict]:
-    """Retrieve the most recent Adsterra API sync reconciliation rows."""
+    """Retrieve the most recent deduplicated Adsterra API sync reconciliation rows."""
     with _conn() as con:
         if domain:
             rows = con.execute(
                 """
                 SELECT * FROM adsterra_api_sync
-                WHERE domain = ?
-                ORDER BY id DESC LIMIT ?
+                WHERE domain = ? AND id IN (SELECT MAX(id) FROM adsterra_api_sync GROUP BY domain, date)
+                ORDER BY date DESC, id DESC LIMIT ?
                 """,
                 (domain, limit),
             ).fetchall()
@@ -853,7 +853,8 @@ def get_latest_adsterra_sync(domain: str | None = None, limit: int = 20) -> list
             rows = con.execute(
                 """
                 SELECT * FROM adsterra_api_sync
-                ORDER BY id DESC LIMIT ?
+                WHERE id IN (SELECT MAX(id) FROM adsterra_api_sync GROUP BY domain, date)
+                ORDER BY date DESC, api_impressions DESC, id DESC LIMIT ?
                 """,
                 (limit,),
             ).fetchall()
@@ -1033,7 +1034,7 @@ def get_daily_revenue_history(days: int = 30, fallback_cpm: float = 2.50) -> lis
                    d.impressions,
                    d.ad_clicks,
                    COALESCE(
-                       (SELECT SUM(a.api_revenue) FROM adsterra_api_sync a WHERE a.date = d.date),
+                       (SELECT SUM(a.api_revenue) FROM adsterra_api_sync a WHERE a.date = d.date AND a.id IN (SELECT MAX(id) FROM adsterra_api_sync GROUP BY domain, date)),
                        (d.impressions * ? / 1000.0)
                    ) AS ad_revenue,
                    COALESCE(
@@ -1360,8 +1361,16 @@ def get_adsterra_funnel_stats(target_date: str | None = None) -> dict:
         total_handshakes = cur_hs[0]
         confirmed_handshakes = cur_hs[1]
 
-        # Latest Adsterra API reconciled metrics
-        cur_api = con.execute("SELECT COALESCE(SUM(api_impressions), 0), COALESCE(SUM(api_clicks), 0), COALESCE(SUM(api_revenue), 0.0) FROM adsterra_api_sync").fetchone()
+        # Latest Adsterra API reconciled metrics (deduplicated per domain & date)
+        cur_api = con.execute(
+            """
+            SELECT COALESCE(SUM(api_impressions), 0),
+                   COALESCE(SUM(api_clicks), 0),
+                   COALESCE(SUM(api_revenue), 0.0)
+            FROM adsterra_api_sync
+            WHERE id IN (SELECT MAX(id) FROM adsterra_api_sync GROUP BY domain, date)
+            """
+        ).fetchone()
         api_impressions = cur_api[0]
         api_clicks = cur_api[1]
         api_revenue = cur_api[2]

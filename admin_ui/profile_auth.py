@@ -428,13 +428,25 @@ def get_connections_summary(base_dir: Path | None = None, cfg: dict[str, Any] | 
     env_keys = _read_env_keys(bdir)
     c = cfg or {}
     gsc_cfg = c.get("google_search_console", {}) or {}
-    gsc_token_exists = (bdir / str(gsc_cfg.get("token_path", "state/gsc_token.json"))).exists()
+    gsc_new_cfg = c.get("gsc", {}) or {}
+    gsc_sa_exists = (bdir / str(gsc_new_cfg.get("service_account_json", "state/gsc_service_account.json"))).exists()
+    gsc_token_exists = (bdir / str(gsc_new_cfg.get("oauth_token_json", gsc_cfg.get("token_path", "state/gsc_token.json")))).exists()
+    gsc_active = gsc_sa_exists or gsc_token_exists
+    gsc_status = "Service Account Active" if gsc_sa_exists else ("OAuth Token Active" if gsc_token_exists else "Setup Pending")
     push_cfg = c.get("push_notifications", {}) or {}
     vapid_exists = (bdir / str(push_cfg.get("vapid_keys_path", "state/vapid_keys.json"))).exists()
+    net_mode = str((c.get("network") or {}).get("mode", "")).strip().lower()
     proxies_file = bdir / str((c.get("proxy", {}) or {}).get("file", "proxies.txt"))
     proxy_count = 0
     if proxies_file.exists():
         proxy_count = sum(1 for ln in proxies_file.read_text(encoding="utf-8", errors="ignore").splitlines() if ln.strip() and not ln.strip().startswith("#"))
+    is_mobile_tether = (net_mode == "mobile_tether")
+    net_configured = is_mobile_tether or (proxy_count > 0)
+    net_status = (
+        ("Mobile ADB Tether Active" if proxy_count == 0 else f"Mobile ADB + {proxy_count} Proxies")
+        if is_mobile_tether
+        else f"{proxy_count} Proxy Lines"
+    )
 
     return [
         {
@@ -487,8 +499,8 @@ def get_connections_summary(base_dir: Path | None = None, cfg: dict[str, Any] | 
             "category": "SEO & Indexing",
             "icon": "tabler-brand-google",
             "color": "danger",
-            "configured": gsc_token_exists,
-            "status_label": "OAuth Token Active" if gsc_token_exists else "Setup Pending",
+            "configured": gsc_active,
+            "status_label": gsc_status,
             "detail": "Layer 5 sitemap push & URL inspection",
             "target_view": "growth",
         },
@@ -509,8 +521,8 @@ def get_connections_summary(base_dir: Path | None = None, cfg: dict[str, Any] | 
             "category": "Network",
             "icon": "tabler-network",
             "color": "dark",
-            "configured": proxy_count > 0,
-            "status_label": f"{proxy_count} Proxy Lines",
+            "configured": net_configured,
+            "status_label": net_status,
             "detail": "Residential / 4G pool & ADB IP rotation",
             "target_view": "network",
         },

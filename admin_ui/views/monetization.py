@@ -434,7 +434,7 @@ def _render_streams_tabs_card() -> str:
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
           <div>
             <h6 class="mb-0">High-Payout CPL / CPA Lead Conversions</h6>
-            <small class="text-body-secondary">Post-click authentic US persona lead submissions ($1.50&ndash;$4.50 bounty)</small>
+            <small class="text-body-secondary">Post-click authentic geo-coherent IN/US persona lead submissions ($1.50&ndash;$4.50 bounty)</small>
           </div>
           <button type="button" class="btn btn-sm btn-primary" id="u4BtnSimLead">
             <i class="icon-base ti tabler-plus icon-16px me-1"></i>+1 CPL Lead Submission

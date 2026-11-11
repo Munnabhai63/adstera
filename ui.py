@@ -848,7 +848,7 @@ HTML_PAGE = """<!DOCTYPE html>
       </div>
       <div style="display: flex; gap: 8px; align-items: center;">
         <select id="funnelTestDomain" style="background: #090D16; color: #F8FAFC; border: 1px solid #334155; padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;">
-          <option value="loanraaj.com">loanraaj.com (Commercial Truck)</option>
+          <option value="loanraaj.com">loanraaj.com (Personal &amp; Business Loans)</option>
           <option value="rechargetak.com">rechargetak.com (5G Telecom)</option>
           <option value="rechargepur.com">rechargepur.com (Smart Meter)</option>
           <option value="tazaloan.com">tazaloan.com (Instant Credit)</option>
@@ -904,7 +904,7 @@ HTML_PAGE = """<!DOCTYPE html>
       </div>
       <div style="background: rgba(16, 185, 129, 0.1); border: 1px solid #10B981; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
         <div style="font-weight: 800; color: #10B981;">4. Gateway 200/302 OK</div>
-        <div style="color: var(--muted); font-size: 10px;">asiafilm.org Beacon Logged</div>
+        <div style="color: var(--muted); font-size: 10px;">araplhn.org / bauval.org Beacon</div>
       </div>
       <div style="background: rgba(245, 158, 11, 0.1); border: 1px solid #F59E0B; border-radius: 6px; padding: 8px 10px; font-size: 11px;">
         <div style="font-weight: 800; color: #F59E0B;">5. Adsterra Reconciled</div>
@@ -933,7 +933,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <tr>
               <th style="width: 140px;">Website</th>
               <th style="width: 150px;">Timestamp</th>
-              <th>Adsterra Gateway URL (asiafilm.org)</th>
+              <th>Adsterra Gateway URL (araplhn.org / bauval.org)</th>
               <th style="width: 130px;">HTTP Status</th>
               <th style="width: 110px;">Latency</th>
               <th style="width: 150px; text-align: right;">Handshake Verdict</th>
@@ -1043,7 +1043,7 @@ HTML_PAGE = """<!DOCTYPE html>
       </div>
     </div>
     <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
-      Autonomous human form filler submitting authentic US persona details on advertiser landing pages ($1.50–$4.50 CPL conversion bounty).
+      Autonomous human form filler submitting geo-coherent IN/US persona + real Sonjj email details on advertiser landing pages ($1.50–$4.50 CPL conversion bounty).
     </div>
     <div class="table-container">
       <table>
@@ -1370,7 +1370,7 @@ HTML_PAGE = """<!DOCTYPE html>
           <tr>
             <th>Email / Identity</th>
             <th>Persona Name</th>
-            <th>US Location</th>
+            <th>Geo Location</th>
             <th>Credit Score</th>
             <th>Commercial Intent</th>
             <th>Warmed Status</th>
@@ -1589,7 +1589,7 @@ HTML_PAGE = """<!DOCTYPE html>
             <tr>
               <td><strong style="color: #f8fafc;">${a.email}</strong></td>
               <td>${p.full_name || a.name || '—'}</td>
-              <td>${p.city ? p.city + ', ' + p.state : 'US Domestic'}</td>
+              <td>${p.city ? p.city + ', ' + p.state : 'India (IN)'}</td>
               <td><span style="color: #34d399; font-weight: 600;">${p.credit_score || 740}</span></td>
               <td><span style="font-size: 11px; color: #94a3b8;">${p.commercial_intent || 'Finance & Loans'}</span></td>
               <td><span style="font-size: 11px; font-weight: 600; padding: 2px 6px; border-radius: 4px; color: ${isW ? '#34d399' : '#fbbf24'}; background: ${isW ? 'rgba(52,211,153,0.15)' : 'rgba(251,191,36,0.15)'}; border: 1px solid ${isW ? 'rgba(52,211,153,0.3)' : 'rgba(251,191,36,0.3)'};">${isW ? '🔥 WARMED' : '⏳ FRESH'}</span></td>
@@ -3282,6 +3282,13 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 cpm_rate,
                 configured_domains=cfg.get("target", {}).get("domains", []),
             )
+            latest_sync = db.get_latest_adsterra_sync(limit=20)
+            sync_by_dom = {}
+            for srow in latest_sync:
+                d_key = str(srow.get("domain") or "").lower().strip()
+                if d_key and d_key not in sync_by_dom:
+                    sync_by_dom[d_key] = srow
+
             for dom_item in domains_list:
                 is_cb_paused, cb_action, cb_reason = detector.is_domain_paused(dom_item["domain"])
                 if is_cb_paused:
@@ -3289,6 +3296,18 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                     dom_item["allow_click"] = False
                     dom_item["breaker_action"] = cb_action
                     dom_item["breaker_reason"] = cb_reason
+                s_match = sync_by_dom.get(str(dom_item["domain"]).lower().strip())
+                if s_match is not None:
+                    dom_item["cpm"] = round(float(s_match.get("api_cpm") or 0.0), 3)
+                    dom_item["estimated_revenue"] = round(float(s_match.get("api_revenue") or 0.0), 4)
+                    dom_item["api_impressions"] = int(s_match.get("api_impressions") or 0)
+                    dom_item["api_clicks"] = int(s_match.get("api_clicks") or 0)
+
+            if sync_by_dom:
+                tot_api_imps = sum(int(r.get("api_impressions") or 0) for r in sync_by_dom.values())
+                tot_api_rev = round(sum(float(r.get("api_revenue") or 0.0) for r in sync_by_dom.values()), 4)
+                metrics["revenue"] = tot_api_rev
+                metrics["cpm"] = round((tot_api_rev / tot_api_imps * 1000.0), 3) if tot_api_imps > 0 else 0.0
 
             status_data = {
                 "is_running": RUNNER.is_running(),
@@ -3315,7 +3334,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "ua_stats": ua_provider.get_stats(),
                 "active_ua": read_active_ua(),
                 "recent_sessions": db.last_sessions(20),
-                "adsterra_sync": db.get_latest_adsterra_sync(limit=10),
+                "adsterra_sync": latest_sync[:10],
                 "today_leads": db.today_leads_summary(),
                 "recent_leads": db.get_lead_conversions(limit=8),
                 "logs": RUNNER.get_logs(),

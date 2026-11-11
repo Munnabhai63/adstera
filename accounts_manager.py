@@ -161,6 +161,22 @@ class AccountsManager:
             )
             ACCOUNTS_TXT_PATH.write_text(sample_content, encoding="utf-8")
 
+    def _resolve_default_country(self) -> str:
+        """Resolve active default geo country from config.yaml (IN when mobile_tether)."""
+        cfg_path = PROJECT_ROOT / "config.yaml"
+        if cfg_path.exists():
+            try:
+                import yaml
+                cfg = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+                net_mode = str((cfg.get("network") or {}).get("mode", "")).strip().lower()
+                if net_mode == "mobile_tether":
+                    return "IN"
+                c = str((cfg.get("proxy") or {}).get("country") or "IN").strip().upper()
+                return c or "IN"
+            except Exception:
+                pass
+        return "IN"
+
     def _load_registry(self) -> None:
         if REGISTRY_PATH.exists():
             try:
@@ -246,9 +262,10 @@ class AccountsManager:
 
         return accounts
 
-    def generate_persona(self, email_seed: str, rng: Optional[random.Random] = None, country: str = "US") -> Dict[str, Any]:
+    def generate_persona(self, email_seed: str, rng: Optional[random.Random] = None, country: Optional[str] = None) -> Dict[str, Any]:
         """Generates a consistent, geo-coherent high-intent financial persona (IN or US)."""
-        is_in = str(country or "").upper() == "IN"
+        eff_country = country if country is not None else self._resolve_default_country()
+        is_in = str(eff_country or "").upper() == "IN"
         seed_raw = f"{email_seed}:IN" if is_in else email_seed
         seed_int = int(hashlib.sha256(seed_raw.encode()).hexdigest()[:8], 16)
         r = random.Random(seed_int) if rng is None else rng
@@ -291,9 +308,10 @@ class AccountsManager:
             "search_query": f"best {intent.lower()} rates {city_info[0]}",
         }
 
-    def generate_synthetic_account(self, domain: str = "gmail.com", country: str = "US") -> Account:
+    def generate_synthetic_account(self, domain: str = "gmail.com", country: Optional[str] = None) -> Account:
         """Create a brand new synthetic account with realistic geo-coherent persona on-the-fly."""
-        is_in = str(country or "").upper() == "IN"
+        eff_country = country if country is not None else self._resolve_default_country()
+        is_in = str(eff_country or "").upper() == "IN"
         first = (random.choice(_FIRST_NAMES_IN) if is_in else random.choice(_FIRST_NAMES)).lower()
         last = (random.choice(_LAST_NAMES_IN) if is_in else random.choice(_LAST_NAMES)).lower()
         rand_num = random.randint(100, 9999)
@@ -306,7 +324,7 @@ class AccountsManager:
             email=email,
             password=password,
             name=f"{first.capitalize()} {last.capitalize()}",
-            persona=self.generate_persona(email, country=country),
+            persona=self.generate_persona(email, country=eff_country),
             created_at=random.uniform(1000000, 2000000)
         )
         self._registry[acc_id] = acc

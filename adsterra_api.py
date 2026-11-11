@@ -555,8 +555,8 @@ class AdsterraApiClient:
                 "api_cpm": cpm,
                 "api_revenue": rev,
             }
-            # Also persist today sync record for non-smartlink domains
-            if dom_name != "smart-link-pool":
+            # Also persist sync record only for single-day audit windows (prevents double-counting multi-day sums)
+            if dom_name != "smart-link-pool" and start == finish:
                 loc_imps = int(local_dom_rows.get(dom_name, {}).get("impressions", 0))
                 disc = round(((imps - loc_imps) / loc_imps) * 100.0, 2) if loc_imps > 0 else (100.0 if imps > 0 else 0.0)
                 db.record_adsterra_sync(

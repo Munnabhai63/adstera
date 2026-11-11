@@ -879,7 +879,7 @@
       tr.appendChild(tdName);
 
       const tdGeo = document.createElement("td");
-      tdGeo.textContent = p.city ? `${p.city}, ${p.state || ""}` : "US Domestic";
+      tdGeo.textContent = p.city ? `${p.city}, ${p.state || ""} (${p.country || "IN"})` : (p.country === "US" ? "United States (US)" : "India (IN)");
       tr.appendChild(tdGeo);
 
       const tdCredit = document.createElement("td");
