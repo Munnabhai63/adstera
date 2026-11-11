@@ -968,6 +968,66 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Layer 1: Adsterra Display Banner Vault Card -->
+  <div class="card" id="bannerVaultCard" style="margin-bottom: 24px; border: 1px solid rgba(56, 189, 248, 0.25);">
+    <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px;">
+      <div>
+        <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.9px; color: #38bdf8; text-transform: uppercase;">Layer 1 · Display Banner Vault</div>
+        <h3 style="margin: 4px 0 0 0; font-size: 17px; color: #f8fafc;">Adsterra 300×250 · 728×90 · NativeBanner Manager</h3>
+        <div id="bannerVaultSummary" style="font-size: 12px; color: var(--muted); margin-top: 4px;">Loading banner inventory...</div>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+        <button type="button" onclick="syncBannerPlacements()" style="background: rgba(56, 189, 248, 0.14); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.35); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Sync API Placements</button>
+        <button type="button" onclick="deployBannerSlots(false)" style="background: rgba(148, 163, 184, 0.14); color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.3); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">Inject Local HTML</button>
+        <button type="button" onclick="deployBannerSlots(true)" style="background: linear-gradient(135deg, #10b981, #059669); color: #fff; border: none; padding: 8px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">Inject &amp; Deploy Cloudflare</button>
+      </div>
+    </div>
+
+    <div style="background: rgba(15, 23, 42, 0.65); border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px; padding: 14px; margin-bottom: 16px;">
+      <div style="display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 10px; align-items: center;">
+        <select id="bvDomainSelect" style="background: #0f172a; color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 6px; padding: 7px 10px; font-size: 12px;">
+          <option value="loanraaj.com">loanraaj.com</option>
+          <option value="rechargetak.com">rechargetak.com</option>
+          <option value="rechargepur.com">rechargepur.com</option>
+          <option value="tazaloan.com">tazaloan.com</option>
+          <option value="loankiseva.com">loankiseva.com</option>
+          <option value="karzseva.com">karzseva.com</option>
+          <option value="loantau.com">loantau.com</option>
+          <option value="tazabhav.com">tazabhav.com</option>
+          <option value="tazarokda.com">tazarokda.com</option>
+          <option value="rechargekar.com">rechargekar.com</option>
+        </select>
+        <select id="bvSlotSelect" style="background: #0f172a; color: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.3); border-radius: 6px; padding: 7px 10px; font-size: 12px;">
+          <option value="auto">Auto-Detect Slot (Single or Bulk All 3)</option>
+          <option value="728x90">728×90 Leaderboard</option>
+          <option value="300x250">300×250 Medium Rectangle</option>
+          <option value="native">NativeBanner</option>
+        </select>
+        <button type="button" onclick="saveBannerSnippet()" style="background: #38bdf8; color: #0f172a; border: none; padding: 7px 14px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">Validate &amp; Save Snippet</button>
+        <span id="bvSaveFeedback" style="font-size: 12px; color: var(--muted);"></span>
+      </div>
+      <textarea id="bvSnippetInput" rows="3" placeholder="Paste official Adsterra 'Get Code' JS snippet(s) here (supports atOptions + invoke.js or NativeBanner container + invoke.js; single or multiple formats together)." style="width: 100%; background: #090d16; color: #e2e8f0; border: 1px solid rgba(148, 163, 184, 0.25); border-radius: 6px; padding: 9px 11px; font-family: monospace; font-size: 12px; box-sizing: border-box;"></textarea>
+    </div>
+
+    <div style="overflow-x: auto;">
+      <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+        <thead>
+          <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.2); text-align: left; color: var(--muted);">
+            <th style="padding: 8px 6px;">Domain</th>
+            <th style="padding: 8px 6px;">Domain ID</th>
+            <th style="padding: 8px 6px;">728×90 Leaderboard</th>
+            <th style="padding: 8px 6px;">300×250 Sidebar</th>
+            <th style="padding: 8px 6px;">NativeBanner</th>
+            <th style="padding: 8px 6px; text-align: right;">Ready</th>
+          </tr>
+        </thead>
+        <tbody id="bannerVaultTbody">
+          <tr><td colspan="6" style="padding: 12px; text-align: center; color: var(--muted);">Loading Display Banner inventory...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Pillar 2: High-Payout CPL/CPA Lead Engine Card -->
   <div class="card">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -1885,6 +1945,134 @@ HTML_PAGE = """<!DOCTYPE html>
     }).join('');
   }
 
+  function _renderSlotCell(slotData) {
+    if (!slotData) return '<span style="color: var(--muted);">—</span>';
+    const pid = slotData.placement_id ? '#' + escapeHtml(String(slotData.placement_id)) : 'No ID';
+    if (slotData.configured) {
+      const preview = escapeHtml(String(slotData.zone_key_preview || ''));
+      return `<span style="color: #34d399; font-weight: 700;">LIVE</span> <span style="font-family: monospace; color: #94a3b8;">(${pid} · ${preview})</span>`;
+    }
+    return `<span style="color: #fbbf24; font-weight: 600;">Awaiting Code</span> <span style="font-family: monospace; color: var(--muted);">(${pid})</span>`;
+  }
+
+  function renderBannerVault(payload) {
+    const tbody = document.getElementById('bannerVaultTbody');
+    const summaryEl = document.getElementById('bannerVaultSummary');
+    if (!tbody || !payload) return;
+    const domains = payload.domains || [];
+    const cfg = payload.configured_slots ?? 0;
+    const tot = payload.total_slots ?? 30;
+    if (summaryEl) {
+      summaryEl.innerText = `${cfg}/${tot} Live Display Snippets Configured · ${domains.length} Publisher Domains`;
+    }
+    if (domains.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="6" style="padding: 12px; text-align: center; color: var(--muted);">No domain placement data synced yet. Click Sync API Placements.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = domains.map(d => {
+      const slots = d.slots || {};
+      const readyColor = d.configured_count === d.total_slots ? '#34d399' : (d.configured_count > 0 ? '#38bdf8' : '#fbbf24');
+      return `
+        <tr style="border-bottom: 1px solid rgba(148, 163, 184, 0.12);">
+          <td style="padding: 8px 6px;"><strong style="color: #f8fafc;">${escapeHtml(String(d.domain || ''))}</strong></td>
+          <td style="padding: 8px 6px; font-family: monospace; color: var(--muted);">${d.adsterra_domain_id ? escapeHtml(String(d.adsterra_domain_id)) : '—'}</td>
+          <td style="padding: 8px 6px;">${_renderSlotCell(slots.banner_728x90)}</td>
+          <td style="padding: 8px 6px;">${_renderSlotCell(slots.banner_300x250)}</td>
+          <td style="padding: 8px 6px;">${_renderSlotCell(slots.native_banner)}</td>
+          <td style="padding: 8px 6px; text-align: right; font-weight: 700; color: ${readyColor};">${d.configured_count}/${d.total_slots}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  async function loadBannerVault() {
+    try {
+      const res = await fetch('/api/adsterra/banners');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.status === 'ok') renderBannerVault(data);
+    } catch (err) {
+      console.error('Banner vault load error:', err);
+    }
+  }
+
+  async function syncBannerPlacements() {
+    const fb = document.getElementById('bvSaveFeedback');
+    if (fb) fb.innerText = 'Syncing Adsterra API placements...';
+    try {
+      const res = await fetch('/api/adsterra/banners/sync', { method: 'POST' });
+      const data = await res.json();
+      if (data.status === 'ok') {
+        renderBannerVault(data.inventory);
+        const synced = data.sync ? data.sync.placements_synced : 0;
+        if (fb) fb.innerHTML = `<span style="color: #34d399;">Synced ${synced} official placements.</span>`;
+        showToast('Placements synced');
+      } else if (fb) {
+        fb.innerHTML = `<span style="color: #f87171;">${escapeHtml(String(data.error || 'Sync failed'))}</span>`;
+      }
+    } catch (err) {
+      if (fb) fb.innerHTML = `<span style="color: #f87171;">${escapeHtml(String(err))}</span>`;
+    }
+  }
+
+  async function saveBannerSnippet() {
+    const domain = (document.getElementById('bvDomainSelect') || {}).value;
+    const slot = (document.getElementById('bvSlotSelect') || {}).value || 'auto';
+    const rawEl = document.getElementById('bvSnippetInput');
+    const snippet = rawEl ? rawEl.value.trim() : '';
+    const fb = document.getElementById('bvSaveFeedback');
+    if (!snippet) {
+      if (fb) fb.innerHTML = '<span style="color: #fbbf24;">Paste an Adsterra Get Code snippet first.</span>';
+      return;
+    }
+    if (fb) fb.innerText = 'Validating & saving...';
+    try {
+      const res = await fetch('/api/adsterra/banners/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ domain, slot, snippet })
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'ok') {
+        if (rawEl) rawEl.value = '';
+        renderBannerVault(data.inventory);
+        const savedList = (data.saved || []).map(x => x.slot).join(', ');
+        if (fb) fb.innerHTML = `<span style="color: #34d399;">Saved ${escapeHtml(savedList)} for ${escapeHtml(domain)}. Click Inject/Deploy to update HTML.</span>`;
+        showToast('Banner snippet saved');
+      } else if (fb) {
+        fb.innerHTML = `<span style="color: #f87171;">${escapeHtml(String(data.error || 'Invalid snippet'))}</span>`;
+      }
+    } catch (err) {
+      if (fb) fb.innerHTML = `<span style="color: #f87171;">${escapeHtml(String(err))}</span>`;
+    }
+  }
+
+  async function deployBannerSlots(deployCf) {
+    const fb = document.getElementById('bvSaveFeedback');
+    if (fb) fb.innerText = deployCf ? 'Injecting HTML slots & deploying to Cloudflare Pages...' : 'Injecting HTML slots across local sites/...';
+    try {
+      const res = await fetch('/api/adsterra/banners/deploy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deploy: Boolean(deployCf) })
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'ok') {
+        const inj = data.inject || {};
+        const cfCount = Array.isArray(inj.deploy_results) ? inj.deploy_results.filter(r => r.ok).length : 0;
+        const msg = deployCf
+          ? `Scanned ${inj.files_scanned || 0} pages, updated ${inj.files_updated || 0}, Cloudflare OK: ${cfCount}`
+          : `Scanned ${inj.files_scanned || 0} pages, updated ${inj.files_updated || 0} locally`;
+        if (fb) fb.innerHTML = `<span style="color: #34d399;">${escapeHtml(msg)}</span>`;
+        showToast('Banner injection complete');
+      } else if (fb) {
+        fb.innerHTML = `<span style="color: #f87171;">${escapeHtml(String(data.error || 'Deploy failed'))}</span>`;
+      }
+    } catch (err) {
+      if (fb) fb.innerHTML = `<span style="color: #f87171;">${escapeHtml(String(err))}</span>`;
+    }
+  }
+
   async function simulateLeadConversion() {
     showToast('Simulating post-click CPL lead form conversion…');
     try {
@@ -2282,6 +2470,7 @@ HTML_PAGE = """<!DOCTYPE html>
 
   fetchAdsterraFunnelData();
   setInterval(fetchAdsterraFunnelData, 5000);
+  loadBannerVault();
 </script>
 
 </body>
@@ -2311,6 +2500,16 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+    def _banner_inventory_payload(self) -> dict:
+        import adsterra_links
+        domains = adsterra_links.get_banner_inventory()
+        return {
+            "status": "ok",
+            "configured_slots": sum(d["configured_count"] for d in domains),
+            "total_slots": sum(d["total_slots"] for d in domains),
+            "domains": domains,
+        }
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -2558,6 +2757,13 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self._send_json({"status": "ok", "synced_count": len(records), "records": records})
             return
 
+        if path == "/api/adsterra/banners":
+            try:
+                self._send_json(self._banner_inventory_payload())
+            except Exception as e:
+                self._send_json({"status": "error", "error": str(e)}, 500)
+            return
+
         if path == "/api/leads":
             leads = db.get_lead_conversions(limit=20)
             summary = db.today_leads_summary()
@@ -2707,6 +2913,60 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 client = AdsterraApiClient()
                 records = client.sync_now()
                 self._send_json({"status": "ok", "synced_count": len(records), "records": records})
+            except Exception as e:
+                self._send_json({"status": "error", "error": str(e)}, 500)
+            return
+
+        if path == "/api/adsterra/banners/sync":
+            try:
+                import adsterra_links
+                sync_res = adsterra_links.sync_placements_from_api()
+                inv = self._banner_inventory_payload()
+                inv["sync"] = sync_res
+                self._send_json({"status": "ok", "sync": sync_res, "inventory": inv})
+            except Exception as e:
+                self._send_json({"status": "error", "error": str(e)}, 500)
+            return
+
+        if path == "/api/adsterra/banners/save":
+            try:
+                import adsterra_links
+                body = payload if isinstance(payload, dict) else {}
+                domain = (body.get("domain") or "").strip()
+                slot = (body.get("slot") or "auto").strip()
+                snippet = (body.get("snippet") or "").strip()
+                if not domain or not snippet:
+                    self._send_json({"status": "error", "error": "Both 'domain' and 'snippet' are required."}, 400)
+                    return
+                if not slot or slot == "auto":
+                    saved = adsterra_links.register_bulk_snippets(domain, snippet)
+                else:
+                    saved = [adsterra_links.register_banner_snippet(domain, snippet, slot=slot)]
+                self._send_json({"status": "ok", "saved": saved, "inventory": self._banner_inventory_payload()})
+            except (ValueError, json.JSONDecodeError) as e:
+                self._send_json({"status": "error", "error": str(e)}, 400)
+            except Exception as e:
+                self._send_json({"status": "error", "error": str(e)}, 500)
+            return
+
+        if path == "/api/adsterra/banners/deploy":
+            try:
+                import inject_display_banners
+                body = payload if isinstance(payload, dict) else {}
+                domain_filter = (body.get("domain") or "").strip() or None
+                deploy_cf = bool(body.get("deploy", False))
+                res = inject_display_banners.inject_all_sites(domain_filter=domain_filter, dry_run=False)
+                if deploy_cf and not res.get("errors"):
+                    deploy_ids = None
+                    if domain_filter:
+                        norm = inject_display_banners._normalize_domain_key(domain_filter)
+                        deploy_ids = [norm]
+                    elif res.get("affected_site_ids"):
+                        deploy_ids = list(res["affected_site_ids"])
+                    res["deploy_results"] = inject_display_banners.deploy_cloudflare_sites(deploy_ids)
+                self._send_json({"status": "ok", "inject": res})
+            except ValueError as e:
+                self._send_json({"status": "error", "error": str(e)}, 400)
             except Exception as e:
                 self._send_json({"status": "error", "error": str(e)}, 500)
             return

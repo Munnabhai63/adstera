@@ -992,7 +992,7 @@ img {{ max-width: 100%; height: auto; display: block; }}
 """
 
 def render_master_page(site_config, title, desc, canonical, main_body, active_nav="Home", ticker_title=None, ticker_url=None, schema_json_ld=""):
-    from adsterra_links import get_adsterra_config, render_adsterra_scripts
+    from adsterra_links import get_adsterra_config, render_adsterra_scripts, render_display_banner, ADSTERRA_BANNER_CSS
     domain = site_config["domain"]
     ad_cfg = get_adsterra_config(domain)
     name = site_config["name"]
@@ -1015,7 +1015,7 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
     ticker_t = ticker_title or f"Latest Insights on {name}"
     ticker_u = ticker_url or "/"
     
-    css = get_css(primary, primary_hover)
+    css = get_css(primary, primary_hover) + ADSTERRA_BANNER_CSS
     
     brand_prefix = name[:4].upper()
     brand_suffix = name[4:].upper()
@@ -1087,6 +1087,9 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
         </div>
     </nav>
 
+    <!-- Leaderboard 728x90 Display Slot -->
+    <div class="container">{render_display_banner(domain, "728x90")}</div>
+
     <!-- Main Body Content -->
     {main_body}
 
@@ -1134,7 +1137,7 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
 """
 
 def render_sidebar(site_config, recent_articles):
-    from adsterra_links import get_adsterra_config, render_adsterra_scripts, render_sidebar_ad_widget
+    from adsterra_links import get_adsterra_config, render_adsterra_scripts, render_display_banner, ADSTERRA_BANNER_CSS, render_sidebar_ad_widget
     ad_cfg = get_adsterra_config(site_config["domain"])
     name = site_config["name"]
     categories = site_config["categories"]
@@ -1223,6 +1226,7 @@ def render_sidebar(site_config, recent_articles):
 
         <!-- Sidebar Ad Unit -->
         {render_sidebar_ad_widget(site_config["domain"])}
+        {render_display_banner(site_config["domain"], "300x250")}
 
         <!-- Category Breakdown -->
         <div class="widget-card">

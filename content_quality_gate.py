@@ -164,7 +164,24 @@ class ContentQualityFinishGate:
             </div>
             """
 
-        # 5. Quality Audit Scoring
+        # 5. Inject Adsterra Mid-Article Native Banner Slot (idempotent)
+        if "<!-- ADSTERRA_SLOT:native -->" not in html_out:
+            try:
+                from adsterra_links import render_display_banner
+                native_slot_html = render_display_banner(domain_key, "native")
+            except Exception:
+                native_slot_html = "<!-- ADSTERRA_SLOT:native --><!-- /ADSTERRA_SLOT:native -->"
+
+            h2_matches = list(re.finditer(r"</h2>\s*<p>.*?</p>", html_out, flags=re.DOTALL))
+            if len(h2_matches) >= 2:
+                pos = h2_matches[1].end()
+                html_out = html_out[:pos] + "\n" + native_slot_html + "\n" + html_out[pos:]
+            elif '<div class="faq-section">' in html_out:
+                html_out = html_out.replace('<div class="faq-section">', f'{native_slot_html}\n<div class="faq-section">', 1)
+            else:
+                html_out = html_out + "\n" + native_slot_html
+
+        # 6. Quality Audit Scoring
         word_count = len(re.findall(r"\b\w+\b", html_out))
         has_table = "<table" in html_out
         has_summary = "executive-summary-box" in html_out

@@ -108,6 +108,10 @@ _EU_UK_COUNTRIES = {
 # Ad selectors to look for on the page
 _AD_SELECTORS = [
     "iframe[src*='adsterra']",
+    "iframe[src*='highperformanceformat']",
+    "iframe[src*='effectivegatecpm']",
+    "iframe[src*='profitabledisplaynetwork']",
+    "[data-ad-slot^='adsterra-']",
     "iframe[src*='googlesyndication']",
     "iframe[src*='doubleclick']",
     "ins.adsbygoogle",
