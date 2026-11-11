@@ -489,6 +489,14 @@ def run_daemon(interval_minutes=35):
             except Exception as rep_exc:
                 print(f"[Daily Report] Scheduler notice: {rep_exc}")
 
+            try:
+                import gsc_monitor
+                gsc_sched = gsc_monitor.maybe_send_scheduled_weekly_report()
+                if gsc_sched.get("sent"):
+                    print(f"[GSC Weekly Report] Digest sent for week {gsc_sched.get('week')}.")
+            except Exception as gsc_exc:
+                print(f"[GSC Weekly Report] Scheduler notice: {gsc_exc}")
+
             print(f"\n[Daemon Pulse] Initiating scheduled post generation at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
             publish_next_post()
             

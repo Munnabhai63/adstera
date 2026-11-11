@@ -191,6 +191,29 @@ def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
 
     indexnow_ok = submit_to_indexnow(clean_domain, urls)
     google_ok = ping_google_sitemap(clean_domain)
+    try:
+        from gsc_auth import GSCAuthManager
+        if GSCAuthManager().is_configured():
+            import asyncio
+            from gsc_submitter import GoogleIndexingSubmitter
+
+            async def _submit_real_gsc() -> bool:
+                sub = GoogleIndexingSubmitter()
+                r1 = await sub.submit_url(new_post_url, action="URL_UPDATED")
+                r2 = await sub.submit_sitemap(f"https://{clean_domain}/sitemap.xml", mock_fallback=False)
+                return bool(r1.get("status") == "ok" and r1.get("authenticated")) or bool(r2)
+
+            try:
+                asyncio.get_running_loop()
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    if pool.submit(asyncio.run, _submit_real_gsc()).result(timeout=20):
+                        google_ok = True
+            except RuntimeError:
+                if asyncio.run(_submit_real_gsc()):
+                    google_ok = True
+    except Exception as gsc_exc:
+        print(f"[GSC API Notice] Authenticated Indexing API skipped for {clean_domain}: {gsc_exc}")
 
     # 4. Update database flag if DB exists
     if os.path.exists(DB_PATH):

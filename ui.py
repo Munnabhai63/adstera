@@ -1147,6 +1147,75 @@ HTML_PAGE = """<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- Layer 5: Google Search Console Real OAuth2 & Weekly Report Card -->
+  <div class="card">
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
+      <span>🔎 Layer 5: Google Search Console (OAuth2 / Service Account &amp; Weekly Report)</span>
+      <div style="display: flex; gap: 8px; align-items: center;">
+        <span id="gscAuthBadge" style="font-size: 11px; background: rgba(248, 113, 113, 0.15); color: #f87171; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(248, 113, 113, 0.3);">🔴 Credentials Pending</span>
+        <button id="btnGscSetup" class="btn btn-secondary" onclick="toggleGscSetupBox()" style="padding: 4px 10px; font-size: 11px;">🔑 Setup JSON</button>
+        <button id="btnGscSync" class="btn btn-secondary" onclick="syncGscNow()" style="padding: 4px 10px; font-size: 11px;">🔄 Sync GSC</button>
+        <button id="btnGscWeekly" class="btn btn-secondary" onclick="sendGscWeeklyReport()" style="padding: 4px 10px; font-size: 11px;">📈 Weekly Report</button>
+      </div>
+    </div>
+    <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
+      Real Search Console API v3/v1 integration (Search Analytics, Sitemaps, URL Inspection, Indexing API v3) plus automated weekly Telegram digests. Clearly distinguishes live Google API data from fallback estimates.
+    </div>
+
+    <div id="gscCredsBox" style="display: none; background: rgba(15, 23, 42, 0.85); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 8px; padding: 12px; margin-bottom: 14px;">
+      <div style="font-size: 12px; font-weight: 600; color: #38bdf8; margin-bottom: 6px;">Connect Real Google Search Console Credentials (Stored locally in gitignored state/)</div>
+      <div style="font-size: 11px; color: var(--muted); margin-bottom: 8px; line-height: 1.5;">
+        1. Google Cloud Console &rarr; Enable <b>Google Search Console API</b> &amp; <b>Web Search Indexing API</b>.<br>
+        2. Create a <b>Service Account</b> &rarr; Keys &rarr; Download <b>JSON</b> (or paste OAuth2 refresh_token JSON).<br>
+        3. Add the Service Account <code>client_email</code> as <b>Owner / Full user</b> inside Google Search Console for each domain.
+      </div>
+      <textarea id="gscCredsInput" rows="5" placeholder='Paste Google Service Account JSON ({"type": "service_account", "client_email": "...", "private_key": "..."})' style="width: 100%; background: rgba(2, 6, 23, 0.9); color: #e2e8f0; border: 1px solid var(--border); border-radius: 6px; padding: 8px; font-family: monospace; font-size: 11px; box-sizing: border-box;"></textarea>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
+        <span id="gscCredsMsg" style="font-size: 11px; color: var(--muted);">Saved safely to state/gsc_service_account.json (never committed to Git).</span>
+        <button id="btnGscSaveCreds" class="btn btn-primary" onclick="saveGscCredentials()" style="padding: 5px 12px; font-size: 11px;">💾 Save Credentials</button>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px;">
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Live Properties</div>
+        <div id="gscLiveCount" style="font-size: 1.05rem; font-weight: 700; color: #facc15;">0 / 10</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">7d Organic Imps</div>
+        <div id="gscTotalImps" style="font-size: 1.05rem; font-weight: 700; color: #38bdf8;">0</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">7d Organic Clicks</div>
+        <div id="gscTotalClicks" style="font-size: 1.05rem; font-weight: 700; color: #4ade80;">0</div>
+      </div>
+      <div style="background: rgba(15, 23, 42, 0.6); padding: 8px 12px; border-radius: 6px; border: 1px solid var(--border);">
+        <div style="font-size: 11px; color: var(--muted);">Service Identity</div>
+        <div id="gscClientEmail" style="font-size: 0.78rem; font-weight: 600; color: #cbd5e1; word-break: break-all;">Not Configured</div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Domain</th>
+            <th>Source</th>
+            <th>GSC Property</th>
+            <th>7d Imps</th>
+            <th>7d Clicks</th>
+            <th>CTR</th>
+            <th>Avg Pos</th>
+            <th>Top Query</th>
+          </tr>
+        </thead>
+        <tbody id="gscTbody">
+          <tr><td colspan="8" style="text-align: center; color: var(--muted);">Loading GSC status…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Pillar 5: Dual-ISP Carrier Hot-Failover Engine Card -->
   <div class="card">
     <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
@@ -2285,6 +2354,151 @@ HTML_PAGE = """<!DOCTYPE html>
     }
   }
 
+  function escGsc(v) {
+    return String(v == null ? '' : v)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function toggleGscSetupBox() {
+    const box = document.getElementById('gscCredsBox');
+    if (box) box.style.display = box.style.display === 'none' ? 'block' : 'none';
+  }
+
+  async function fetchGscStatus() {
+    try {
+      const res = await fetch('/api/gsc/status');
+      const data = await res.json();
+      if (!data.success) return;
+      const auth = data.auth || {};
+      const sum = data.summary || {};
+      const badge = document.getElementById('gscAuthBadge');
+      if (badge) {
+        if (auth.configured && (sum.live_domains_count || 0) > 0) {
+          badge.style.background = 'rgba(34, 197, 94, 0.2)';
+          badge.style.color = '#4ade80';
+          badge.style.borderColor = 'rgba(34, 197, 94, 0.4)';
+          badge.innerText = `🟢 Connected (${auth.auth_type})`;
+        } else if (auth.configured) {
+          badge.style.background = 'rgba(56, 189, 248, 0.15)';
+          badge.style.color = '#38bdf8';
+          badge.style.borderColor = 'rgba(56, 189, 248, 0.35)';
+          badge.innerText = `🔵 Auth Ready — Click Sync GSC`;
+        } else {
+          badge.style.background = 'rgba(250, 204, 21, 0.15)';
+          badge.style.color = '#facc15';
+          badge.style.borderColor = 'rgba(250, 204, 21, 0.35)';
+          badge.innerText = '🟡 Estimate Mode (OAuth Pending)';
+        }
+      }
+      const liveEl = document.getElementById('gscLiveCount');
+      const impEl = document.getElementById('gscTotalImps');
+      const clkEl = document.getElementById('gscTotalClicks');
+      const emailEl = document.getElementById('gscClientEmail');
+      if (liveEl) liveEl.innerText = `${sum.live_domains_count || 0} / ${sum.total_domains || 10}`;
+      if (impEl) impEl.innerText = (sum.total_impressions_7d || 0).toLocaleString();
+      if (clkEl) clkEl.innerText = (sum.total_clicks_7d || 0).toLocaleString();
+      if (emailEl) emailEl.innerText = auth.client_email || (auth.configured ? auth.auth_type : 'Not Configured');
+
+      const tbody = document.getElementById('gscTbody');
+      if (tbody) {
+        const rows = data.domains || [];
+        if (rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted);">Click "Sync GSC" to populate domain metrics.</td></tr>';
+        } else {
+          tbody.innerHTML = rows.map(d => {
+            const isLive = d.data_source === 'google_search_console_api' && !d.is_mock;
+            const srcBadge = isLive
+              ? '<span class="status-badge status-ok">LIVE GSC</span>'
+              : '<span class="status-badge" style="background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.35);">ESTIMATE</span>';
+            const topQ = d.top_queries && d.top_queries.length > 0 ? escGsc(d.top_queries[0].query) : '—';
+            const ctrPct = ((d.ctr || 0) * 100).toFixed(2) + '%';
+            return `
+              <tr>
+                <td><strong>${escGsc(d.domain)}</strong></td>
+                <td>${srcBadge}</td>
+                <td style="font-size: 11px; color: var(--muted);">${escGsc(d.property_url || 'pending')}</td>
+                <td>${Number(d.impressions || 0).toLocaleString()}</td>
+                <td>${Number(d.clicks || 0).toLocaleString()}</td>
+                <td>${ctrPct}</td>
+                <td>#${Number(d.avg_position || 0).toFixed(1)}</td>
+                <td style="font-size: 11px; color: #cbd5e1;">${topQ}</td>
+              </tr>
+            `;
+          }).join('');
+        }
+      }
+    } catch (e) {
+      console.error('GSC status error:', e);
+    }
+  }
+
+  async function syncGscNow() {
+    const btn = document.getElementById('btnGscSync');
+    if (btn) btn.innerText = '⏳ Syncing…';
+    try {
+      const res = await fetch('/api/gsc/sync', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('GSC sync completed (' + ((data.report && data.report.live_domains_count) || 0) + ' live properties).');
+      }
+      await fetchGscStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '🔄 Sync GSC';
+    }
+  }
+
+  async function sendGscWeeklyReport() {
+    const btn = document.getElementById('btnGscWeekly');
+    if (btn) btn.innerText = '⏳ Generating…';
+    try {
+      const res = await fetch('/api/gsc/weekly-report', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Weekly GSC report saved (' + data.date + ') & Telegram dispatched: ' + Boolean(data.telegram_sent));
+      }
+      await fetchGscStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '📈 Weekly Report';
+    }
+  }
+
+  async function saveGscCredentials() {
+    const inp = document.getElementById('gscCredsInput');
+    const msg = document.getElementById('gscCredsMsg');
+    const raw = inp ? inp.value.trim() : '';
+    if (!raw) {
+      if (msg) { msg.style.color = '#f87171'; msg.innerText = 'Paste valid JSON before saving.'; }
+      return;
+    }
+    try {
+      const res = await fetch('/api/gsc/credentials', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ credentials_json: raw })
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (msg) {
+          msg.style.color = '#4ade80';
+          msg.innerText = 'Saved ' + data.saved.auth_type + (data.saved.client_email ? ' (' + data.saved.client_email + ')' : '');
+        }
+        if (inp) inp.value = '';
+        await fetchGscStatus();
+      } else {
+        if (msg) { msg.style.color = '#f87171'; msg.innerText = data.error || 'Invalid credentials payload'; }
+      }
+    } catch (e) {
+      if (msg) { msg.style.color = '#f87171'; msg.innerText = 'Failed to save credentials'; }
+    }
+  }
+
   async function fetchFailoverStatus() {
     try {
       const res = await fetch('/api/failover/status');
@@ -2408,6 +2622,7 @@ HTML_PAGE = """<!DOCTYPE html>
   fetchStatus();
   previewSerpQueries();
   fetchTelegramStatus();
+  fetchGscStatus();
   fetchFailoverStatus();
   refreshAnalyticsCharts();
   setInterval(() => {
@@ -2902,6 +3117,49 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self.wfile.write(raw)
             return
 
+        if path == "/api/gsc/status":
+            try:
+                from gsc_monitor import GSCMonitor
+                mon = GSCMonitor()
+                auth_status = mon.auth.get_status()
+                cached = mon._cached_metrics or {}
+                if not cached:
+                    mon.audit_all_domains()
+                    cached = mon._cached_metrics or {}
+                dom_rows = []
+                for dom in mon.domains:
+                    clean_dom = str(dom.get("domain", dom) if isinstance(dom, dict) else dom).lower().replace("https://", "").replace("http://", "").rstrip("/")
+                    entry = cached.get(clean_dom) or mon._mock_estimate(clean_dom, 7, auth_status["configured"], "mock_estimate")
+                    dom_rows.append(entry)
+                live_cnt = sum(1 for r in dom_rows if r.get("data_source") == "google_search_console_api" and not r.get("is_mock"))
+                tot_imps = sum(int(r.get("impressions", 0) or 0) for r in dom_rows)
+                tot_clks = sum(int(r.get("clicks", 0) or 0) for r in dom_rows)
+                avg_pos = round(sum(float(r.get("avg_position", 0) or 0) for r in dom_rows) / max(1, len(dom_rows)), 1)
+                weekly_state = {}
+                if mon.weekly_state_path.is_file():
+                    try:
+                        weekly_state = json.loads(mon.weekly_state_path.read_text(encoding="utf-8"))
+                    except Exception:
+                        weekly_state = {}
+                self._send_json({
+                    "success": True,
+                    "auth": auth_status,
+                    "summary": {
+                        "total_domains": len(dom_rows),
+                        "live_domains_count": live_cnt,
+                        "mock_domains_count": len(dom_rows) - live_cnt,
+                        "total_impressions_7d": tot_imps,
+                        "total_clicks_7d": tot_clks,
+                        "fleet_ctr": round(tot_clks / tot_imps, 4) if tot_imps > 0 else 0.0,
+                        "avg_position": avg_pos,
+                    },
+                    "domains": dom_rows,
+                    "weekly_report": weekly_state,
+                })
+            except Exception as exc:
+                self._send_json({"success": False, "error": str(exc)}, 500)
+            return
+
         if path == "/api/config":
             cfg = read_config()
             proxies_txt = read_proxies()
@@ -3093,6 +3351,55 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 cb_res = state_cleanup.reset_circuit_breaker(apply=True)
                 ua_res = state_cleanup.reset_active_ua_file(apply=True)
                 self._send_json({"success": True, "circuit_breaker": cb_res, "active_ua": ua_res})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/gsc/sync":
+            try:
+                from gsc_monitor import GSCMonitor
+                mon = GSCMonitor()
+                raw_days = (payload or {}).get("days", 7) if isinstance(payload, dict) else 7
+                try:
+                    days = max(1, min(90, int(raw_days)))
+                except (TypeError, ValueError):
+                    self._send_json({"success": False, "error": "Invalid days parameter"}, 400)
+                    return
+                report = mon.audit_all_domains(days=days)
+                self._send_json({"success": True, "report": report})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/gsc/weekly-report":
+            try:
+                from gsc_monitor import GSCMonitor
+                mon = GSCMonitor()
+                res = mon.generate_weekly_report(send_telegram=True)
+                self._send_json({
+                    "success": True,
+                    "date": res["date"],
+                    "txt_path": res["txt_path"],
+                    "json_path": res["json_path"],
+                    "telegram_sent": res["telegram_sent"],
+                    "audit": res["audit"],
+                })
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/gsc/credentials":
+            try:
+                from gsc_auth import GSCAuthManager
+                if length > 262144:
+                    self._send_json({"success": False, "error": "Payload exceeds 256KB limit."}, 413)
+                    return
+                raw_cred = payload.get("credentials_json", payload) if isinstance(payload, dict) and "credentials_json" in payload else payload
+                mgr = GSCAuthManager()
+                saved = mgr.save_credentials_payload(raw_cred)
+                self._send_json({"success": True, "saved": saved, "auth": mgr.get_status()})
+            except ValueError as ve:
+                self._send_json({"success": False, "error": str(ve)}, 400)
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
             return

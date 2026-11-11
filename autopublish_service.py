@@ -35,44 +35,64 @@ def get_live_google_trends() -> List[str]:
     return _CACHED_TRENDS or ["Instant Personal Loan 2026", "Jio True 5G Plans", "24K Gold Rate Today", "Credit Card Lounge Access"]
 
 def get_network_index_stats() -> Dict[str, Any]:
-    """Computes total posts across network and Google India index estimates."""
+    """Computes total posts across network enriched with real/cached GSCMonitor status."""
     conn = sqlite3.connect(DB_PATH)
     cur = conn.cursor()
     cur.execute("SELECT domain, COUNT(*) FROM published_posts GROUP BY domain")
     pub_counts = dict(cur.fetchall())
     conn.close()
-    
+
+    gsc_cached: Dict[str, Any] = {}
+    gsc_configured = False
+    try:
+        from gsc_monitor import GSCMonitor
+        mon = GSCMonitor()
+        gsc_configured = mon.auth.is_configured()
+        gsc_cached = dict(mon._cached_metrics or {})
+    except Exception:
+        pass
+
     total_articles = 0
     total_indexed = 0
     domain_breakdown = {}
-    
+
     for dom_id, meta in NETWORK_REGISTRY.items():
         base_posts = 16  # Initial seed posts deployed
         new_posts = pub_counts.get(dom_id, 0)
         total_for_dom = base_posts + new_posts
-        
-        # Indexed ratio estimate (Google crawls sitemaps over 1-3 days)
-        # Seed posts are submitted in sitemap.xml and verified in Search Console
-        indexed_for_dom = min(total_for_dom, base_posts)
-        
+
+        clean_dom = str(meta["domain"]).lower().replace("https://", "").replace("http://", "").rstrip("/")
+        gsc_entry = gsc_cached.get(clean_dom, {})
+        is_real_gsc = bool(gsc_entry and not gsc_entry.get("is_mock", True) and gsc_entry.get("data_source") == "google_search_console_api")
+        if is_real_gsc:
+            indexed_for_dom = min(total_for_dom, int(gsc_entry.get("indexed_pages", 0) or 0))
+            data_source = "google_search_console_api"
+        else:
+            indexed_for_dom = min(total_for_dom, base_posts)
+            data_source = "estimate"
+
         total_articles += total_for_dom
         total_indexed += indexed_for_dom
-        
+
         domain_breakdown[dom_id] = {
             "name": meta["name"],
             "domain": meta["domain"],
             "total_articles": total_for_dom,
             "indexed_count": indexed_for_dom,
             "index_rate": f"{round((indexed_for_dom / max(1, total_for_dom)) * 100, 1)}%",
-            "sitemap_status": "Verified 200 OK",
-            "gsc_verified": True
+            "sitemap_status": "Verified 200 OK" if is_real_gsc else "Sitemap Ready (GSC Pending)",
+            "gsc_verified": is_real_gsc,
+            "data_source": data_source,
+            "gsc_impressions": int(gsc_entry.get("impressions", 0) or 0),
+            "gsc_clicks": int(gsc_entry.get("clicks", 0) or 0),
         }
-        
+
     return {
         "total_network_articles": total_articles,
         "total_indexed": total_indexed,
         "overall_index_rate": f"{round((total_indexed / max(1, total_articles)) * 100, 1)}%",
-        "domains": domain_breakdown
+        "gsc_configured": gsc_configured,
+        "domains": domain_breakdown,
     }
 
 def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
