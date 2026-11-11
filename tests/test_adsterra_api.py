@@ -10,7 +10,8 @@ import db
 
 
 @pytest.fixture(autouse=True)
-def init_test_db():
+def init_test_db(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "test_adsterra_api.db")
     db.init()
     yield
 

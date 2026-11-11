@@ -808,9 +808,13 @@ HTML_PAGE = """<!DOCTYPE html>
 
   <!-- Multi-Domain Fleet Governance Table (MD Spec 1) -->
   <div class="card">
-    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center;">
-      <span>🌐 Multi-Domain Fleet Governance & Independent CTR Circuit Breakers</span>
-      <span style="font-size: 11px; background: rgba(52, 211, 153, 0.15); color: #34d399; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.3);">Safe CTR Limit: &le; 5.0%</span>
+    <div class="card-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+      <span>🌐 Multi-Domain Fleet Governance &amp; Independent CTR Circuit Breakers</span>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span id="breakerStatusBadge" style="font-size: 11px; background: rgba(52, 211, 153, 0.15); color: #34d399; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.3);">🟢 0 Breakers Tripped</span>
+        <span style="font-size: 11px; background: rgba(52, 211, 153, 0.15); color: #34d399; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.3);">Safe CTR Limit: &le; 5.0%</span>
+        <button id="btnResetBreaker" class="btn btn-secondary" onclick="resetCircuitBreakers()" style="padding: 4px 10px; font-size: 11px;">🔓 Reset Breakers</button>
+      </div>
     </div>
     <div class="table-container">
       <table>
@@ -1375,6 +1379,25 @@ HTML_PAGE = """<!DOCTYPE html>
         if (uTarget) uTarget.innerText = data.active_ua.target_url || '—';
       }
 
+      // Update circuit breaker summary badge
+      const cbBadge = document.getElementById('breakerStatusBadge');
+      if (cbBadge && data.circuit_breaker) {
+        const pCount = (data.circuit_breaker.paused_domains || []).length;
+        if (pCount > 0 || data.circuit_breaker.global_pause) {
+          cbBadge.innerText = data.circuit_breaker.global_pause && pCount === 0
+            ? '⚠️ Global Pause'
+            : `⚠️ ${pCount} Paused`;
+          cbBadge.style.color = '#f87171';
+          cbBadge.style.background = 'rgba(248, 113, 113, 0.15)';
+          cbBadge.style.borderColor = 'rgba(248, 113, 113, 0.3)';
+        } else {
+          cbBadge.innerText = '🟢 0 Breakers Tripped';
+          cbBadge.style.color = '#34d399';
+          cbBadge.style.background = 'rgba(52, 211, 153, 0.15)';
+          cbBadge.style.borderColor = 'rgba(52, 211, 153, 0.3)';
+        }
+      }
+
       // Update domain fleet table
       const domTbody = document.getElementById('domainsTbody');
       if (domTbody && data.domains && data.domains.length > 0) {
@@ -1386,11 +1409,12 @@ HTML_PAGE = """<!DOCTYPE html>
             badgeColor = '#fbbf24';
             badgeBg = 'rgba(251, 191, 36, 0.15)';
             badgeBorder = 'rgba(251, 191, 36, 0.3)';
-          } else if (d.status === 'PAUSED') {
+          } else if (d.status === 'PAUSED' || d.status === 'CIRCUIT_PAUSED') {
             badgeColor = '#f87171';
             badgeBg = 'rgba(248, 113, 113, 0.15)';
             badgeBorder = 'rgba(248, 113, 113, 0.3)';
           }
+          const titleAttr = d.breaker_reason ? ` title="${String(d.breaker_reason).replace(/"/g, '&quot;')}"` : '';
           return `
             <tr>
               <td><strong style="color: #f8fafc;">${d.domain}</strong></td>
@@ -1398,7 +1422,7 @@ HTML_PAGE = """<!DOCTYPE html>
               <td>${d.impressions}</td>
               <td><strong style="color: ${d.clicks > 0 ? '#34d399' : 'inherit'}">${d.clicks}</strong></td>
               <td><span style="font-weight: 600; color: ${badgeColor}">${d.ctr.toFixed(2)}%</span></td>
-              <td><span style="font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; color: ${badgeColor}; background: ${badgeBg}; border: 1px solid ${badgeBorder};">${d.status}</span></td>
+              <td><span${titleAttr} style="font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; color: ${badgeColor}; background: ${badgeBg}; border: 1px solid ${badgeBorder};">${d.status}</span></td>
               <td>$${d.cpm ? d.cpm.toFixed(2) : '4.50'}</td>
               <td><strong style="color: #38bdf8;">$${d.estimated_revenue ? d.estimated_revenue.toFixed(2) : '0.00'}</strong></td>
             </tr>
@@ -2244,6 +2268,23 @@ HTML_PAGE = """<!DOCTYPE html>
     }
   }
 
+  async function resetCircuitBreakers() {
+    const btn = document.getElementById('btnResetBreaker');
+    if (btn) btn.innerText = '⏳ Resetting…';
+    try {
+      const res = await fetch('/api/circuit-breaker/reset', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        showToast('Circuit breakers & active UA state reset cleanly.');
+        await fetchStatus();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '🔓 Reset Breakers';
+    }
+  }
+
   async function fetchFailoverStatus() {
     try {
       const res = await fetch('/api/failover/status');
@@ -2673,10 +2714,26 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 mobile_info = get_cached_mobile_info()
 
             from accounts_manager import AccountsManager
+            from anomaly_detector import AnomalyDetector
             from autopilot_watchdog import AutopilotWatchdog
             acc_mgr = AccountsManager()
             accs = acc_mgr.get_all_accounts()
             warmed_c = sum(1 for a in accs if a.warmed or a.cookies_count > 0)
+
+            detector = AnomalyDetector()
+            cb_state = detector._load_state()
+            paused_map = cb_state.get("paused_domains", {}) or {}
+            domains_list = db.all_domains_summary(
+                cpm_rate,
+                configured_domains=cfg.get("target", {}).get("domains", []),
+            )
+            for dom_item in domains_list:
+                is_cb_paused, cb_action, cb_reason = detector.is_domain_paused(dom_item["domain"])
+                if is_cb_paused:
+                    dom_item["status"] = "PAUSED"
+                    dom_item["allow_click"] = False
+                    dom_item["breaker_action"] = cb_action
+                    dom_item["breaker_reason"] = cb_reason
 
             status_data = {
                 "is_running": RUNNER.is_running(),
@@ -2684,10 +2741,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 "today": db.today(),
                 "ctr": db.ctr(100),
                 "metrics": metrics,
-                "domains": db.all_domains_summary(
-                    cpm_rate,
-                    configured_domains=cfg.get("target", {}).get("domains", []),
-                ),
+                "domains": domains_list,
+                "circuit_breaker": {
+                    "paused_domains": sorted(paused_map.keys()),
+                    "global_pause": bool(cb_state.get("global_pause", False)),
+                },
                 "accounts_total": len(accs),
                 "accounts_warmed": warmed_c,
                 "accounts_sample": [a.to_dict() for a in accs[:8]],
@@ -3025,6 +3083,16 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 ok = daily_report.send_daily_report_telegram()
                 stats = daily_report.get_daily_fleet_stats()
                 self._send_json({"success": ok, "stats": stats})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/circuit-breaker/reset":
+            try:
+                import state_cleanup
+                cb_res = state_cleanup.reset_circuit_breaker(apply=True)
+                ua_res = state_cleanup.reset_active_ua_file(apply=True)
+                self._send_json({"success": True, "circuit_breaker": cb_res, "active_ua": ua_res})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
             return

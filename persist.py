@@ -4,8 +4,11 @@ persist.py — Per-proxy storage_state (cookies + localStorage) carry-over.
 from __future__ import annotations
 
 import logging
+import re
 import time
 from pathlib import Path
+
+_PROXY_STATE_FILE_RE = re.compile(r"^(?:mobile_.*|.*_\d+(?:_meta)?)\.json$")
 
 from playwright.async_api import BrowserContext
 
@@ -52,6 +55,11 @@ async def restore(context: BrowserContext, proxy_id: str) -> bool:
         return False
 
 
+def _meta_path(proxy_id: str) -> Path:
+    safe = proxy_id.replace(":", "_").replace("@", "_").replace("/", "_")
+    return _STATE_DIR / f"{safe}_meta.json"
+
+
 def has_state(proxy_id: str, max_age_days: float = 7.0) -> bool:
     """Check whether a valid, non-expired saved state exists for this proxy (INFRA-2: 7-day TTL)."""
     path = _state_path(proxy_id)
@@ -61,6 +69,7 @@ def has_state(proxy_id: str, max_age_days: float = 7.0) -> bool:
         age_days = (time.time() - path.stat().st_mtime) / 86400.0
         if age_days > max_age_days:
             path.unlink(missing_ok=True)
+            _meta_path(proxy_id).unlink(missing_ok=True)
             logger.debug("State expired (%.1f days > %.1f days) for %s — purged", age_days, max_age_days, proxy_id)
             return False
     except Exception:
@@ -69,11 +78,32 @@ def has_state(proxy_id: str, max_age_days: float = 7.0) -> bool:
 
 
 def clear(proxy_id: str) -> None:
-    """Delete the saved state for a proxy (e.g. after it's retired)."""
-    path = _state_path(proxy_id)
-    if path.exists():
-        path.unlink()
-        logger.debug("Cleared state for %s", proxy_id)
+    """Delete both saved state and visit metadata for a proxy (e.g. after retirement)."""
+    for p in (_state_path(proxy_id), _meta_path(proxy_id)):
+        if p.exists():
+            p.unlink(missing_ok=True)
+    logger.debug("Cleared state and metadata for %s", proxy_id)
+
+
+def purge_stale_states(max_age_days: float = 7.0, state_dir: Path | None = None) -> int:
+    """Remove expired proxy storage states and orphaned *_meta.json files from state_dir."""
+    root = Path(state_dir) if state_dir is not None else _STATE_DIR
+    if not root.is_dir():
+        return 0
+    now_ts = time.time()
+    removed = 0
+    for item in root.iterdir():
+        if not item.is_file() or not item.name.endswith(".json"):
+            continue
+        if not _PROXY_STATE_FILE_RE.match(item.name):
+            continue
+        try:
+            if (now_ts - item.stat().st_mtime) / 86400.0 > max_age_days:
+                item.unlink(missing_ok=True)
+                removed += 1
+        except Exception:
+            pass
+    return removed
 
 
 

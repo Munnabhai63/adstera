@@ -9,6 +9,18 @@ import sqlite3
 import random
 from pathlib import Path
 import db
+import persist
+import worker
+
+
+@pytest.fixture(autouse=True)
+def _isolate_test_step0_1(tmp_path, monkeypatch):
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "test_step0_1.db")
+    monkeypatch.setattr(persist, "_STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(worker, "ACTIVE_UA_PATH", tmp_path / "state" / "active_ua.json")
+    db.init()
+    yield
+
 
 def test_db_error_reason_schema():
     db.init()

@@ -99,15 +99,19 @@ def test_hardened_launch_arguments(connector):
 
 def test_state_isolation_paths(connector):
     """Verify session data dirs and cookies are strictly within project adstera/state/mahi_bridge/."""
+    import shutil
     profile_id = "test-uuid-1234"
     user_data_dir = connector.get_isolated_user_data_dir(profile_id)
-    cookie_state = connector.get_storage_state_path(profile_id)
+    try:
+        cookie_state = connector.get_storage_state_path(profile_id)
 
-    # Must be inside project state dir
-    assert MAHI_STATE_DIR in user_data_dir.parents or user_data_dir == MAHI_STATE_DIR
-    assert MAHI_STATE_DIR in cookie_state.parents
+        # Must be inside project state dir
+        assert MAHI_STATE_DIR in user_data_dir.parents or user_data_dir == MAHI_STATE_DIR
+        assert MAHI_STATE_DIR in cookie_state.parents
 
-    # Must NOT be inside MAHI Browser's application or roaming dir
-    assert "AppData\\Roaming\\mahi-browser" not in str(user_data_dir)
-    assert "AppData\\Local\\Programs\\MAHI Browser" not in str(user_data_dir)
+        # Must NOT be inside MAHI Browser's application or roaming dir
+        assert "AppData\\Roaming\\mahi-browser" not in str(user_data_dir)
+        assert "AppData\\Local\\Programs\\MAHI Browser" not in str(user_data_dir)
+    finally:
+        shutil.rmtree(user_data_dir, ignore_errors=True)
 

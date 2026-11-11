@@ -83,6 +83,18 @@ def _record_active_ua(proxy_id: str, fp, active: bool = True, target_url: str | 
         pass
 
 
+def reset_active_ua(state_path: Path | None = None) -> None:
+    """Reset active_ua.json back to idle standby status."""
+    from state_cleanup import IDLE_ACTIVE_UA
+
+    target = Path(state_path) if state_path is not None else ACTIVE_UA_PATH
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(IDLE_ACTIVE_UA, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
 def select_target_url(
     cfg: dict,
     rng: random.Random,
