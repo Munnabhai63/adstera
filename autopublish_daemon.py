@@ -8,23 +8,70 @@ import sqlite3
 import urllib.request
 import urllib.error
 import subprocess
+import threading
 import time
 import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from pathlib import Path
+import yaml
 
-sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 from site_templates import render_master_page, render_sidebar
 from adsterra_links import render_native_ad_card, get_adsterra_config
 from autopublish_engine import AntiAIDetectionGate, query_freellmapi, ping_search_engines, generate_claude_seo_article
 import seo_pipeline
+import topic_intelligence
 
 DB_PATH = os.path.join("state", "autopublish.db")
+CONFIG_PATH = Path(__file__).parent / "config.yaml"
 os.makedirs("state", exist_ok=True)
+
+_GIT_SYNC_LOCK = threading.Lock()
+_QUEUE_CLAIM_LOCK = threading.Lock()
+
+DEFAULT_AUTOPUBLISH_CFG = {
+    "interval_minutes": 20,
+    "parallel_domains": 2,
+    "jitter_seconds": 180,
+    "min_sleep_seconds": 900,
+    "stuck_stage_minutes": 30,
+    "aggressive_winners_count": 5,
+    "min_winner_score": 65.0,
+    "min_pending_per_domain": 3,
+    "sync_winners_to_queue": True,
+}
+
+
+def _load_autopublish_config() -> dict:
+    cfg = dict(DEFAULT_AUTOPUBLISH_CFG)
+    try:
+        if CONFIG_PATH.exists():
+            data = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            ap = data.get("autopublish") or {}
+            if isinstance(ap, dict):
+                cfg.update({k: v for k, v in ap.items() if v is not None})
+    except Exception:
+        pass
+    return cfg
+
+
+def _connect_db() -> sqlite3.Connection:
+    parent = os.path.dirname(DB_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA busy_timeout=30000;")
+    return conn
+
 
 # 1. DATABASE SETUP
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect_db()
     cur = conn.cursor()
     cur.execute("""
     CREATE TABLE IF NOT EXISTS published_posts (
@@ -47,11 +94,16 @@ def init_db():
         category TEXT,
         topic TEXT UNIQUE,
         status TEXT DEFAULT 'pending',
+        priority_score REAL DEFAULT 0.0,
         created_at TIMESTAMP
     )
     """)
+    cols = {r[1] for r in cur.execute("PRAGMA table_info(topic_queue)").fetchall()}
+    if "priority_score" not in cols:
+        cur.execute("ALTER TABLE topic_queue ADD COLUMN priority_score REAL DEFAULT 0.0")
     conn.commit()
     conn.close()
+    topic_intelligence.init_candidate_tables(db_path=DB_PATH)
 
 # 2. SEED TOPIC QUEUE (10 rich trending topics per domain = 100 queued posts)
 INITIAL_TOPICS = {
@@ -127,16 +179,21 @@ INITIAL_TOPICS = {
     ]
 }
 
-def seed_queue():
-    conn = sqlite3.connect(DB_PATH)
+def seed_queue(fetch_live: bool = True):
+    ap_cfg = _load_autopublish_config()
+    min_per_dom = int(ap_cfg.get("min_pending_per_domain", 3))
+    min_winner_score = float(ap_cfg.get("min_winner_score", 65.0))
+    conn = _connect_db()
     cur = conn.cursor()
     inserted = 0
     now = datetime.now().isoformat()
     for site, topics in INITIAL_TOPICS.items():
         for cat, topic in topics:
             try:
-                cur.execute("INSERT OR IGNORE INTO topic_queue (domain, category, topic, status, created_at) VALUES (?, ?, ?, 'pending', ?)",
-                            (site, cat, topic, now))
+                cur.execute(
+                    "INSERT OR IGNORE INTO topic_queue (domain, category, topic, status, priority_score, created_at) VALUES (?, ?, ?, 'pending', 60.0, ?)",
+                    (site, cat, topic, now),
+                )
                 if cur.rowcount > 0:
                     inserted += 1
             except Exception:
@@ -146,19 +203,52 @@ def seed_queue():
     if inserted > 0:
         print(f"[Topic Queue] Seeded {inserted} fresh topics across network domains.")
 
-    # Auto-Replenish Queue using Tier-1 & Global Multi-Geo Trends Harvester
+    # Ensure every single domain stays fueled with aggressive Top-5 CPC winners
     try:
-        import trends_harvester
-        conn = sqlite3.connect(DB_PATH)
-        cur = conn.cursor()
-        cur.execute("SELECT count(*) FROM topic_queue WHERE status = 'pending'")
-        pending_count = cur.fetchone()[0]
+        from network_registry import NETWORK_REGISTRY
+        conn = _connect_db()
+        per_dom = dict(conn.execute("SELECT domain, COUNT(*) FROM topic_queue WHERE status = 'pending' GROUP BY domain").fetchall())
         conn.close()
-        if pending_count < 30:
-            print(f"[Topic Queue] Pending topics low ({pending_count}). Auto-harvesting Tier-1 topics...")
-            trends_harvester.run_harvest_cycle(limit_per_domain=3)
+        starved = [d for d in NETWORK_REGISTRY.keys() if int(per_dom.get(d, 0)) < min_per_dom]
+        for dom in starved:
+            topic_intelligence.discover_20_topics_for_domain(
+                dom,
+                min_winner_score=min_winner_score,
+                sync_to_queue=True,
+                fetch_live=fetch_live,
+                db_path=DB_PATH,
+            )
     except Exception as e:
-        print(f"[Topic Queue] Trends harvester notice: {e}")
+        print(f"[Topic Queue] Aggressive winner replenishment notice: {e}")
+
+    # Auto-Replenish Queue using Tier-1 & Global Multi-Geo Trends Harvester
+    if fetch_live:
+        try:
+            import trends_harvester
+            conn = _connect_db()
+            cur = conn.cursor()
+            cur.execute("SELECT count(*) FROM topic_queue WHERE status = 'pending'")
+            pending_count = cur.fetchone()[0]
+            conn.close()
+            if pending_count < 30:
+                print(f"[Topic Queue] Pending topics low ({pending_count}). Auto-harvesting Tier-1 topics...")
+                trends_harvester.run_harvest_cycle(limit_per_domain=3)
+        except Exception as e:
+            print(f"[Topic Queue] Trends harvester notice: {e}")
+
+
+def recover_and_kick_stuck_domains(target_domains=None, fetch_live: bool = False) -> dict:
+    """Unstick stale pipeline_state domains (e.g. tazaloan, loankiseva) and queue Top-5 winners."""
+    ap_cfg = _load_autopublish_config()
+    return topic_intelligence.kick_stuck_pipelines(
+        stale_minutes=int(ap_cfg.get("stuck_stage_minutes", 30)),
+        target_domains=target_domains,
+        min_pending_per_domain=int(ap_cfg.get("min_pending_per_domain", 3)),
+        aggressive_winners_count=int(ap_cfg.get("aggressive_winners_count", 5)),
+        min_winner_score=float(ap_cfg.get("min_winner_score", 65.0)),
+        fetch_live=fetch_live,
+        db_path=DB_PATH,
+    )
 
 # 3. ARTICLE GENERATION ENGINE (Using FreeLLMAPI)
 def generate_article_content(site_id, site_info, category, topic):
@@ -226,19 +316,21 @@ Include:
     return humanized_html
 
 def sync_github(site_id: str, slug: str, topic: str) -> None:
-    """Automatically commits new articles and sitemaps and pushes to GitHub."""
-    try:
-        subprocess.run(["git", "add", "sites/"], capture_output=True, timeout=25)
-        clean_title = re.sub(r'[\'"]', '', topic)[:50]
-        commit_msg = f"AutoPublish: Published '{clean_title}' to {site_id}"
-        subprocess.run(["git", "commit", "-m", commit_msg], capture_output=True, timeout=25)
-        res = subprocess.run(["git", "push", "origin", "master"], capture_output=True, encoding="utf-8", errors="ignore", timeout=60)
-        if res.returncode == 0:
-            print(f"[{site_id}] GitHub automatically synced with new post! (origin/master updated)")
-        else:
-            print(f"[{site_id}] Git push note: {res.stderr[:100]}")
-    except Exception as e:
-        print(f"[{site_id}] Git sync exception: {e}")
+    """Thread-safely commits new site files and pushes to GitHub."""
+    site_dir = os.path.join("sites", f"{site_id}.com")
+    with _GIT_SYNC_LOCK:
+        try:
+            subprocess.run(["git", "add", site_dir], capture_output=True, encoding="utf-8", errors="ignore", timeout=30)
+            clean_title = re.sub(r'[\'"]', '', topic)[:50]
+            commit_msg = f"AutoPublish: Published '{clean_title}' to {site_id}"
+            subprocess.run(["git", "commit", "-m", commit_msg], capture_output=True, encoding="utf-8", errors="ignore", timeout=30)
+            res = subprocess.run(["git", "push", "origin", "master"], capture_output=True, encoding="utf-8", errors="ignore", timeout=60)
+            if res.returncode == 0:
+                print(f"[{site_id}] GitHub automatically synced with new post! (origin/master updated)")
+            else:
+                print(f"[{site_id}] Git push note: {(res.stderr or '')[:100]}")
+        except Exception as e:
+            print(f"[{site_id}] Git sync exception: {e}")
 
 _PIPELINE_BOT = None
 
@@ -255,98 +347,224 @@ def _notify_pipeline_error(stage: str, detail: str, domain: str = "", level: str
         print(f"[Alert Hook] Notification failed: {exc}")
 
 
-# 4. PUBLISH & DEPLOY SINGLE ARTICLE
-def publish_next_post(specific_site=None):
-    from network_registry import NETWORK_REGISTRY
-    MASTER_SITES = NETWORK_REGISTRY
-    
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    
-    if specific_site:
-        cur.execute("SELECT id, domain, category, topic FROM topic_queue WHERE domain = ? AND status = 'pending' LIMIT 1", (specific_site,))
-    else:
-        cur.execute("SELECT id, domain, category, topic FROM topic_queue WHERE status = 'pending' ORDER BY id ASC LIMIT 1")
-        
-    row = cur.fetchone()
-    if not row:
-        print("[AutoPublisher] No pending topics in queue! Re-seeding queue...")
-        seed_queue()
+# 4. PUBLISH & DEPLOY ENGINE (Thread-Safe + Parallel Distinct-Domain Execution)
+def _select_batch_domains(limit: int = 2) -> list[str]:
+    """Pick up to `limit` distinct pending domains, prioritizing under-published / kicked sites."""
+    with _QUEUE_CLAIM_LOCK:
+        conn = _connect_db()
+        cur = conn.cursor()
+        rows = cur.execute(
+            """
+            SELECT tq.domain,
+                   COUNT(DISTINCT pp.id) AS pub_cnt,
+                   MAX(COALESCE(tq.priority_score, 0.0)) AS max_prio,
+                   MIN(tq.id) AS first_id
+            FROM topic_queue tq
+            LEFT JOIN published_posts pp ON pp.domain = tq.domain
+            WHERE tq.status = 'pending'
+              AND tq.domain NOT IN (
+                  SELECT DISTINCT domain FROM topic_queue WHERE status = 'processing'
+              )
+            GROUP BY tq.domain
+            ORDER BY pub_cnt ASC, max_prio DESC, first_id ASC
+            LIMIT ?
+            """,
+            (max(1, int(limit)),),
+        ).fetchall()
         conn.close()
-        return False
-        
-    q_id, site_id, category, topic = row
-    cur.execute("UPDATE topic_queue SET status = 'processing' WHERE id = ?", (q_id,))
-    conn.commit()
+        return [r[0] for r in rows]
+
+
+def _claim_next_topic(specific_site=None, exclude_domains=None):
+    """Atomically claim the highest-priority pending topic on a distinct domain."""
+    excluded = {d.replace(".com", "").strip().lower() for d in (exclude_domains or [])}
+    with _QUEUE_CLAIM_LOCK:
+        conn = _connect_db()
+        cur = conn.cursor()
+        try:
+            cur.execute("BEGIN IMMEDIATE")
+            if specific_site:
+                clean_site = specific_site.replace(".com", "").strip().lower()
+                row = cur.execute(
+                    """
+                    SELECT id, domain, category, topic
+                    FROM topic_queue
+                    WHERE domain = ? AND status = 'pending'
+                    ORDER BY COALESCE(priority_score, 0.0) DESC, id ASC
+                    LIMIT 1
+                    """,
+                    (clean_site,),
+                ).fetchone()
+            else:
+                placeholders = ",".join("?" for _ in excluded) if excluded else "''"
+                params = tuple(excluded) if excluded else ()
+                query = f"""
+                    SELECT tq.id, tq.domain, tq.category, tq.topic
+                    FROM topic_queue tq
+                    LEFT JOIN (
+                        SELECT domain, COUNT(*) AS pub_cnt FROM published_posts GROUP BY domain
+                    ) pp ON pp.domain = tq.domain
+                    WHERE tq.status = 'pending'
+                      AND tq.domain NOT IN ({placeholders})
+                      AND tq.domain NOT IN (
+                          SELECT DISTINCT domain FROM topic_queue WHERE status = 'processing'
+                      )
+                    ORDER BY COALESCE(pp.pub_cnt, 0) ASC, COALESCE(tq.priority_score, 0.0) DESC, tq.id ASC
+                    LIMIT 1
+                """
+                row = cur.execute(query, params).fetchone()
+
+            if not row:
+                conn.rollback()
+                return None
+
+            q_id = row[0]
+            cur.execute("UPDATE topic_queue SET status = 'processing' WHERE id = ?", (q_id,))
+            conn.commit()
+            return row
+        finally:
+            conn.close()
+
+
+def _ensure_unique_slug(site_id: str, base_slug: str) -> str:
+    """Avoid filename or SQLite published_posts.slug collisions across parallel runs."""
+    slug = base_slug or f"post-{int(time.time())}"
+    conn = _connect_db()
+    existing = {
+        r[0]
+        for r in conn.execute("SELECT slug FROM published_posts WHERE domain = ?", (site_id,)).fetchall()
+        if r[0]
+    }
+    global_existing = {
+        r[0]
+        for r in conn.execute("SELECT slug FROM published_posts").fetchall()
+        if r[0]
+    }
     conn.close()
-    
-    site_info = MASTER_SITES.get(site_id)
-    if not site_info:
-        print(f"[Error] Unknown site {site_id}")
-        return False
+    used = existing | global_existing
+    site_dir = os.path.join("sites", f"{site_id}.com")
+    candidate = slug
+    suffix = 2
+    while candidate in used or os.path.exists(os.path.join(site_dir, f"{candidate}.html")):
+        candidate = f"{slug[:48]}-{suffix}"
+        suffix += 1
+    return candidate
 
-    domain_url = site_info["domain"]
-    domain = site_id
-    name = site_info["name"]
-    categories = site_info["categories"]
-    cat_slug = categories.get(category, {}).get("slug", "finance")
 
-    # PHASE 1: Claude-SEO Content Brief (seo-content-brief + seo-cluster)
-    seo_brief = seo_pipeline.generate_seo_brief(site_id, topic)
-    seo_title = seo_brief["seo_title"]
-    meta_desc = seo_brief["meta_description"]
-    primary_kw = seo_brief["primary_keyword"]
-
-    # PHASE 2: Dynamic 100% Copyright-Free CC0 Image (Wikimedia / High-Res Unsplash)
-    dynamic_img = seo_pipeline.get_dynamic_seo_image(primary_kw, site_id)
-    img_url = dynamic_img["url"]
-    img_alt = dynamic_img["alt"]
-
-    # PHASE 3: Claude-SEO Content Generation with Empirical Data Table & FAQs
-    raw_content_html, raw_faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
-    if not raw_content_html:
-        _notify_pipeline_error("article_generation", f"Empty LLM output for topic: {topic[:120]}", domain=site_id)
-        conn = sqlite3.connect(DB_PATH)
-        conn.cursor().execute("UPDATE topic_queue SET status = 'pending' WHERE id = ?", (q_id,))
+def _reset_topic_pending(q_id: int) -> None:
+    try:
+        conn = _connect_db()
+        conn.cursor().execute("UPDATE topic_queue SET status = 'pending' WHERE id = ? AND status = 'processing'", (q_id,))
         conn.commit()
         conn.close()
+    except Exception:
+        pass
+
+
+def publish_next_post(specific_site=None, exclude_domains=None):
+    from network_registry import NETWORK_REGISTRY
+    MASTER_SITES = NETWORK_REGISTRY
+
+    row = _claim_next_topic(specific_site=specific_site, exclude_domains=exclude_domains)
+    if not row:
+        print("[AutoPublisher] No pending topics available in queue! Re-seeding queue...")
+        seed_queue(fetch_live=True)
         return False
 
-    # PHASE 4: AUTOMATED CONTENT QUALITY & UI FINISH GATE (agency-ui-finish-gate-reviewer + article-writing)
-    from content_quality_gate import ContentQualityFinishGate
-    sanitized_html = ContentQualityFinishGate.sanitize_raw_html(raw_content_html)
-    content_html, faqs, quality_meta = ContentQualityFinishGate.format_editorial_layout(
-        clean_html=sanitized_html,
-        title=seo_title,
-        domain_key=site_id,
-        primary_kw=primary_kw
-    )
-    print(f"[{site_id}] Content Quality Finish-Gate Score: {quality_meta['score']}/100 (Words: {quality_meta['word_count']}, FAQs: {quality_meta['faq_count']})")
+    q_id, site_id, category, topic = row
+    marked_published = False
 
-    # Generate clean SEO slug from primary keyword
-    slug = re.sub(r'[^a-z0-9]+', '-', primary_kw.lower()).strip('-')[:55]
-    words_count = quality_meta['word_count']
-    canonical_url = f"{domain_url}/{slug}"
+    try:
+        site_info = MASTER_SITES.get(site_id)
+        if not site_info:
+            print(f"[Error] Unknown site {site_id}")
+            return False
 
-    # PHASE 4: Schema.org JSON-LD (NewsArticle + FAQPage + BreadcrumbList)
-    site_domain_clean = domain_url.replace("https://", "").replace("http://", "").rstrip("/")
-    schema_json_ld = seo_pipeline.build_schema_json_ld(
-        site_domain=site_domain_clean,
-        site_name=name,
-        title=seo_title,
-        desc=meta_desc,
-        canonical_url=canonical_url,
-        img_url=img_url,
-        faqs=faqs
-    )
+        domain_url = site_info["domain"]
+        name = site_info["name"]
+        categories = site_info["categories"]
+        cat_slug = categories.get(category, {}).get("slug", "finance")
 
-    # Recent articles for sidebar
-    all_articles = []
-    for c_data in categories.values():
-        all_articles.extend(c_data.get("articles", []))
-    sidebar_html = render_sidebar(site_info, all_articles)
+        topic_intelligence.update_pipeline_stage(
+            domain=site_id,
+            stage_num=3,
+            stage_name="Deep AI Writing",
+            active_topic=topic,
+            status_message="Generating SEO brief, CC0 media & 1,500+ word article",
+            db_path=DB_PATH,
+        )
 
-    article_body = f"""
+        # PHASE 1: Claude-SEO Content Brief
+        seo_brief = seo_pipeline.generate_seo_brief(site_id, topic)
+        seo_title = seo_brief["seo_title"]
+        meta_desc = seo_brief["meta_description"]
+        primary_kw = seo_brief["primary_keyword"]
+
+        # PHASE 2: Dynamic CC0 Image
+        dynamic_img = seo_pipeline.get_dynamic_seo_image(primary_kw, site_id)
+        img_url = dynamic_img["url"]
+        img_alt = dynamic_img["alt"]
+
+        # PHASE 3: Claude-SEO Content Generation
+        raw_content_html, raw_faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+        if not raw_content_html:
+            _notify_pipeline_error("article_generation", f"Empty LLM output for topic: {topic[:120]}", domain=site_id)
+            topic_intelligence.update_pipeline_stage(
+                domain=site_id,
+                stage_num=2,
+                stage_name="Queued for Fast-Track Publish",
+                active_topic=topic,
+                status_message="Generation empty; returned topic cleanly to pending queue",
+                db_path=DB_PATH,
+            )
+            return False
+
+        # PHASE 4: Anti-AI & Finish-Gate Audit
+        from content_quality_gate import ContentQualityFinishGate
+        sanitized_html = ContentQualityFinishGate.sanitize_raw_html(raw_content_html)
+        content_html, faqs, quality_meta = ContentQualityFinishGate.format_editorial_layout(
+            clean_html=sanitized_html,
+            title=seo_title,
+            domain_key=site_id,
+            primary_kw=primary_kw,
+        )
+        words_count = quality_meta["word_count"]
+        print(f"[{site_id}] Content Quality Finish-Gate Score: {quality_meta['score']}/100 (Words: {words_count}, FAQs: {quality_meta['faq_count']})")
+
+        topic_intelligence.update_pipeline_stage(
+            domain=site_id,
+            stage_num=4,
+            stage_name="Anti-AI Gate Audit",
+            active_topic=topic,
+            status_message=f"Quality gate score {quality_meta['score']}/100 ({words_count} words)",
+            words_written=words_count,
+            anti_ai_score=float(quality_meta.get("score", 99.0)),
+            db_path=DB_PATH,
+        )
+
+        # Clean unique SEO slug
+        base_slug = re.sub(r'[^a-z0-9]+', '-', primary_kw.lower()).strip('-')[:55]
+        slug = _ensure_unique_slug(site_id, base_slug)
+        canonical_url = f"{domain_url}/{slug}"
+
+        # Schema.org JSON-LD
+        site_domain_clean = domain_url.replace("https://", "").replace("http://", "").rstrip("/")
+        schema_json_ld = seo_pipeline.build_schema_json_ld(
+            site_domain=site_domain_clean,
+            site_name=name,
+            title=seo_title,
+            desc=meta_desc,
+            canonical_url=canonical_url,
+            img_url=img_url,
+            faqs=faqs,
+        )
+
+        all_articles = []
+        for c_data in categories.values():
+            all_articles.extend(c_data.get("articles", []))
+        sidebar_html = render_sidebar(site_info, all_articles)
+
+        article_body = f"""
     <main class="container">
         <div class="main-layout">
             <article>
@@ -386,99 +604,177 @@ def publish_next_post(specific_site=None):
     </main>
     """
 
-    full_html = render_master_page(
-        site_info,
-        title=seo_title,
-        desc=meta_desc,
-        canonical=canonical_url,
-        main_body=article_body,
-        active_nav=category,
-        ticker_title=seo_title,
-        ticker_url=f"/{slug}",
-        schema_json_ld=schema_json_ld
-    )
-    
-    # Save files to disk
-    site_dirs = [os.path.join("sites", f"{site_id}.com")]
-    for s_dir in site_dirs:
-        os.makedirs(s_dir, exist_ok=True)
-        # 1. Direct html
-        with open(os.path.join(s_dir, f"{slug}.html"), "w", encoding="utf-8") as f:
-            f.write(full_html)
-        # 2. Directory clean index
-        os.makedirs(os.path.join(s_dir, slug), exist_ok=True)
-        with open(os.path.join(s_dir, slug, "index.html"), "w", encoding="utf-8") as f:
-            f.write(full_html)
-            
-        # 3. Append to sitemap.xml
-        sm_path = os.path.join(s_dir, "sitemap.xml")
-        if os.path.exists(sm_path):
-            with open(sm_path, "r", encoding="utf-8") as sm_f:
-                sm_content = sm_f.read()
-            new_entry = f"<url><loc>{domain_url}/{slug}</loc><lastmod>{datetime.now().strftime('%Y-%m-%d')}</lastmod><priority>0.9</priority><changefreq>weekly</changefreq></url>\n</urlset>"
-            if "</urlset>" in sm_content:
-                sm_content = sm_content.replace("</urlset>", new_entry)
-                with open(sm_path, "w", encoding="utf-8") as sm_f:
-                    sm_f.write(sm_content)
+        full_html = render_master_page(
+            site_info,
+            title=seo_title,
+            desc=meta_desc,
+            canonical=canonical_url,
+            main_body=article_body,
+            active_nav=category,
+            ticker_title=seo_title,
+            ticker_url=f"/{slug}",
+            schema_json_ld=schema_json_ld,
+        )
 
-    print(f"[{site_id}] Successfully compiled & saved '{slug}' ({words_count} words).")
-    
-    # Deploy to Cloudflare Pages
-    deploy_cmd = ["npx.cmd", "wrangler", "pages", "deploy", os.path.join("sites", f"{site_id}.com"), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
-    try:
-        res = subprocess.run(deploy_cmd, capture_output=True, encoding="utf-8", errors="ignore")
-        cf_success = 1 if res.returncode == 0 else 0
-        if cf_success:
-            print(f"[{site_id}] Cloudflare Pages updated live with new post!")
-        else:
-            err_tail = (res.stderr or res.stdout or "Wrangler non-zero exit")[:200]
-            print(f"[{site_id}] Cloudflare deploy warning: {err_tail}")
-            _notify_pipeline_error("cloudflare_deploy", f"Wrangler exit={res.returncode}: {err_tail}", domain=site_id)
-    except Exception as e:
-        print(f"[{site_id}] Cloudflare deploy error: {e}")
-        _notify_pipeline_error("cloudflare_deploy", f"Wrangler exception: {e}", domain=site_id)
-        cf_success = 0
+        site_dirs = [os.path.join("sites", f"{site_id}.com")]
+        for s_dir in site_dirs:
+            os.makedirs(s_dir, exist_ok=True)
+            with open(os.path.join(s_dir, f"{slug}.html"), "w", encoding="utf-8") as f:
+                f.write(full_html)
+            os.makedirs(os.path.join(s_dir, slug), exist_ok=True)
+            with open(os.path.join(s_dir, slug, "index.html"), "w", encoding="utf-8") as f:
+                f.write(full_html)
 
-    # Phase 5: Instant IndexNow & Multi-Engine Search Broadcast
-    indexnow_ok = 0
-    try:
-        from instant_indexer import broadcast_new_post
-        full_post_url = f"{domain_url}/{slug}"
-        ping_ok = bool(broadcast_new_post(site_id, full_post_url))
-        indexnow_ok = 1 if ping_ok else 0
-        if not ping_ok:
-            _notify_pipeline_error("indexnow_ping", f"IndexNow & Google ping failed for {full_post_url}", domain=site_id)
-    except Exception as e:
-        print(f"[{site_id}] Instant Indexer broadcast note: {e}")
-        _notify_pipeline_error("indexnow_ping", f"Indexer exception: {e}", domain=site_id)
+            sm_path = os.path.join(s_dir, "sitemap.xml")
+            if os.path.exists(sm_path):
+                with open(sm_path, "r", encoding="utf-8") as sm_f:
+                    sm_content = sm_f.read()
+                new_entry = f"<url><loc>{domain_url}/{slug}</loc><lastmod>{datetime.now().strftime('%Y-%m-%d')}</lastmod><priority>0.9</priority><changefreq>weekly</changefreq></url>\n</urlset>"
+                if "</urlset>" in sm_content:
+                    sm_content = sm_content.replace("</urlset>", new_entry)
+                    with open(sm_path, "w", encoding="utf-8") as sm_f:
+                        sm_f.write(sm_content)
 
-    # Automatically commit and push to GitHub repository
-    sync_github(site_id, slug, topic)
-    
-    # Record in database
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-    INSERT INTO published_posts (domain, slug, title, category, words, published_at, cf_deployed, google_pinged, quality_score)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 99.5)
-    """, (site_id, slug, topic, category, words_count, datetime.now().isoformat(), cf_success, indexnow_ok))
-    cur.execute("UPDATE topic_queue SET status = 'published' WHERE id = ?", (q_id,))
-    conn.commit()
-    conn.close()
-    
-    print(f"[{site_id}] Auto-Publish cycle finished successfully: {domain_url}/{slug}")
-    return True
+        print(f"[{site_id}] Successfully compiled & saved '{slug}' ({words_count} words).")
+
+        # Deploy to Cloudflare Pages
+        deploy_cmd = ["npx.cmd", "wrangler", "pages", "deploy", os.path.join("sites", f"{site_id}.com"), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
+        try:
+            res = subprocess.run(deploy_cmd, capture_output=True, encoding="utf-8", errors="ignore", timeout=120)
+            cf_success = 1 if res.returncode == 0 else 0
+            if cf_success:
+                print(f"[{site_id}] Cloudflare Pages updated live with new post!")
+            else:
+                err_tail = (res.stderr or res.stdout or "Wrangler non-zero exit")[:200]
+                print(f"[{site_id}] Cloudflare deploy warning: {err_tail}")
+                _notify_pipeline_error("cloudflare_deploy", f"Wrangler exit={res.returncode}: {err_tail}", domain=site_id)
+        except Exception as e:
+            print(f"[{site_id}] Cloudflare deploy error: {e}")
+            _notify_pipeline_error("cloudflare_deploy", f"Wrangler exception: {e}", domain=site_id)
+            cf_success = 0
+
+        # Instant IndexNow & Search Broadcast
+        indexnow_ok = 0
+        try:
+            from instant_indexer import broadcast_new_post
+            full_post_url = f"{domain_url}/{slug}"
+            ping_ok = bool(broadcast_new_post(site_id, full_post_url))
+            indexnow_ok = 1 if ping_ok else 0
+            if not ping_ok:
+                _notify_pipeline_error("indexnow_ping", f"IndexNow & Google ping failed for {full_post_url}", domain=site_id)
+        except Exception as e:
+            print(f"[{site_id}] Instant Indexer broadcast note: {e}")
+            _notify_pipeline_error("indexnow_ping", f"Indexer exception: {e}", domain=site_id)
+
+        # Thread-safe GitHub sync (scoped strictly to sites/<site_id>.com)
+        sync_github(site_id, slug, topic)
+
+        # Record in database
+        conn = _connect_db()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO published_posts (domain, slug, title, category, words, published_at, cf_deployed, google_pinged, quality_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (site_id, slug, topic, category, words_count, datetime.now().isoformat(), cf_success, indexnow_ok, float(quality_meta.get("score", 99.5))),
+        )
+        cur.execute("UPDATE topic_queue SET status = 'published' WHERE id = ?", (q_id,))
+        conn.commit()
+        conn.close()
+        marked_published = True
+
+        topic_intelligence.update_pipeline_stage(
+            domain=site_id,
+            stage_num=5,
+            stage_name="Cloudflare & GSC",
+            active_topic=topic,
+            status_message=f"Live: {domain_url}/{slug} (CF={cf_success}, Ping={indexnow_ok})",
+            words_written=words_count,
+            anti_ai_score=float(quality_meta.get("score", 99.5)),
+            db_path=DB_PATH,
+        )
+
+        print(f"[{site_id}] Auto-Publish cycle finished successfully: {domain_url}/{slug}")
+        return True
+    finally:
+        if not marked_published:
+            _reset_topic_pending(q_id)
+
+
+def publish_parallel_batch(parallel_domains: int | None = None, specific_sites: list[str] | None = None, kick_stuck: bool = True) -> dict:
+    """Publish up to `parallel_domains` (default 2) distinct domains concurrently."""
+    ap_cfg = _load_autopublish_config()
+    batch_size = max(1, int(parallel_domains if parallel_domains is not None else ap_cfg.get("parallel_domains", 2)))
+    started = time.perf_counter()
+
+    kick_info = {}
+    if kick_stuck:
+        kick_info = recover_and_kick_stuck_domains(fetch_live=False)
+
+    if specific_sites:
+        chosen_sites = [s.replace(".com", "").strip().lower() for s in dict.fromkeys(specific_sites)][:batch_size]
+    else:
+        chosen_sites = _select_batch_domains(limit=batch_size)
+        if not chosen_sites:
+            seed_queue(fetch_live=True)
+            chosen_sites = _select_batch_domains(limit=batch_size)
+
+    if not chosen_sites:
+        return {
+            "parallel_domains": batch_size,
+            "attempted_sites": [],
+            "results": {},
+            "published_count": 0,
+            "kick_info": kick_info,
+            "elapsed_seconds": round(time.perf_counter() - started, 3),
+        }
+
+    print(f"[Parallel Batch] Launching {len(chosen_sites)} domain publishers simultaneously: {', '.join(chosen_sites)}")
+    results: dict[str, bool] = {}
+    with ThreadPoolExecutor(max_workers=len(chosen_sites), thread_name_prefix="ap_pub") as executor:
+        futures = {executor.submit(publish_next_post, specific_site=dom): dom for dom in chosen_sites}
+        for fut in as_completed(futures):
+            dom = futures[fut]
+            try:
+                results[dom] = bool(fut.result())
+            except Exception as exc:
+                print(f"[{dom}] Parallel publish exception: {exc}")
+                _notify_pipeline_error("parallel_publish", f"Unhandled worker exception: {exc}", domain=dom)
+                results[dom] = False
+
+    published_count = sum(1 for v in results.values() if v)
+    elapsed = round(time.perf_counter() - started, 3)
+    print(f"[Parallel Batch] Completed {published_count}/{len(chosen_sites)} domain(s) in {elapsed}s.")
+    return {
+        "parallel_domains": batch_size,
+        "attempted_sites": chosen_sites,
+        "results": results,
+        "published_count": published_count,
+        "kick_info": kick_info,
+        "elapsed_seconds": elapsed,
+    }
+
 
 # 5. CONTINUOUS 24/7 DAEMON LOOP
-def run_daemon(interval_minutes=35):
-    print("="*70)
-    print("STARTING 24/7 AUTOPUBLISH DAEMON WITH ANTI-AI QUALITY GATE")
-    print(f"Publishing cadence: ~1 article every {interval_minutes} minutes across 10 rotating domains")
-    print("="*70)
-    
+def run_daemon(interval_minutes=None, parallel_domains=None):
+    ap_cfg = _load_autopublish_config()
+    eff_interval = int(interval_minutes if interval_minutes is not None else ap_cfg.get("interval_minutes", 20))
+    eff_parallel = max(1, int(parallel_domains if parallel_domains is not None else ap_cfg.get("parallel_domains", 2)))
+    jitter_cap = int(ap_cfg.get("jitter_seconds", 180))
+    min_sleep = int(ap_cfg.get("min_sleep_seconds", 900))
+
+    print("=" * 70)
+    print("STARTING 24/7 AUTOPUBLISH DAEMON (LAYER 7 PARALLEL SPEED MODE)")
+    print(f"Publishing cadence: {eff_parallel} parallel domains every {eff_interval} minutes across 10 rotating domains")
+    print("=" * 70)
+
     init_db()
-    seed_queue()
-    
+    seed_queue(fetch_live=False)
+    kick_summary = recover_and_kick_stuck_domains(fetch_live=False)
+    if kick_summary.get("kicked_count"):
+        print(f"[Layer 7 Recovery] Unstuck {kick_summary['kicked_count']} domain(s): {', '.join(kick_summary['kicked_domains'])}")
+
     while True:
         try:
             try:
@@ -497,13 +793,13 @@ def run_daemon(interval_minutes=35):
             except Exception as gsc_exc:
                 print(f"[GSC Weekly Report] Scheduler notice: {gsc_exc}")
 
-            print(f"\n[Daemon Pulse] Initiating scheduled post generation at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
-            publish_next_post()
-            
-            # Sleep with jitter (e.g. 35 mins +/- 5 mins)
-            jitter = random.randint(-300, 300)
-            sleep_sec = max(600, (interval_minutes * 60) + jitter)
-            print(f"[Daemon Sleeping] Next auto-post scheduled in {sleep_sec / 60:.1f} minutes...")
+            print(f"\n[Daemon Pulse] Initiating {eff_parallel}-domain parallel publish cycle at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
+            publish_parallel_batch(parallel_domains=eff_parallel, kick_stuck=True)
+
+            # Fast Layer 7 sleep cadence (~20 mins +/- 3 mins, min 15 mins)
+            jitter = random.randint(-jitter_cap, jitter_cap)
+            sleep_sec = max(min_sleep, (eff_interval * 60) + jitter)
+            print(f"[Daemon Sleeping] Next {eff_parallel}-domain parallel batch in {sleep_sec / 60:.1f} minutes...")
             time.sleep(sleep_sec)
         except KeyboardInterrupt:
             print("[Daemon] Stopped by user.")
@@ -513,13 +809,22 @@ def run_daemon(interval_minutes=35):
             _notify_pipeline_error("daemon_loop", f"Unhandled daemon exception: {e}", level="CRITICAL")
             time.sleep(120)
 
+
 if __name__ == "__main__":
     init_db()
-    seed_queue()
-    if len(sys.argv) > 1 and sys.argv[1] == "--once":
+    if len(sys.argv) > 1 and sys.argv[1] == "--kick-stuck":
+        seed_queue(fetch_live=False)
+        res = recover_and_kick_stuck_domains(fetch_live=False)
+        print(json.dumps(res, indent=2))
+    elif len(sys.argv) > 1 and sys.argv[1] == "--parallel":
+        seed_queue(fetch_live=False)
+        n = int(sys.argv[2]) if len(sys.argv) > 2 else 2
+        res = publish_parallel_batch(parallel_domains=n, kick_stuck=True)
+        print(json.dumps(res, indent=2))
+    elif len(sys.argv) > 1 and sys.argv[1] == "--once":
+        seed_queue(fetch_live=False)
         site_arg = sys.argv[2] if len(sys.argv) > 2 else None
         print(f"Executing single auto-publish run (Site: {site_arg or 'Next in Queue'})...")
         publish_next_post(specific_site=site_arg)
     else:
-        # Default daemon run
-        run_daemon(interval_minutes=35)
+        run_daemon()

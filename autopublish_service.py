@@ -12,6 +12,15 @@ from network_registry import NETWORK_REGISTRY
 
 DB_PATH = os.path.join("state", "autopublish.db")
 
+def _connect_db() -> sqlite3.Connection:
+    parent = os.path.dirname(DB_PATH)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA busy_timeout=30000;")
+    return conn
+
 _CACHED_TRENDS: List[str] = []
 _LAST_TRENDS_FETCH = 0
 
@@ -36,7 +45,7 @@ def get_live_google_trends() -> List[str]:
 
 def get_network_index_stats() -> Dict[str, Any]:
     """Computes total posts across network enriched with real/cached GSCMonitor status."""
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect_db()
     cur = conn.cursor()
     cur.execute("SELECT domain, COUNT(*) FROM published_posts GROUP BY domain")
     pub_counts = dict(cur.fetchall())
@@ -97,7 +106,7 @@ def get_network_index_stats() -> Dict[str, Any]:
 
 def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
     active_clean = active_domain.replace(".com", "")
-    conn = sqlite3.connect(DB_PATH)
+    conn = _connect_db()
     cur = conn.cursor()
     
     # 1. Published posts (prioritizing active domain, then recent across fleet)
@@ -132,12 +141,13 @@ def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
     cur.execute("SELECT COUNT(*) FROM published_posts")
     total_pub = cur.fetchone()[0]
     
-    # Upcoming queue
+    # Upcoming queue (prioritizing aggressive Top-5 CPC winners)
+    topic_intelligence.init_candidate_tables(db_path=DB_PATH)
     cur.execute("""
-    SELECT id, domain, category, topic, status
+    SELECT id, domain, category, topic, status, COALESCE(priority_score, 0.0)
     FROM topic_queue
     WHERE status = 'pending'
-    ORDER BY id ASC
+    ORDER BY COALESCE(priority_score, 0.0) DESC, id ASC
     LIMIT 15
     """)
     q_rows = cur.fetchall()
@@ -146,8 +156,26 @@ def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
         "domain": q[1], 
         "category": q[2], 
         "topic": q[3],
-        "status": q[4]
+        "status": q[4],
+        "priority_score": q[5]
     } for q in q_rows]
+
+    # All 10 domain pipeline states + pending counts
+    all_pipelines = {
+        r[0]: {
+            "stage_num": r[1],
+            "stage_name": r[2],
+            "active_topic": r[3],
+            "words_written": r[4],
+            "anti_ai_score": r[5],
+            "message": r[6],
+            "updated_at": r[7],
+        }
+        for r in cur.execute("SELECT domain, current_stage, stage_name, active_topic, words_written, anti_ai_score, status_message, updated_at FROM pipeline_state").fetchall()
+    }
+    pending_by_domain = dict(
+        cur.execute("SELECT domain, COUNT(*) FROM topic_queue WHERE status = 'pending' GROUP BY domain").fetchall()
+    )
     
     # Pipeline state for active domain
     cur.execute("SELECT current_stage, stage_name, active_topic, words_written, anti_ai_score, status_message FROM pipeline_state WHERE domain = ?", (active_clean,))
@@ -196,6 +224,9 @@ def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
             "edge_status": "200 OK (Verified)"
         })
 
+    import autopublish_daemon
+    ap_cfg = autopublish_daemon._load_autopublish_config()
+
     return {
         "status": "online",
         "adsterra_matrix": adsterra_matrix,
@@ -209,6 +240,9 @@ def get_autopublish_stats(active_domain: str = "tazaloan") -> Dict[str, Any]:
         "queue": queue,
         "google_trends": trends,
         "pipeline": pipeline,
+        "all_pipelines": all_pipelines,
+        "pending_by_domain": pending_by_domain,
+        "speed_config": ap_cfg,
         "candidates": candidates,
         "index_stats": index_stats
     }
@@ -237,7 +271,7 @@ def trigger_instant_publish(site_id: str) -> Dict[str, Any]:
     site_clean = site_id.replace(".com", "")
     success = publish_next_post(specific_site=site_clean)
     if success:
-        conn = sqlite3.connect(DB_PATH)
+        conn = _connect_db()
         cur = conn.cursor()
         cur.execute("SELECT slug, title FROM published_posts WHERE domain = ? ORDER BY id DESC LIMIT 1", (site_clean,))
         row = cur.fetchone()
@@ -249,5 +283,27 @@ def trigger_instant_publish(site_id: str) -> Dict[str, Any]:
         return {"success": False, "message": "Failed to publish post. Check daemon logs."}
 
 def refresh_20_candidates(domain: str) -> List[Dict[str, Any]]:
-    """Forces fresh discovery and scoring of 20 topics for domain."""
-    return topic_intelligence.discover_20_topics_for_domain(domain)
+    """Forces fresh discovery and scoring of 20 aggressive topics for domain & syncs winners."""
+    return topic_intelligence.discover_20_topics_for_domain(domain, sync_to_queue=True, db_path=DB_PATH)
+
+
+def kick_stuck_domains(domains: Optional[List[str]] = None) -> Dict[str, Any]:
+    """Unstick stalled pipeline_state domains and queue Top-5 aggressive CPC winners."""
+    import autopublish_daemon
+    ap_cfg = autopublish_daemon._load_autopublish_config()
+    return topic_intelligence.kick_stuck_pipelines(
+        stale_minutes=int(ap_cfg.get("stuck_stage_minutes", 30)),
+        target_domains=domains,
+        min_pending_per_domain=int(ap_cfg.get("min_pending_per_domain", 3)),
+        aggressive_winners_count=int(ap_cfg.get("aggressive_winners_count", 5)),
+        min_winner_score=float(ap_cfg.get("min_winner_score", 65.0)),
+        fetch_live=False,
+        db_path=DB_PATH,
+    )
+
+
+def trigger_parallel_batch(parallel_domains: int = 2) -> Dict[str, Any]:
+    """Immediately publish up to N distinct domains concurrently."""
+    from autopublish_daemon import publish_parallel_batch
+    res = publish_parallel_batch(parallel_domains=parallel_domains, kick_stuck=True)
+    return {"success": res.get("published_count", 0) > 0, **res}

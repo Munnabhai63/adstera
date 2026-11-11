@@ -222,7 +222,7 @@ AUTOPUBLISH_DASHBOARD_HTML = """<!DOCTYPE html>
       <div>
         <div style="display: flex; align-items: center; gap: 10px;">
           <h1 class="brand-title">AutoPublish & Google Trends Command Center</h1>
-          <span style="background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 700;">● DAEMON 24/7 LIVE</span>
+          <span id="speedCadenceBadge" style="background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 11px; padding: 2px 8px; border-radius: 999px; font-weight: 700;">● LAYER 7: 2 PARALLEL / 20m CADENCE</span>
         </div>
         <div class="brand-sub">Autonomous AI Publishing, 20-Topic Intelligence & Pre-Publish Visual Inspector</div>
       </div>
@@ -241,7 +241,9 @@ AUTOPUBLISH_DASHBOARD_HTML = """<!DOCTYPE html>
         <option value="rechargekar">rechargekar.com (DTH & Telecom)</option>
       </select>
       <button class="btn btn-gold" onclick="discover20Topics()">⚡ Discover 20 Topics</button>
-      <button class="btn btn-primary" onclick="triggerPublishNow()">🚀 Publish Post Now</button>
+      <button id="btnKickStuck" class="btn btn-secondary" onclick="kickStuckDomains()">⚡ Kick Stuck Domains</button>
+      <button id="btnTriggerBatch" class="btn btn-primary" onclick="triggerParallelBatch()">🚀 Publish 2 Parallel</button>
+      <button class="btn btn-primary" onclick="triggerPublishNow()">📝 Publish Single</button>
       <button class="btn btn-secondary" onclick="openSettingsModal()">⚙️ API Settings</button>
       <a href="/" class="btn btn-back">← Back to Fleet Controller</a>
     </div>
@@ -601,7 +603,7 @@ async function discover20Topics() {
     const res = await fetch('/api/autopublish/refresh-candidates', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({domain: currentDomain})
+      body: JSON.stringify({})
     });
     await fetchStats();
   } catch (err) {
@@ -609,6 +611,51 @@ async function discover20Topics() {
   } finally {
     btn.innerText = originalText;
     btn.disabled = false;
+  }
+}
+
+async function kickStuckDomains() {
+  const btn = document.getElementById("btnKickStuck");
+  const orig = btn ? btn.innerText : "";
+  if (btn) { btn.innerText = "Kicking Stuck…"; btn.disabled = true; }
+  try {
+    const res = await fetch('/api/autopublish/kick', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({domain: currentDomain})
+    });
+    const data = await res.json();
+    if (data.success) {
+      alert(`Unstuck ${data.kicked_count || 0} domains: ${(data.kicked_domains || []).join(', ')}\nQueued ${data.winners_queued || 0} aggressive Top-5 winners.`);
+      await fetchStats();
+    } else {
+      alert("Kick warning: " + (data.error || "failed"));
+    }
+  } catch (err) {
+    alert("Kick failed: " + err);
+  } finally {
+    if (btn) { btn.innerText = orig || "⚡ Kick Stuck Domains"; btn.disabled = false; }
+  }
+}
+
+async function triggerParallelBatch() {
+  if (!confirm("Launch 2-domain parallel publish batch immediately?")) return;
+  const btn = document.getElementById("btnTriggerBatch");
+  const orig = btn ? btn.innerText : "";
+  if (btn) { btn.innerText = "Running 2x Batch…"; btn.disabled = true; }
+  try {
+    const res = await fetch('/api/autopublish/trigger-batch', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({parallel_domains: 2})
+    });
+    const data = await res.json();
+    alert(`Parallel Batch: ${data.published_count || 0} published across ${(data.attempted_sites || []).join(', ')} in ${data.elapsed_seconds || 0}s`);
+    await fetchStats();
+  } catch (err) {
+    alert("Parallel batch error: " + err);
+  } finally {
+    if (btn) { btn.innerText = orig || "🚀 Publish 2 Parallel"; btn.disabled = false; }
   }
 }
 
@@ -633,7 +680,7 @@ async function triggerPublishNow() {
   } catch (err) {
     alert("Publish failed: " + err);
   } finally {
-    btn.innerText = "🚀 Publish Post Now";
+    btn.innerText = "📝 Publish Single";
     btn.disabled = false;
   }
 }

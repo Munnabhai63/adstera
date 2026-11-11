@@ -380,3 +380,13 @@ gsc:
   weekly_report_enabled: true
   weekly_report_day: 0
   weekly_report_hour: 9
+autopublish:
+  interval_minutes: 20
+  parallel_domains: 2
+  jitter_seconds: 180
+  min_sleep_seconds: 900
+  stuck_stage_minutes: 30
+  aggressive_winners_count: 5
+  min_winner_score: 65.0
+  min_pending_per_domain: 3
+  sync_winners_to_queue: true

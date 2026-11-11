@@ -3471,6 +3471,32 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"success": False, "error": str(e)}, 500)
             return
 
+        if path == "/api/autopublish/kick":
+            try:
+                import autopublish_service
+                raw_doms = payload.get("domains") if isinstance(payload, dict) else None
+                target_list = [str(d).strip() for d in raw_doms if str(d).strip()] if isinstance(raw_doms, list) else None
+                res = autopublish_service.kick_stuck_domains(domains=target_list)
+                self._send_json({"success": True, **res})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/autopublish/trigger-batch":
+            try:
+                import autopublish_service
+                raw_n = (payload.get("parallel_domains", 2) if isinstance(payload, dict) else 2)
+                try:
+                    n = int(raw_n)
+                except (TypeError, ValueError):
+                    self._send_json({"success": False, "error": "parallel_domains must be an integer between 1 and 4"}, 400)
+                    return
+                res = autopublish_service.trigger_parallel_batch(parallel_domains=max(1, min(4, n)))
+                self._send_json(res)
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
         if path == "/api/accounts/generate":
             try:
                 from accounts_manager import AccountsManager

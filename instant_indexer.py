@@ -14,6 +14,7 @@ import os
 import glob
 import json
 import sqlite3
+import threading
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from typing import Any
@@ -26,6 +27,8 @@ INDEXNOW_ENDPOINTS = [
     "https://www.bing.com/indexnow",
 ]
 DB_PATH = os.path.join("state", "autopublish.db")
+_PROVISION_LOCK = threading.Lock()
+_DB_WRITE_LOCK = threading.Lock()
 
 
 def provision_verification_keys() -> None:
@@ -34,6 +37,11 @@ def provision_verification_keys() -> None:
     if not os.path.exists(sites_dir):
         return
 
+    with _PROVISION_LOCK:
+        _provision_verification_keys_unlocked(sites_dir)
+
+
+def _provision_verification_keys_unlocked(sites_dir: str) -> None:
     for site_key, site_info in NETWORK_REGISTRY.items():
         domain = site_info["domain"].replace("https://", "").replace("http://", "").rstrip("/")
         name = site_info["name"]
@@ -218,13 +226,15 @@ def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
     # 4. Update database flag if DB exists
     if os.path.exists(DB_PATH):
         try:
-            conn = sqlite3.connect(DB_PATH)
-            conn.cursor().execute(
-                "UPDATE published_posts SET google_pinged = ? WHERE domain = ? AND ? LIKE '%' || slug || '%'",
-                (1 if (indexnow_ok or google_ok) else 0, site_id, new_post_url)
-            )
-            conn.commit()
-            conn.close()
+            with _DB_WRITE_LOCK:
+                conn = sqlite3.connect(DB_PATH, timeout=30.0)
+                conn.execute("PRAGMA busy_timeout=30000;")
+                conn.cursor().execute(
+                    "UPDATE published_posts SET google_pinged = ? WHERE domain = ? AND ? LIKE '%' || slug || '%'",
+                    (1 if (indexnow_ok or google_ok) else 0, site_id, new_post_url)
+                )
+                conn.commit()
+                conn.close()
         except Exception:
             pass
 
