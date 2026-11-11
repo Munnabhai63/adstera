@@ -22,7 +22,6 @@ import yaml
 from playwright.async_api import async_playwright
 
 import db
-import ivt_patches
 from mahi_connector import MahiConnector
 import tests.audit as audit_mod
 import worker

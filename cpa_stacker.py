@@ -296,7 +296,14 @@ def should_attempt_cpa(
     - Configured attempt_prob (default 8%)
     - Max 3 CPA attempts per proxy per day (anti-fraud protection)
     """
-    attempt_prob = float(cfg.get("cpa_stacking", {}).get("attempt_prob", 0.08))
+    if (cfg.get("payout_safety") or {}).get("skip_cpa_stacking", False):
+        return False
+
+    cpa_cfg = cfg.get("cpa_stacking") or {}
+    if not cpa_cfg.get("enabled", True):
+        return False
+
+    attempt_prob = float(cpa_cfg.get("attempt_prob", 0.08))
     if rng.random() > attempt_prob:
         return False
 

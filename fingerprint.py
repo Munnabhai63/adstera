@@ -666,8 +666,13 @@ def init_script(fp: Fingerprint) -> str:
   }} else {{
     window.chrome.runtime = {{
       id: undefined,
-      connect: () => ({{ onDisconnect: {{ addListener: () => {{}} }}, postMessage: () => {{}} }}),
-      sendMessage: () => {{}},
+      connect: _makeNative(function() {{
+        return {{
+          onDisconnect: {{ addListener: _makeNative(function() {{}}, 'addListener') }},
+          postMessage: _makeNative(function() {{}}, 'postMessage'),
+        }};
+      }}, 'connect'),
+      sendMessage: _makeNative(function() {{}}, 'sendMessage'),
     }};
   }}
   window.chrome.app = {{
@@ -675,7 +680,7 @@ def init_script(fp: Fingerprint) -> str:
     InstallState: {{ DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' }},
     RunningState: {{ CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' }},
   }};
-  window.chrome.csi = () => ({{ startE: Date.now(), onloadT: Date.now(), pageT: 1000, tran: 15 }});
+  window.chrome.csi = _makeNative(function() {{ return {{ startE: Date.now(), onloadT: Date.now(), pageT: 1000, tran: 15 }}; }}, 'csi');
   window.chrome.loadTimes = () => ({{
     requestTime: Date.now() / 1000,
     startLoadTime: Date.now() / 1000,
@@ -715,11 +720,16 @@ def init_script(fp: Fingerprint) -> str:
   patchWebGL(WebGLRenderingContext);
   if (typeof WebGL2RenderingContext !== 'undefined') patchWebGL(WebGL2RenderingContext);
 
+  if (typeof window.chrome !== 'undefined' && typeof window.chrome.loadTimes === 'function') {{
+    window.chrome.loadTimes = _makeNative(window.chrome.loadTimes, 'loadTimes');
+  }}
+
   // ── screen & window outer dimensions (FP-3 / LEAK-07) ─────────────────────
-  Object.defineProperty(screen, 'colorDepth',   {{ get: () => 24, configurable: true }});
-  Object.defineProperty(screen, 'pixelDepth',   {{ get: () => 24, configurable: true }});
-  Object.defineProperty(screen, 'availHeight',  {{ get: () => {screen_avail_height}, configurable: true }});
-  Object.defineProperty(screen, 'availWidth',   {{ get: () => {fp.viewport_width},   configurable: true }});
+  const _screenTarget = (typeof Screen !== 'undefined' && Screen.prototype) ? Screen.prototype : screen;
+  Object.defineProperty(_screenTarget, 'colorDepth',  {{ get: _makeNative(function() {{ return 24; }}, 'get colorDepth'), enumerable: true, configurable: true }});
+  Object.defineProperty(_screenTarget, 'pixelDepth',  {{ get: _makeNative(function() {{ return 24; }}, 'get pixelDepth'), enumerable: true, configurable: true }});
+  Object.defineProperty(_screenTarget, 'availHeight', {{ get: _makeNative(function() {{ return {screen_avail_height}; }}, 'get availHeight'), enumerable: true, configurable: true }});
+  Object.defineProperty(_screenTarget, 'availWidth',  {{ get: _makeNative(function() {{ return {fp.viewport_width}; }}, 'get availWidth'), enumerable: true, configurable: true }});
 
   // window outer dimensions and screen offset spoof
   const _outerW = {fp.viewport_width} + {16 if not fp.is_mobile else 0};

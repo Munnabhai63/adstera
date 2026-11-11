@@ -85,6 +85,18 @@ class Proxy:
         return f"http://{self.host}:{self.port}"
 
     @property
+    def proxy_url(self) -> str:
+        """Full HTTP proxy URL including URL-encoded credentials when configured."""
+        if self.username:
+            from urllib.parse import quote
+            user = quote(self.username, safe="")
+            if self.password:
+                pwd = quote(self.password, safe="")
+                return f"http://{user}:{pwd}@{self.host}:{self.port}"
+            return f"http://{user}@{self.host}:{self.port}"
+        return self.server_url
+
+    @property
     def playwright_proxy(self) -> Optional[dict]:
         if self.port <= 0:
             return None
@@ -195,7 +207,7 @@ async def check_proxy_header_leak(proxy: Proxy, timeout: float = 6.0) -> bool:
     if proxy.port <= 0:
         return True
     try:
-        transport = httpx.AsyncHTTPTransport(proxy=proxy.server_url)
+        transport = httpx.AsyncHTTPTransport(proxy=proxy.proxy_url)
         async with httpx.AsyncClient(transport=transport, timeout=timeout) as client:
             resp = await client.get("https://httpbin.org/headers")
             if resp.status_code == 200:
@@ -216,7 +228,7 @@ async def _lookup_geo(proxy: Proxy, timeout: float = 8.0) -> GeoInfo:
     NET-2: 3-API fallback chain for geo lookup through proxy.
     Chain: ip-api.com -> ipinfo.io -> freeipapi.com -> fallback_geo
     """
-    proxy_url = proxy.server_url if proxy.port > 0 else None
+    proxy_url = proxy.proxy_url if proxy.port > 0 else None
 
     def _make_client() -> httpx.AsyncClient:
         if proxy_url:
@@ -351,21 +363,109 @@ class MobileTetherPool:
         self._current_ip = ""
 
     async def acquire(self) -> Optional[Proxy]:
+        """
+        Rotate mobile cellular IP via ADB Airplane Mode and return a fresh direct Proxy.
+        Never falls back silently to the host Wi-Fi IP when no device is ready or IP fails to rotate.
+        """
         async with self._lock:
             import mobile_adb
-            net_cfg = self._cfg.get("network", {})
+            net_cfg = self._cfg.get("network") or {}
             dev_id = net_cfg.get("device_id", "")
-            wait_s = net_cfg.get("airplane_mode_wait", 4.0)
+            wait_s = float(net_cfg.get("airplane_mode_wait", 4.0))
             adb_path = net_cfg.get("adb_path", "")
+            require_rotation = bool(net_cfg.get("require_ip_rotation", True))
+            max_attempts = max(1, int(net_cfg.get("max_rotation_attempts", 2)))
+            reconnect_polls = max(0, int(net_cfg.get("reconnect_polls", 4)))
+            poll_interval_s = float(net_cfg.get("reconnect_poll_interval", 1.5))
 
             loop = asyncio.get_running_loop()
-            ok, old_ip, new_ip, msg = await loop.run_in_executor(
-                None, mobile_adb.rotate_ip, dev_id, wait_s, adb_path
-            )
-            logger.info("[Mobile ADB] %s", msg)
+            previous_ip = self._current_ip
+            ip_info: dict = {}
+            current_ip = ""
+            verified_rotated = not require_rotation
 
-            ip_info = await loop.run_in_executor(None, mobile_adb.get_public_ip)
-            current_ip = ip_info.get("ip") or new_ip or old_ip or "127.0.0.1"
+            for attempt in range(1, max_attempts + 1):
+                attempt_wait = wait_s + (attempt - 1) * 2.0
+                try:
+                    ok, old_ip, new_ip, msg = await loop.run_in_executor(
+                        None, mobile_adb.rotate_ip, dev_id, attempt_wait, adb_path
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "[Mobile ADB] Exception during IP rotation (%s) — refusing host Wi-Fi fallback.",
+                        exc,
+                    )
+                    return None
+
+                logger.info("[Mobile ADB] (attempt %d/%d) %s", attempt, max_attempts, msg)
+                msg_lower = (msg or "").lower()
+                if not ok and any(
+                    marker in msg_lower
+                    for marker in ("no android", "connected device is", "adb device", "adb.exe", "not found")
+                ):
+                    logger.error(
+                        "[Mobile ADB] Rotation unavailable (%s) — refusing host Wi-Fi fallback.",
+                        msg,
+                    )
+                    return None
+
+                clean_old = (old_ip or "").strip()
+                if clean_old and clean_old.lower() != "unknown" and not previous_ip:
+                    previous_ip = clean_old
+
+                ip_info = await loop.run_in_executor(None, mobile_adb.get_public_ip)
+                current_ip = (ip_info.get("ip") or "").strip()
+
+                # Poll non-blockingly when cellular data is still restoring after Airplane Mode OFF
+                for _ in range(reconnect_polls):
+                    if current_ip:
+                        break
+                    await asyncio.sleep(poll_interval_s)
+                    ip_info = await loop.run_in_executor(None, mobile_adb.get_public_ip)
+                    current_ip = (ip_info.get("ip") or "").strip()
+
+                if not current_ip:
+                    logger.warning(
+                        "[Mobile ADB] No cellular IP restored on attempt %d/%d.",
+                        attempt, max_attempts,
+                    )
+                    continue
+
+                if not require_rotation:
+                    verified_rotated = True
+                    break
+
+                if not previous_ip:
+                    previous_ip = current_ip
+                    logger.warning(
+                        "[Mobile ADB] Pre-toggle baseline IP unavailable on attempt %d/%d (current=%s) — verifying rotation on next cycle.",
+                        attempt, max_attempts, current_ip,
+                    )
+                    continue
+
+                if current_ip != previous_ip:
+                    verified_rotated = True
+                    break
+
+                logger.warning(
+                    "[Mobile ADB] Carrier returned unchanged IP %s on attempt %d/%d — retrying Airplane Mode.",
+                    current_ip, attempt, max_attempts,
+                )
+
+            if not current_ip:
+                logger.error(
+                    "[Mobile ADB] Cellular connection failed to restore across %d attempt(s) — refusing host Wi-Fi fallback.",
+                    max_attempts,
+                )
+                return None
+
+            if require_rotation and not verified_rotated:
+                logger.error(
+                    "[Mobile ADB] IP rotation unverified (%s) across %d Airplane Mode cycle(s) — refusing host Wi-Fi fallback.",
+                    current_ip, max_attempts,
+                )
+                return None
+
             self._current_ip = current_ip
 
             country = ip_info.get("country") or "IN"
@@ -379,6 +479,12 @@ class MobileTetherPool:
                 locale=_locale_for_country(country),
                 asn_name=ip_info.get("org", "Cellular Carrier"),
             )
+            if geo.is_datacenter:
+                logger.error(
+                    "[Mobile ADB] Detected datacenter ASN (%s) on %s — refusing session.",
+                    geo.asn_name, current_ip,
+                )
+                return None
             # port=0 signals direct mobile connection (no proxy server dict)
             return Proxy(host=current_ip, port=0, geo=geo)
 

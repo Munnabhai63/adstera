@@ -28,7 +28,6 @@ from pool import Proxy
 import push_manager as push_mod
 import session_tracer as tracer_mod
 import ua_provider
-import ivt_patches
 import content_aware_session
 
 logger = logging.getLogger(__name__)
@@ -298,6 +297,7 @@ async def _attempt_ad_click(
     proxy_id: str = "",
     domain: str = "loanraaj.com",
     proxy_country: str = "",
+    cfg: dict | None = None,
 ) -> int:
     """
     Attempt a single smart ad click with Viewport Intersection scoring,
@@ -336,14 +336,8 @@ async def _attempt_ad_click(
         record_clicked_ad_slot(proxy_id, candidate["selector"])
         logger.debug("Smart clicked ad slot %s on proxy %s at (%.0f, %.0f)", candidate["selector"], proxy_id, tx, ty)
 
-        # Handle popunder / new advertiser tab with human dwell, scroll, and Pillar 2 lead conversion
+        # Handle popunder / new advertiser tab with human dwell and scroll (never fire untrusted JS el.click())
         await asyncio.sleep(rng.uniform(1.0, 2.0))
-        if len(page.context.pages) <= 1 and candidate.get("element"):
-            try:
-                await candidate["element"].evaluate("el => { if (typeof el.click === 'function') el.click(); }")
-                await asyncio.sleep(1.2)
-            except Exception:
-                pass
         pages = page.context.pages
         for extra_page in pages[1:]:
             try:
@@ -351,10 +345,26 @@ async def _attempt_ad_click(
                     await extra_page.wait_for_load_state("domcontentloaded", timeout=8000)
                 except Exception:
                     pass
-                from lead_engine import LeadConversionEngine
-                engine = LeadConversionEngine()
-                form_check = await engine.detect_lead_form(extra_page)
-                if form_check.get("form_found") and engine.enabled:
+                payout_cfg = (cfg or {}).get("payout_safety") or {}
+                lead_cfg = (cfg or {}).get("lead_engine") or {}
+                explicit_skip = (
+                    bool(payout_cfg["skip_lead_form_submit"])
+                    if "skip_lead_form_submit" in payout_cfg
+                    else (
+                        bool(lead_cfg["payout_safe_skip_submit"])
+                        if "payout_safe_skip_submit" in lead_cfg
+                        else None
+                    )
+                )
+                engine = None
+                if explicit_skip is True:
+                    skip_lead = True
+                else:
+                    from lead_engine import LeadConversionEngine
+                    engine = LeadConversionEngine(config=cfg)
+                    skip_lead = bool(explicit_skip) if explicit_skip is not None else bool(getattr(engine, "payout_safe_skip_submit", False))
+                form_check = {"form_found": False} if skip_lead else await engine.detect_lead_form(extra_page)
+                if form_check.get("form_found") and engine and engine.enabled and not skip_lead:
                     logger.info("Pillar 2: Lead form detected on %s — executing Geo Persona + Sonjj Email conversion", extra_page.url)
                     await engine.fill_and_submit_lead(
                         page=extra_page,
@@ -566,21 +576,34 @@ async def run_session(
             weights = [1.0] * len(referrers)
         referrer = rng.choices(referrers, weights=weights, k=1)[0]
 
-    # Step 4.3: Multi-Ad-Network Selection
-    ad_net_mgr = AdNetworkManager()
-    selected_network = ad_net_mgr.select_network(rng)
+    # Step 4.3: Multi-Ad-Network Selection (or solo Adsterra focus during payout sprints)
+    payout_cfg = cfg.get("payout_safety") or {}
+    solo_network = str(payout_cfg.get("solo_network") or "").strip()
+    if solo_network:
+        selected_network = solo_network
+    else:
+        ad_net_mgr = AdNetworkManager()
+        selected_network = ad_net_mgr.select_network(rng)
 
     # Step 5.3: A/B Testing Strategy Variant Selection
     ab_engine = ab_test_engine.build_from_config(cfg)
-    variant = ab_engine.select_variant(rng)
-    cfg = ab_engine.apply_variant_to_config(cfg, variant)
+    if ab_engine.enabled:
+        base_click_prob = float((cfg.get("target") or {}).get("click_prob", 0.045))
+        variant = ab_engine.select_variant(rng)
+        cfg = ab_engine.apply_variant_to_config(cfg, variant)
+        if solo_network or payout_cfg.get("skip_lead_form_submit"):
+            max_safe_ctr = float((cfg.get("target") or {}).get("max_domain_ctr", 0.050))
+            cfg["target"]["click_prob"] = min(float(cfg["target"]["click_prob"]), base_click_prob, max_safe_ctr)
+        variant_id = variant.variant_id
+    else:
+        variant_id = "default"
 
     result = {
         "proxy_id": proxy.proxy_id,
         "target_url": start_url,
         "domain": target_domain,
         "ad_network": selected_network,
-        "variant_id": variant.variant_id,
+        "variant_id": variant_id,
         "mahi_profile_id": mahi_profile["id"] if mahi_profile else None,
         "ua": fp.user_agent,
         "referrer": referrer,
@@ -596,6 +619,7 @@ async def run_session(
     }
 
     context: BrowserContext | None = None
+    push_task: asyncio.Task | None = None
     t0 = time.time()
     _session_logged = False  # SCHED-4: guard to ensure exactly-once DB write
 
@@ -635,10 +659,9 @@ async def run_session(
                 start_url = rng.choice(visited)
             logger.debug("Return visit: restored cookies for %s (visits=%s)", proxy.proxy_id, profile.get("visit_count", 1))
 
-        # Inject fingerprint patches (including unified IVT patches FP-3 to FP-6)
+        # Inject coherent seeded fingerprint patches (avoid runtime clobbering from unseeded patches)
         init_js = fp_mod.init_script(fp)
         await context.add_init_script(script=init_js)
-        await context.add_init_script(script=ivt_patches.generate_stealth_js(getattr(fp, "audio_jitter_seed", 0.000005)))
 
         # Block specified resource types
         block_types = set(cfg["browser"].get("block_resources", []))
@@ -735,10 +758,10 @@ async def run_session(
 
         # Step 4.4: Push Notification Subscription Farming
         push_result = None
-        if cfg.get("push_notifications", {}).get("enabled", True):
+        if (cfg.get("push_notifications") or {}).get("enabled", True):
             push_mgr = push_mod.build_from_config(cfg)
             # Run push handling concurrently with the session (non-blocking)
-            asyncio.ensure_future(
+            push_task = asyncio.ensure_future(
                 _handle_push_async(
                     push_mgr=push_mgr,
                     context=context,
@@ -836,7 +859,7 @@ async def run_session(
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
                 clicks = await _attempt_ad_click(
-                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN"
+                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN", cfg=cfg
                 )
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks
@@ -870,7 +893,7 @@ async def run_session(
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
                 clicks = await _attempt_ad_click(
-                    page, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN"
+                    page, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN", cfg=cfg
                 )
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks
@@ -915,6 +938,12 @@ async def run_session(
         result["dwell"] = max(result["dwell"], time.time() - t0)
     finally:
         _record_active_ua(proxy.proxy_id, fp, active=False)
+        if push_task and not push_task.done():
+            push_task.cancel()
+            try:
+                await push_task
+            except (asyncio.CancelledError, Exception):
+                pass
         # Step 5.1: Stop trace — saves file only if session was degraded
         if context:
             try:
@@ -994,8 +1023,10 @@ async def run_session(
         pass
 
     try:
-        cpm_rate = float(cfg.get("target", {}).get("cpm_rate", 2.50))
-        db.export_stats_csv("stats.csv", cpm_rate)
+        stats_csv_path = str(cfg.get("stats_csv_path", "stats.csv")).strip()
+        if stats_csv_path:
+            cpm_rate = float(cfg.get("target", {}).get("cpm_rate", 2.50))
+            db.export_stats_csv(stats_csv_path, cpm_rate)
     except Exception:
         pass
 

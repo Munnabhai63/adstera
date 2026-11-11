@@ -96,8 +96,8 @@ class DualTransportManager:
         Actively ping or probe the primary USB mobile tethering connection.
         Measures HTTP round-trip latency in milliseconds.
         """
-        # Step 1: Check if an ADB device is physically connected
-        net_cfg = self.cfg.get("network", {})
+        # Step 1: Check if an authorized ADB device is physically connected
+        net_cfg = self.cfg.get("network") or {}
         custom_adb = net_cfg.get("adb_path", "")
         devices = []
         try:
@@ -105,12 +105,18 @@ class DualTransportManager:
         except Exception as exc:
             logger.debug("ADB check failed: %s", exc)
 
-        if not devices:
+        auth_devices = [d for d in devices if d.get("status") == "device"]
+        if not auth_devices:
+            reason = (
+                f"Connected ADB device status={devices[0].get('status')} (allow USB debugging on phone)"
+                if devices
+                else "No USB debugging Android device connected via ADB"
+            )
             return {
                 "healthy": False,
                 "latency_ms": 9999.0,
-                "reason": "No USB debugging Android device connected via ADB",
-                "devices": 0,
+                "reason": reason,
+                "devices": len(devices),
             }
 
         # Step 2: Test public gateway ping/latency
@@ -160,12 +166,22 @@ class DualTransportManager:
                         self.consecutive_primary_failures = 0
                         self.primary_healthy = True
                         return proxy
+                    if self._proxy_pool is not None:
+                        self.report_transport_failure(
+                            self.MODE_PRIMARY_MOBILE, None, "Mobile ADB returned no usable IP"
+                        )
+                        self.trigger_failover(reason="Primary mobile transport unavailable or failed acquisition")
+                    else:
+                        self.primary_healthy = False
                 except Exception as exc:
                     logger.warning("Primary mobile transport acquisition failed: %s", exc)
-                    self.report_transport_failure(self.MODE_PRIMARY_MOBILE, None, str(exc))
-
-            # If mobile pool failed or not present, hot-swap immediately
-            self.trigger_failover(reason="Primary mobile transport unavailable or failed acquisition")
+                    if self._proxy_pool is not None:
+                        self.trigger_failover(reason=f"Primary mobile transport failed acquisition: {exc}")
+                    else:
+                        self.primary_healthy = False
+            elif self._proxy_pool is not None:
+                # No mobile pool configured; switch cleanly to available proxy fallback
+                self.trigger_failover(reason="Primary mobile pool not configured")
 
         # Route 2: Fallback Residential Proxy Pool
         if self._proxy_pool:
@@ -178,9 +194,13 @@ class DualTransportManager:
                 logger.error("Fallback proxy pool acquisition failed: %s", exc)
                 self.consecutive_fallback_failures += 1
 
-        # Route 3: Ultimate Emergency Fallback (Direct host connection placeholder)
-        logger.warning("Dual transport exhausted! Generating emergency local direct proxy.")
-        return Proxy(host="127.0.0.1", port=0, geo=GeoInfo(country="US", city="Chicago"))
+        # Route 3: Strict IVT guard — never burn host Wi-Fi IP unless explicitly opted in
+        if (self.cfg.get("failover") or {}).get("allow_local_direct_fallback", False):
+            logger.warning("Dual transport exhausted! Using explicit local direct fallback.")
+            return Proxy(host="127.0.0.1", port=0, geo=GeoInfo(country="US", city="Chicago"))
+
+        logger.error("Dual transport exhausted and host Wi-Fi fallback is blocked — returning None.")
+        return None
 
     async def acquire(self) -> Optional[Proxy]:
         """Drop-in interface matching ProxyPool / MobileTetherPool acquire."""

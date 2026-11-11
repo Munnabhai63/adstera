@@ -38,9 +38,9 @@ def get_adb_path(custom_path: str = "") -> str:
 
 def run_adb(args: list[str], custom_path: str = "", timeout: float = 12.0) -> tuple[int, str]:
     """Execute an ADB command safely with timeout."""
-    adb_bin = get_adb_path(custom_path)
-    cmd = [adb_bin] + args
     try:
+        adb_bin = get_adb_path(custom_path)
+        cmd = [adb_bin] + args
         res = subprocess.run(
             cmd,
             stdout=subprocess.PIPE,
@@ -50,6 +50,8 @@ def run_adb(args: list[str], custom_path: str = "", timeout: float = 12.0) -> tu
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
         return res.returncode, res.stdout.strip()
+    except FileNotFoundError as exc:
+        return -1, str(exc)
     except subprocess.TimeoutExpired:
         return -1, "ADB command timed out"
     except Exception as exc:
@@ -137,16 +139,22 @@ def rotate_ip(device_id: str = "", wait_seconds: float = 4.0, custom_path: str =
     if not devices:
         return False, "", "", "No Android devices connected via USB debugging (run 'adb devices')"
 
-    # Pick first authorized device if not specified
-    target_dev = device_id
-    if not target_dev:
+    # Validate specified or first authorized device
+    target_dev = device_id.strip() if device_id else ""
+    if target_dev:
+        matching = [d for d in devices if d["id"] == target_dev]
+        if not matching:
+            return False, "", "", f"ADB device {target_dev} not found among connected devices."
+        if matching[0]["status"] != "device":
+            return False, "", "", f"ADB device {target_dev} is {matching[0]['status']}. Check phone screen to allow USB debugging."
+    else:
         auth_devices = [d for d in devices if d["status"] == "device"]
         if not auth_devices:
             return False, "", "", f"Connected device is {devices[0]['status']}. Check phone screen to allow USB debugging."
         target_dev = auth_devices[0]["id"]
 
     old_info = get_public_ip()
-    old_ip = old_info.get("ip", "unknown")
+    old_ip = (old_info.get("ip") or "").strip()
 
     logger.info("Triggering ADB Airplane mode toggle on %s (Current IP: %s)…", target_dev, old_ip)
     toggle_airplane_mode(device_id=target_dev, wait_seconds=wait_seconds, custom_path=custom_path)

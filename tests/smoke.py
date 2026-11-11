@@ -47,6 +47,9 @@ def _load_cfg() -> dict:
     cfg["session"]["internal_nav_prob"] = 0.0   # stay on fixture only
     cfg["target"]["click_prob"] = 0.5           # higher chance for smoke test coverage
     cfg["browser"]["slow_mo_ms"] = 0            # faster for tests
+    cfg["ab_testing"] = {"enabled": False}      # preserve smoke dwell cap (25-35s)
+    cfg.setdefault("push_notifications", {})["enabled"] = False
+    cfg["stats_csv_path"] = ""
     return cfg
 
 

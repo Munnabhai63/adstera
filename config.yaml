@@ -37,8 +37,8 @@ target:
   min_dwell: 25
   max_dwell: 110
   scroll_prob: 0.85
-  click_prob: 0.06
-  ad_clicks_max: 2
+  click_prob: 0.045
+  ad_clicks_max: 1
   target_impressions: 1000
   target_clicks: 50
   target_revenue: 10.0
@@ -173,8 +173,8 @@ proxy:
   dead_ip_cooldown_min: 45
 scheduler:
   concurrency: 1
-  sessions_per_hour: 150
-  daily_cap: 2000
+  sessions_per_hour: 45
+  daily_cap: 250
   diurnal:
   - 0.25
   - 0.18
@@ -217,19 +217,27 @@ browser:
   slow_mo_ms: 40
   engine: mahi
   use_mahi_profiles: false
-  block_resources:
-  - font
-  - media
+  block_resources: []
 network:
   mode: mobile_tether
   airplane_mode_wait: 4
+  require_ip_rotation: true
+  max_rotation_attempts: 2
+  reconnect_polls: 4
+  reconnect_poll_interval: 1.5
 adsterra_api:
   enabled: true
   api_key: 23f635cd7b6e6709533dfe45f6ac0f94
   endpoint: https://api3.adsterratools.com/publisher/stats.json
   sync_interval_min: 15
+payout_safety:
+  solo_network: adsterra
+  skip_lead_form_submit: true
+  skip_cpa_stacking: true
+
 lead_engine:
   enabled: true
+  payout_safe_skip_submit: true
   conversion_prob: 0.25
   max_leads_per_day: 50
   min_post_click_dwell: 25

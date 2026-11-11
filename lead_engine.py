@@ -105,13 +105,14 @@ class LeadConversionEngine:
         'input[placeholder*="code" i]',
     ]
 
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = "config.yaml", config: Optional[dict] = None):
         self.config_path = Path(config_path)
-        self.config = self._load_config()
+        self.config = config if config is not None else self._load_config()
         self.accounts_mgr = AccountsManager()
         self.email_client = SonjjEmailClient(config_path=config_path)
 
-        cfg = self.config.get("lead_engine", {})
+        cfg = self.config.get("lead_engine") or {}
+        payout_cfg = self.config.get("payout_safety") or {}
         self.enabled = cfg.get("enabled", True)
         self.conversion_prob = float(cfg.get("conversion_prob", 0.10))
         self.max_leads_per_day = int(cfg.get("max_leads_per_day", 50))
@@ -119,6 +120,11 @@ class LeadConversionEngine:
         self.max_post_click_dwell = float(cfg.get("max_post_click_dwell", 45.0))
         self.typing_delay_min_ms = int(cfg.get("typing_delay_min_ms", 60))
         self.typing_delay_max_ms = int(cfg.get("typing_delay_max_ms", 220))
+        self.payout_safe_skip_submit = bool(
+            payout_cfg["skip_lead_form_submit"]
+            if "skip_lead_form_submit" in payout_cfg
+            else cfg.get("payout_safe_skip_submit", False)
+        )
 
     def _load_config(self) -> dict:
         if self.config_path.exists():
@@ -260,7 +266,7 @@ class LeadConversionEngine:
         # Step 1: Pre-form browsing dwell (3 - 6 seconds)
         try:
             await human.scroll_page(page, rng=r)
-            await human.idle_drift(page, duration=r.uniform(2.0, 4.5), rng=r)
+            await human.idle_drift(page, duration_s=r.uniform(2.0, 4.5), rng=r)
         except Exception as e:
             logger.debug("Lead Engine: Pre-form dwell error: %s", e)
 
@@ -366,7 +372,7 @@ class LeadConversionEngine:
         # Step 10: Post-submit natural dwell & Optional OTP / Verification Link Auto-Completion
         post_dwell = r.uniform(2.5, 6.0)
         try:
-            await human.idle_drift(page, duration=post_dwell, rng=r)
+            await human.idle_drift(page, duration_s=post_dwell, rng=r)
         except Exception:
             await asyncio.sleep(post_dwell)
 

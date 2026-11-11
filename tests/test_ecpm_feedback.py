@@ -8,9 +8,19 @@ import sqlite3
 import pytest
 from pathlib import Path
 
-from ecpm_feedback import EcpmFeedbackEngine, STATE_FILE
+import ecpm_feedback
+from ecpm_feedback import EcpmFeedbackEngine
 import geo_router
 import db
+
+
+@pytest.fixture(autouse=True)
+def _isolate_ecpm_state(tmp_path, monkeypatch):
+    """Ensure tests never overwrite live state/dynamic_ecpm_weights.json or sessions.db."""
+    monkeypatch.setattr(ecpm_feedback, "STATE_FILE", tmp_path / "dynamic_ecpm_weights.json")
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "test_ecpm_feedback.db")
+    db.init()
+    yield
 
 
 def test_calculate_weights_60_40_split():
@@ -49,8 +59,8 @@ def test_fetch_and_update_weights_with_mock():
         assert pytest.approx(top_weight, abs=0.02) == 0.60
 
         # Verify state file
-        assert STATE_FILE.exists()
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
+        assert ecpm_feedback.STATE_FILE.exists()
+        with open(ecpm_feedback.STATE_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             assert "top_domain" in data
             assert "weights" in data
