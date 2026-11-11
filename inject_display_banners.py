@@ -300,13 +300,13 @@ def inject_all_sites(
 
 
 def deploy_cloudflare_sites(site_ids: list[str] | None = None) -> list[dict[str, Any]]:
-    """Deploy `sites/<site_id>` directories to Cloudflare Pages via Wrangler CLI."""
+    """Deploy canonical `sites/<site_id>.com` directories to Cloudflare Pages via Wrangler CLI."""
     targets = site_ids or sorted(KNOWN_SITE_IDS.keys())
     env = _load_env_vars()
     results: list[dict[str, Any]] = []
 
     for site_id in targets:
-        site_dir = SITES_DIR / site_id
+        site_dir = SITES_DIR / f"{site_id}.com"
         if not site_dir.is_dir():
             results.append({"site_id": site_id, "ok": False, "error": f"Missing dir: {site_dir}"})
             continue

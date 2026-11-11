@@ -272,7 +272,7 @@ def test_live_ui_banner_vault_endpoint() -> None:
 
 def test_deploy_cloudflare_sites_uses_utf8_subprocess(tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch) -> None:
     sites_root = tmp_path / "sites"
-    (sites_root / "karzseva").mkdir(parents=True)
+    (sites_root / "karzseva.com").mkdir(parents=True)
     monkeypatch.setattr(inject_display_banners, "SITES_DIR", sites_root)
 
     seen_kwargs: dict[str, object] = {}

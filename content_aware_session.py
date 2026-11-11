@@ -55,25 +55,28 @@ def get_latest_article(domain: str) -> dict[str, Any]:
     except Exception as exc:
         logger.debug("DB post lookup notice: %s", exc)
 
-    # 2. Check disk in sites/<domain>
+    # 2. Check disk in canonical sites/<domain>.com
     sites_dir = Path(__file__).parent / "sites"
-    candidates = [sites_dir / clean_domain, sites_dir / short_dom]
-    for d in candidates:
-        if d.is_dir():
-            htmls = [f for f in d.glob("*.html") if f.name != "index.html"]
-            if htmls:
-                latest_f = max(htmls, key=lambda f: f.stat().st_mtime)
-                content = latest_f.read_text(encoding="utf-8", errors="ignore")
-                wc = len(content.split())
-                slug = latest_f.name
-                title = slug.replace("-", " ").replace(".html", "").title()
-                return {
-                    "title": title,
-                    "slug": slug,
-                    "word_count": max(1500, wc),
-                    "title_keyword": f"{title} {short_dom}",
-                    "url": f"https://{clean_domain}/{slug}",
-                }
+    canonical_dir = sites_dir / (clean_domain if clean_domain.endswith(".com") else f"{short_dom}.com")
+    if canonical_dir.is_dir():
+        htmls = [
+            f
+            for f in canonical_dir.glob("*.html")
+            if f.name != "index.html" and not f.name.startswith("google")
+        ]
+        if htmls:
+            latest_f = max(htmls, key=lambda f: f.stat().st_mtime)
+            content = latest_f.read_text(encoding="utf-8", errors="ignore")
+            wc = len(content.split())
+            slug = latest_f.name
+            title = slug.replace("-", " ").replace(".html", "").title()
+            return {
+                "title": title,
+                "slug": slug,
+                "word_count": max(1500, wc),
+                "title_keyword": f"{title} {short_dom}",
+                "url": f"https://{clean_domain}/{slug}",
+            }
 
     # Fallback default blueprint
     return {

@@ -298,11 +298,12 @@ def _build_article_html(
 """
 
 
-def generate_all_domain_articles() -> dict[str, int]:
+def generate_all_domain_articles(sites_dir: Path | None = None) -> dict[str, int]:
     """Generates all SEO articles, sitemaps, and robots.txt for each domain in sites/."""
     results: dict[str, int] = {}
+    root_dir = Path(sites_dir) if sites_dir is not None else SITES_DIR
 
-    for domain_folder in SITES_DIR.iterdir():
+    for domain_folder in root_dir.iterdir():
         if not domain_folder.is_dir():
             continue
 

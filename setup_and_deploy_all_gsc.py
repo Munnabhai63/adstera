@@ -7,6 +7,7 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 PROJECTS = [
+    ("loanraaj", "https://loanraaj.com"),
     ("rechargetak", "https://rechargetak.com"),
     ("rechargepur", "https://rechargepur.com"),
     ("tazaloan", "https://tazaloan.com"),
@@ -23,11 +24,11 @@ VERIFY_CONTENT = "google-site-verification: google31976c4df01121b2.html\n"
 META_TAG = '<meta name="google-site-verification" content="google31976c4df01121b2">'
 
 print("="*60)
-print("1. Injecting Google Verification File & Meta Tags into all 9 sites")
+print("1. Injecting Google Verification File & Meta Tags into all 10 sites")
 print("="*60)
 
 for proj, domain in PROJECTS:
-    dirs_to_update = [os.path.join("sites", proj), os.path.join("sites", f"{proj}.com")]
+    dirs_to_update = [os.path.join("sites", f"{proj}.com")]
     
     for d in dirs_to_update:
         if os.path.exists(d):
@@ -38,7 +39,8 @@ for proj, domain in PROJECTS:
             print(f"[{proj}] Wrote {v_path}")
             
             # 2. Inject meta tag into index.html and all html files
-            for root, _, files in os.walk(d):
+            for root, dirs, files in os.walk(d):
+                dirs[:] = [sub for sub in dirs if sub not in ("layouts", "content")]
                 for file in files:
                     if file.endswith(".html") and not file.startswith("google"):
                         html_path = os.path.join(root, file)
@@ -53,11 +55,11 @@ for proj, domain in PROJECTS:
                             print(f"Error updating {html_path}: {e}")
 
 print("\n" + "="*60)
-print("2. Deploying all 9 sites to Cloudflare Pages via Wrangler")
+print("2. Deploying all 10 sites to Cloudflare Pages via Wrangler")
 print("="*60)
 
 for proj, domain in PROJECTS:
-    site_dir = os.path.join("sites", proj)
+    site_dir = os.path.join("sites", f"{proj}.com")
     print(f"\nDeploying {proj} ({site_dir}) to Cloudflare Pages...")
     cmd = ["npx.cmd", "wrangler", "pages", "deploy", site_dir, f"--project-name={proj}", "--branch=main", "--commit-dirty=true"]
     try:

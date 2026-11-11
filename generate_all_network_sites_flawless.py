@@ -94,7 +94,7 @@ for site_id, site in MASTER_SITES.items():
     print(f"\nProcessing [{site_id}] {name}: {len(all_articles)} articles across {len(categories)} categories")
     
     # Output directories
-    site_dirs = [os.path.join("sites", site_id), os.path.join("sites", f"{site_id}.com")]
+    site_dirs = [os.path.join("sites", f"{site_id}.com")]
     
     for site_dir in site_dirs:
         os.makedirs(site_dir, exist_ok=True)

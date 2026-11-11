@@ -172,11 +172,12 @@ def build_cf_headers() -> str:
 """
 
 
-def setup_all_hugo_sites() -> dict[str, bool]:
+def setup_all_hugo_sites(sites_dir: Path | None = None) -> dict[str, bool]:
     """Generates Hugo templates and Cloudflare Pages config across all 10 domains."""
+    root_dir = Path(sites_dir) if sites_dir is not None else SITES_DIR
     status: dict[str, bool] = {}
     for domain, meta in DOMAINS_METADATA.items():
-        dom_dir = SITES_DIR / domain
+        dom_dir = root_dir / domain
         dom_dir.mkdir(parents=True, exist_ok=True)
 
         # 1. Write hugo.toml

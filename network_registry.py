@@ -1,4 +1,6 @@
 # network_registry.py - Instant, static dictionary of all 10 network domains
+from pathlib import Path
+
 NETWORK_REGISTRY = {
     "loanraaj": {
         "domain": "https://loanraaj.com",
@@ -251,3 +253,37 @@ NETWORK_REGISTRY = {
         }
     }
 }
+
+
+def canonical_site_key(domain_or_key: str) -> str:
+    """Resolve any domain URL, hostname, or short site ID to its canonical short key."""
+    cleaned = str(domain_or_key or "").strip().lower()
+    if "://" in cleaned:
+        cleaned = cleaned.split("://", 1)[1]
+    cleaned = cleaned.split("/", 1)[0].split(":", 1)[0]
+    if cleaned.startswith("www."):
+        cleaned = cleaned[4:]
+    if cleaned in NETWORK_REGISTRY:
+        return cleaned
+    for site_key, info in NETWORK_REGISTRY.items():
+        host = info["domain"].replace("https://", "").replace("http://", "").strip("/").lower()
+        if cleaned == host:
+            return site_key
+    if cleaned.endswith(".com"):
+        short = cleaned[:-4]
+        if short in NETWORK_REGISTRY:
+            return short
+    raise ValueError(f"Unknown network domain or site key: {domain_or_key!r}")
+
+
+def get_canonical_site_dir(domain_or_key: str, base_dir: str | Path = "sites") -> Path:
+    """Return the canonical `sites/<domain>` directory Path (e.g. `sites/loanraaj.com`)."""
+    site_key = canonical_site_key(domain_or_key)
+    host = (
+        NETWORK_REGISTRY[site_key]["domain"]
+        .replace("https://", "")
+        .replace("http://", "")
+        .strip("/")
+        .lower()
+    )
+    return Path(base_dir) / host

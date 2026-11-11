@@ -8,6 +8,7 @@ import sys
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
 PROJECTS = [
+    ("loanraaj", "https://loanraaj.com"),
     ("rechargetak", "https://rechargetak.com"),
     ("rechargepur", "https://rechargepur.com"),
     ("tazaloan", "https://tazaloan.com"),
@@ -20,13 +21,13 @@ PROJECTS = [
 ]
 
 print("="*70)
-print("DEPLOYING ALL 9 NETWORK DOMAINS TO CLOUDFLARE PAGES")
+print("DEPLOYING ALL 10 NETWORK DOMAINS TO CLOUDFLARE PAGES")
 print("="*70)
 
 deploy_results = {}
 
 for proj, domain in PROJECTS:
-    site_dir = os.path.join("sites", proj)
+    site_dir = os.path.join("sites", f"{proj}.com")
     print(f"\n[Deploying {proj}] -> Source: {site_dir} to Cloudflare Project: {proj}...")
     
     cmd = ["npx.cmd", "wrangler", "pages", "deploy", site_dir, f"--project-name={proj}", "--branch=main", "--commit-dirty=true"]

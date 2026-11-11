@@ -2566,16 +2566,20 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             "rechargekar.com": "rechargekar",
         }
 
+        sites_root = Path("sites").resolve()
+
         # 1. Direct static route: /sites/<folder>
         if path.startswith("/sites/"):
             parts = [p for p in path.split("/") if p]
             if len(parts) >= 2:
                 folder_name = parts[1]
-                site_file = Path("sites") / folder_name / "index.html"
-                if site_file.is_file():
-                    content = site_file.read_text(encoding="utf-8")
-                    self._send_html(content)
-                    return
+                if ".." not in folder_name and "/" not in folder_name and "\\" not in folder_name:
+                    canonical_folder = folder_name if folder_name.endswith(".com") else f"{folder_name}.com"
+                    site_file = (sites_root / canonical_folder / "index.html").resolve()
+                    if site_file.is_relative_to(sites_root) and site_file.is_file():
+                        content = site_file.read_text(encoding="utf-8")
+                        self._send_html(content)
+                        return
 
         # 2. Virtual Host route for live domains
         if host_header in DOMAIN_FOLDERS:
@@ -2585,10 +2589,9 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             else:
                 folder_name = DOMAIN_FOLDERS[host_header]
                 clean_p = path.lstrip("/") or "index.html"
-                candidates = [
-                    Path("sites") / f"{folder_name}.com" / clean_p,
-                    Path("sites") / folder_name / clean_p,
-                ]
+                canonical_dir = folder_name if folder_name.endswith(".com") else f"{folder_name}.com"
+                candidate = (sites_root / canonical_dir / clean_p).resolve()
+                candidates = [candidate] if candidate.is_relative_to(sites_root) else []
                 for target_file in candidates:
                     if target_file.is_file():
                         ctype = "text/html; charset=utf-8"

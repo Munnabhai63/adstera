@@ -161,7 +161,7 @@ for proj_name, domain_name in DOMAINS:
         print(f"  Pages project '{proj_name}' already exists.")
 
     # B. Deploy Directory to Cloudflare Pages using Wrangler
-    site_dir = f"sites/{proj_name}"
+    site_dir = f"sites/{domain_name}"
     print(f"  Deploying '{site_dir}' to Pages project '{proj_name}'...")
     deploy_cmd = [
         "npx", "wrangler", "pages", "deploy", site_dir,

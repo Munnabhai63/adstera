@@ -35,8 +35,6 @@ total_synced = 0
 for dom in DOMAINS:
     folder = os.path.join("sites", f"{dom}.com")
     if not os.path.exists(folder):
-        folder = os.path.join("sites", dom)
-    if not os.path.exists(folder):
         continue
 
     files = [f for f in os.listdir(folder) if f.endswith(".html") and f not in EXCLUDE]

@@ -202,8 +202,6 @@ def get_preview_html(domain: str, slug: str) -> Optional[str]:
     candidates = [
         os.path.join("sites", folder, f"{slug}.html"),
         os.path.join("sites", folder, slug, "index.html"),
-        os.path.join("sites", domain_clean, f"{slug}.html"),
-        os.path.join("sites", domain_clean, slug, "index.html"),
         os.path.join("sites", folder, "index.html")
     ]
     

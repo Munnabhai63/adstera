@@ -26,7 +26,7 @@ all_ok = True
 total_audited_html = 0
 
 for site in SITES:
-    site_path = os.path.join("sites", site)
+    site_path = os.path.join("sites", f"{site}.com")
     if not os.path.exists(site_path):
         print(f"[FAIL] Missing site directory: {site_path}")
         all_ok = False
@@ -58,7 +58,8 @@ for site in SITES:
     div_errors = []
     meta_errors = []
     
-    for root, _, files in os.walk(site_path):
+    for root, dirs, files in os.walk(site_path):
+        dirs[:] = [d for d in dirs if d not in ("layouts", "content")]
         for f in files:
             if f.endswith(".html") and not f.startswith("google"):
                 f_path = os.path.join(root, f)

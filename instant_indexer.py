@@ -39,9 +39,8 @@ def provision_verification_keys() -> None:
         name = site_info["name"]
         desc = site_info["desc"]
 
-        # Paths for both folder names (e.g. sites/rechargetak and sites/rechargetak.com)
+        # Canonical sites/<site_key>.com directory
         target_dirs = [
-            os.path.join(sites_dir, site_key),
             os.path.join(sites_dir, f"{site_key}.com"),
         ]
 
@@ -97,10 +96,9 @@ Sitemap: https://{domain}/sitemap.xml
 
 
 def update_sitemap_xml(site_id: str, new_url: str) -> None:
-    """Safely append new URL to sitemap.xml in both site directory targets."""
+    """Safely append new URL to sitemap.xml in canonical site directory."""
     sites_dir = "sites"
     target_dirs = [
-        os.path.join(sites_dir, site_id),
         os.path.join(sites_dir, f"{site_id}.com"),
     ]
 
@@ -217,7 +215,7 @@ def broadcast_all_network_sites() -> dict[str, int]:
 
     for site_key, site_info in NETWORK_REGISTRY.items():
         clean_domain = site_info["domain"].replace("https://", "").replace("http://", "").rstrip("/")
-        site_dir = os.path.join("sites", site_key)
+        site_dir = os.path.join("sites", f"{site_key}.com")
         
         urls_to_submit = [
             f"https://{clean_domain}/",

@@ -383,7 +383,7 @@ def publish_next_post(specific_site=None):
     )
     
     # Save files to disk
-    site_dirs = [os.path.join("sites", site_id), os.path.join("sites", f"{site_id}.com")]
+    site_dirs = [os.path.join("sites", f"{site_id}.com")]
     for s_dir in site_dirs:
         os.makedirs(s_dir, exist_ok=True)
         # 1. Direct html
@@ -408,7 +408,7 @@ def publish_next_post(specific_site=None):
     print(f"[{site_id}] Successfully compiled & saved '{slug}' ({words_count} words).")
     
     # Deploy to Cloudflare Pages
-    deploy_cmd = ["npx.cmd", "wrangler", "pages", "deploy", os.path.join("sites", site_id), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
+    deploy_cmd = ["npx.cmd", "wrangler", "pages", "deploy", os.path.join("sites", f"{site_id}.com"), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
     try:
         res = subprocess.run(deploy_cmd, capture_output=True, encoding="utf-8", errors="ignore")
         cf_success = 1 if res.returncode == 0 else 0

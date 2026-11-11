@@ -21,9 +21,30 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import content_generator
 
 
-def test_articles_generated_for_domains():
-    """generate_all_domain_articles creates articles in each domain folder."""
-    results = content_generator.generate_all_domain_articles()
+def _isolated_sites_dir(tmp_path: Path) -> Path:
+    sites_root = tmp_path / "sites"
+    for short in (
+        "loanraaj",
+        "tazaloan",
+        "loankiseva",
+        "karzseva",
+        "loantau",
+        "rechargetak",
+        "rechargepur",
+        "rechargekar",
+        "tazabhav",
+        "tazarokda",
+    ):
+        d = sites_root / f"{short}.com"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "index.html").write_text("<html><body><aside></aside></body></html>", encoding="utf-8")
+    return sites_root
+
+
+def test_articles_generated_for_domains(tmp_path: Path):
+    """generate_all_domain_articles creates articles in each canonical .com domain folder."""
+    sites_root = _isolated_sites_dir(tmp_path)
+    results = content_generator.generate_all_domain_articles(sites_dir=sites_root)
     assert len(results) == 10
     assert results["loanraaj"] >= 2
     assert results["rechargetak"] >= 2
@@ -32,9 +53,11 @@ def test_articles_generated_for_domains():
     print("  [OK] Articles generated for all 10 domain directories")
 
 
-def test_article_semantic_html_structure():
+def test_article_semantic_html_structure(tmp_path: Path):
     """Generated article HTML contains required semantic tags and meta tags."""
-    p_loan = Path(__file__).parent.parent / "sites" / "loanraaj" / "personal-loan-guide.html"
+    sites_root = _isolated_sites_dir(tmp_path)
+    content_generator.generate_all_domain_articles(sites_dir=sites_root)
+    p_loan = sites_root / "loanraaj.com" / "personal-loan-guide.html"
     assert p_loan.exists()
     content = p_loan.read_text(encoding="utf-8")
 
@@ -49,9 +72,11 @@ def test_article_semantic_html_structure():
     print("  [OK] Semantic HTML5 tags and ad containers verified")
 
 
-def test_article_schema_jsonld_validity():
+def test_article_schema_jsonld_validity(tmp_path: Path):
     """Schema.org JSON-LD in generated article parses as valid JSON with Article and FAQPage types."""
-    p_loan = Path(__file__).parent.parent / "sites" / "loanraaj" / "personal-loan-guide.html"
+    sites_root = _isolated_sites_dir(tmp_path)
+    content_generator.generate_all_domain_articles(sites_dir=sites_root)
+    p_loan = sites_root / "loanraaj.com" / "personal-loan-guide.html"
     content = p_loan.read_text(encoding="utf-8")
 
     # Extract JSON-LD block
@@ -72,9 +97,11 @@ def test_article_schema_jsonld_validity():
     print("  [OK] Schema.org JSON-LD structured data validated: Article, Breadcrumbs, FAQ")
 
 
-def test_sitemap_xml_validity():
+def test_sitemap_xml_validity(tmp_path: Path):
     """Generated sitemap.xml is well-formed XML and lists article paths."""
-    sitemap_path = Path(__file__).parent.parent / "sites" / "loanraaj" / "sitemap.xml"
+    sites_root = _isolated_sites_dir(tmp_path)
+    content_generator.generate_all_domain_articles(sites_dir=sites_root)
+    sitemap_path = sites_root / "loanraaj.com" / "sitemap.xml"
     assert sitemap_path.exists()
     content = sitemap_path.read_text(encoding="utf-8")
 
@@ -86,9 +113,11 @@ def test_sitemap_xml_validity():
     print(f"  [OK] sitemap.xml valid: {len(urls)} URLs listed")
 
 
-def test_robots_txt_format():
+def test_robots_txt_format(tmp_path: Path):
     """Generated robots.txt permits crawling and points to sitemap.xml."""
-    robots_path = Path(__file__).parent.parent / "sites" / "loanraaj" / "robots.txt"
+    sites_root = _isolated_sites_dir(tmp_path)
+    content_generator.generate_all_domain_articles(sites_dir=sites_root)
+    robots_path = sites_root / "loanraaj.com" / "robots.txt"
     assert robots_path.exists()
     text = robots_path.read_text(encoding="utf-8")
 
@@ -100,9 +129,12 @@ def test_robots_txt_format():
 
 
 if __name__ == "__main__":
-    test_articles_generated_for_domains()
-    test_article_semantic_html_structure()
-    test_article_schema_jsonld_validity()
-    test_sitemap_xml_validity()
-    test_robots_txt_format()
+    import tempfile
+    with tempfile.TemporaryDirectory() as td:
+        tp = Path(td)
+        test_articles_generated_for_domains(tp)
+        test_article_semantic_html_structure(tp)
+        test_article_schema_jsonld_validity(tp)
+        test_sitemap_xml_validity(tp)
+        test_robots_txt_format(tp)
     print("\nAll content generator tests PASSED!")
