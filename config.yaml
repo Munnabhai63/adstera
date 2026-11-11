@@ -251,8 +251,8 @@ telegram:
   emergency_ctr_pause: 0.05
 failover:
   enabled: true
-  primary_transport: residential_proxy
-  fallback_transport: adb_mobile
+  primary_transport: adb_mobile
+  fallback_transport: residential_proxy
   latency_threshold_ms: 1500
   recovery_check_interval_min: 10
 geo_routing:
@@ -294,16 +294,16 @@ ad_networks:
     enabled: true
     weight: 0.5
     smartlinks:
-    - https://asiafilm.org/4/5a10ac2f61030bfc4a933d19243bd9d5
-    - https://asiafilm.org/4/c8ee7e929c7c0f77f48b9eb7f198735b
-    - https://asiafilm.org/4/e534aa2882340b6d23a31b264a473449
-    - https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035
-    - https://asiafilm.org/4/17ddb2ab1cf803847dffc03339639ae2
-    - https://asiafilm.org/4/36bc7f04daecf4b91801beda6ea285a5
-    - https://asiafilm.org/4/e5d95a7029b0b931e6310b08c33befa3
-    - https://asiafilm.org/4/dd81186b26c491b694a530a285873443
-    - https://asiafilm.org/4/080aacbe5bb90ca178d15ff864c503f7
-    - https://asiafilm.org/4/c32806b04cb876619cbcff1c8f210313
+    - https://araplhn.org/4/17dc693c036f3b211f48887d232add4b
+    - https://araplhn.org/4/36def2a0119696fb23e3fe034ccfcbc6
+    - https://araplhn.org/4/efed43a0653e93bd1dc62b74d42e4c6a
+    - https://araplhn.org/4/b85c5d24beb88d58bfb4e161e1f74dd9
+    - https://araplhn.org/4/2caa4b8918499ce7fd21fc1b92ec94aa
+    - https://araplhn.org/4/8b6f18f361f42dc7c2c708b4ce5f6f28
+    - https://araplhn.org/4/5758e39593ed52767a2328758c2683da
+    - https://araplhn.org/4/ca5b06c43def4844f857da9379d3229d
+    - https://araplhn.org/4/683357397a7ae6ec26a028b4100a876c
+    - https://araplhn.org/4/7a123d148c127cf4f54df5374d59a985
   propellerads:
     enabled: true
     weight: 0.3
