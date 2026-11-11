@@ -1,10 +1,17 @@
 # RechargePur
 > Complete benchmarks on electricity bill discount offers, piped cooking gas payments, municipal property tax rebates, and UPI credit card bill settlements.
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by RechargePur Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the RechargePur Senior Research Desk: https://rechargepur.com/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://rechargepur.com/sitemap.xml
-- IndexNow Key: https://rechargepur.com/adstera8291a0c7e5bf4182bdc6019a.txt
+## Core Topic Hubs
+- [Electricity & Gas](https://rechargepur.com/category/electricity-gas): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [DTH & Entertainment](https://rechargepur.com/category/dth-entertainment): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Cashback & UPI](https://rechargepur.com/category/cashback-upi): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Water & Municipal](https://rechargepur.com/category/water-municipal): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Interactive Financial Calculator](https://rechargepur.com/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://rechargepur.com/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://rechargepur.com/adstera8291a0c7e5bf4182bdc6019a.txt): Instant indexing verification endpoint.

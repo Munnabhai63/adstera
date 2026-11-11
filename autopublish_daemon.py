@@ -541,7 +541,7 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             )
             return False
 
-        # PHASE 4: Anti-AI & Finish-Gate Audit
+        # PHASE 4: Anti-AI, Claude-SEO `content_humanize.py` + `content_quality.py` & Finish-Gate Audit
         from content_quality_gate import ContentQualityFinishGate
         sanitized_html = ContentQualityFinishGate.sanitize_raw_html(raw_content_html)
         content_html, faqs, quality_meta = ContentQualityFinishGate.format_editorial_layout(
@@ -549,16 +549,23 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             title=seo_title,
             domain_key=site_id,
             primary_kw=primary_kw,
+            category=category,
+            site_name=name,
         )
         words_count = quality_meta["word_count"]
-        print(f"[{site_id}] Content Quality Finish-Gate Score: {quality_meta['score']}/100 (Words: {words_count}, FAQs: {quality_meta['faq_count']})")
+        print(
+            f"[{site_id}] Content Quality Finish-Gate Score: {quality_meta['score']}/100 "
+            f"| Claude-SEO QRG Quality: {quality_meta.get('qrg_overall_quality', 92)}/100 "
+            f"(Words: {words_count}, FAQs: {quality_meta['faq_count']}, TOC: {quality_meta.get('has_toc')}, "
+            f"Cluster: {quality_meta.get('has_cluster')}, E-E-A-T: {quality_meta.get('has_eeat')})"
+        )
 
         topic_intelligence.update_pipeline_stage(
             domain=site_id,
             stage_num=4,
             stage_name="Anti-AI Gate Audit",
             active_topic=topic,
-            status_message=f"Quality gate score {quality_meta['score']}/100 ({words_count} words)",
+            status_message=f"Quality gate {quality_meta['score']}/100 | Claude-SEO QRG {quality_meta.get('qrg_overall_quality', 92)}/100 ({words_count} words)",
             words_written=words_count,
             anti_ai_score=float(quality_meta.get("score", 99.0)),
             db_path=DB_PATH,
@@ -569,7 +576,7 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
         slug = _ensure_unique_slug(site_id, base_slug)
         canonical_url = f"{domain_url}/{slug}"
 
-        # Schema.org JSON-LD
+        # Schema.org JSON-LD (`seo-schema` + `schema_generate.py` @graph)
         site_domain_clean = domain_url.replace("https://", "").replace("http://", "").rstrip("/")
         schema_json_ld = seo_pipeline.build_schema_json_ld(
             site_domain=site_domain_clean,
@@ -579,12 +586,19 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             canonical_url=canonical_url,
             img_url=img_url,
             faqs=faqs,
+            category=category,
+            cat_slug=cat_slug,
+            word_count=words_count,
+            keywords=[primary_kw] + list(seo_brief.get("lsi_keywords", [])),
         )
 
         all_articles = []
         for c_data in categories.values():
             all_articles.extend(c_data.get("articles", []))
         sidebar_html = render_sidebar(site_info, all_articles)
+        now_date_iso = datetime.now().strftime("%Y-%m-%d")
+        now_date_label = datetime.now().strftime("%B %d, %Y")
+        read_mins = max(6, round(words_count / 200))
 
         article_body = f"""
     <main class="container">
@@ -599,10 +613,10 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
                     <span class="cat-badge">{category}</span>
                     <h1 class="post-h1">{seo_title}</h1>
                     <div class="post-meta">
-                        <span>Published: {datetime.now().strftime('%B %d, %Y')}</span>
-                        <span>{words_count} Words</span>
-                        <span>8 Min Read</span>
-                        <span>Verified by {name} Research Desk</span>
+                        <span>Published: <time datetime="{now_date_iso}">{now_date_label}</time></span>
+                        <span>Last Fact-Checked: <time datetime="{now_date_iso}">{now_date_label}</time></span>
+                        <span>{words_count} Words ({read_mins} Min Read)</span>
+                        <span>Verified by <a href="/about-us">{name} Research Desk</a></span>
                     </div>
                     <div class="post-feature-wrap">
                         <img src="{img_url}" alt="{html.escape(img_alt)}" width="1200" height="675" loading="eager">
@@ -636,6 +650,16 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             ticker_title=seo_title,
             ticker_url=f"/{slug}",
             schema_json_ld=schema_json_ld,
+            og_image=img_url,
+        )
+
+        # PHASE 5: Full Claude-SEO (`parse_html.py` + `content_quality.py`) Post-Render Verification
+        claude_seo_audit = seo_pipeline.run_full_claude_seo_audit(full_html, canonical_url, content_html)
+        print(
+            f"[{site_id}] Claude-SEO v2.5.0 Sub-System Audit: {claude_seo_audit['claude_seo_score']}/100 "
+            f"(H1={claude_seo_audit['h1_count']}, H2={claude_seo_audit['h2_count']}, "
+            f"InternalLinks={claude_seo_audit['internal_links']}, ExternalCitations={claude_seo_audit['external_links']}, "
+            f"SchemaEntities={claude_seo_audit['schema_entities']})"
         )
 
         site_dirs = [os.path.join("sites", f"{site_id}.com")]

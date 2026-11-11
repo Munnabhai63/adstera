@@ -1,10 +1,17 @@
 # RechargeTak
 > Verified guides on prepaid mobile recharge coupons, OTT combo packs, FASTag online top-ups, and telecom bill payment rewards.
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by RechargeTak Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the RechargeTak Senior Research Desk: https://rechargetak.com/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://rechargetak.com/sitemap.xml
-- IndexNow Key: https://rechargetak.com/adstera8291a0c7e5bf4182bdc6019a.txt
+## Core Topic Hubs
+- [Prepaid Plans](https://rechargetak.com/category/prepaid-plans): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [FASTag & Tolls](https://rechargetak.com/category/fastag-tolls): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [5G & Broadband](https://rechargetak.com/category/5g-broadband): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [SIM & Porting](https://rechargetak.com/category/sim-porting): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Interactive Financial Calculator](https://rechargetak.com/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://rechargetak.com/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://rechargetak.com/adstera8291a0c7e5bf4182bdc6019a.txt): Instant indexing verification endpoint.

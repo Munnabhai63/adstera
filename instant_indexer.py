@@ -61,19 +61,40 @@ def _provision_verification_keys_unlocked(sites_dir: str) -> None:
             with open(key_file, "w", encoding="utf-8") as f:
                 f.write(INDEXNOW_KEY)
 
-            # 2. robots.txt
+            # 2. robots.txt (Claude-SEO v2.5.0 `seo-geo` + `seo-agentic`: separate AI Search, User-Agent & Training groups + Content-Signal)
             robots_file = os.path.join(d, "robots.txt")
             robots_content = f"""User-agent: *
 Allow: /
+Content-Signal: search=yes, ai-input=yes
 
-# Generative Engine Optimization (GEO) AI Crawlers
+# 1. AI Search & Answer-Engine Citability Crawlers (seo-geo)
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+# 2. User-Triggered AI Browsing Agents (seo-agentic)
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+# 3. AI Model & Extended Knowledge Crawlers
 User-agent: GPTBot
 Allow: /
 
 User-agent: ClaudeBot
-Allow: /
-
-User-agent: PerplexityBot
 Allow: /
 
 User-agent: Google-Extended
@@ -84,18 +105,27 @@ Sitemap: https://{domain}/sitemap.xml
             with open(robots_file, "w", encoding="utf-8") as f:
                 f.write(robots_content)
 
-            # 3. llms.txt (GEO standard for AI search engines)
+            # 3. llms.txt (Claude-SEO `seo-geo` & `seo-agentic` standard for AI answer engines)
             llms_file = os.path.join(d, "llms.txt")
+            cats = site_info.get("categories", {})
+            cat_links = "\n".join(
+                f"- [{c_name}](https://{domain}/category/{c_data.get('slug', 'finance')}): Verified 2026 benchmarks, statutory rules, and comparison guides."
+                for c_name, c_data in cats.items()
+            )
             llms_content = f"""# {name}
 > {desc}
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by {name} Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the {name} Senior Research Desk: https://{domain}/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://{domain}/sitemap.xml
-- IndexNow Key: https://{domain}/{INDEXNOW_KEY}.txt
+## Core Topic Hubs
+{cat_links}
+- [Interactive Financial Calculator](https://{domain}/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://{domain}/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://{domain}/{INDEXNOW_KEY}.txt): Instant indexing verification endpoint.
 """
             with open(llms_file, "w", encoding="utf-8") as f:
                 f.write(llms_content)

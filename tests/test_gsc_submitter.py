@@ -16,6 +16,7 @@ def _isolate_submitter(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(gsc_auth, "DEFAULT_SA_PATH", tmp_path / "gsc_service_account.json")
     monkeypatch.setattr(gsc_auth, "DEFAULT_OAUTH_TOKEN_PATH", tmp_path / "gsc_oauth_token.json")
     monkeypatch.setattr(gsc_auth, "DEFAULT_ENV_PATH", tmp_path / ".env")
+    monkeypatch.setattr(gsc_auth, "DEFAULT_CONFIG_PATH", tmp_path / "config.yaml")
     for env_key in (
         "GOOGLE_APPLICATION_CREDENTIALS",
         "GSC_SERVICE_ACCOUNT_JSON",

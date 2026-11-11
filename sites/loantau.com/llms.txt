@@ -1,10 +1,17 @@
 # LoanTau
 > Clear guides on Kisan Credit Card (KCC) interest subventions, tractor and dairy equipment loans, agricultural gold loans, and rural self-help group microfinance.
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by LoanTau Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the LoanTau Senior Research Desk: https://loantau.com/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://loantau.com/sitemap.xml
-- IndexNow Key: https://loantau.com/adstera8291a0c7e5bf4182bdc6019a.txt
+## Core Topic Hubs
+- [Kisan Credit](https://loantau.com/category/kisan-credit): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Tractor & Agri](https://loantau.com/category/tractor-agri): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Gold Loans](https://loantau.com/category/gold-loans): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Rural Schemes](https://loantau.com/category/rural-schemes): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Interactive Financial Calculator](https://loantau.com/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://loantau.com/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://loantau.com/adstera8291a0c7e5bf4182bdc6019a.txt): Instant indexing verification endpoint.

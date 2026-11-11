@@ -1,10 +1,17 @@
 # TazaBhav
 > Real-time analysis of 24K and 22K gold spot prices, silver MCX contract premiums, domestic fuel pricing trends, and agricultural APMC mandi arrivals across Indian states.
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by TazaBhav Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the TazaBhav Senior Research Desk: https://tazabhav.com/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://tazabhav.com/sitemap.xml
-- IndexNow Key: https://tazabhav.com/adstera8291a0c7e5bf4182bdc6019a.txt
+## Core Topic Hubs
+- [Gold & Bullion](https://tazabhav.com/category/gold-bullion): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Silver & Metals](https://tazabhav.com/category/silver-metals): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Mandi Rates](https://tazabhav.com/category/mandi-rates): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Fuel & Energy](https://tazabhav.com/category/fuel-energy): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Interactive Financial Calculator](https://tazabhav.com/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://tazabhav.com/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://tazabhav.com/adstera8291a0c7e5bf4182bdc6019a.txt): Instant indexing verification endpoint.

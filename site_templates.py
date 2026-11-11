@@ -989,9 +989,29 @@ img {{ max-width: 100%; height: auto; display: block; }}
     align-items: center;
     justify-content: center;
 }}
+.article-toc {{ background: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid var(--primary); border-radius: 10px; padding: 18px 22px; margin: 22px 0 30px 0; }}
+.toc-title {{ font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.7px; color: #0F172A; margin-bottom: 10px; }}
+.toc-list {{ margin: 0 0 0 20px; padding: 0; }}
+.toc-list li {{ margin-bottom: 6px; font-size: 14px; line-height: 1.5; }}
+.toc-list a {{ color: var(--primary); font-weight: 600; }}
+.toc-list a:hover {{ text-decoration: underline; }}
+.topic-cluster-box {{ background: linear-gradient(135deg, #EFF6FF 0%, #F8FAFC 100%); border: 1px solid #BFDBFE; border-left: 5px solid var(--primary); border-radius: 10px; padding: 20px 24px; margin: 34px 0; }}
+.cluster-box-title {{ font-size: 14px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px; color: #1E3A8A; margin-bottom: 12px; }}
+.cluster-link-list {{ list-style: none; margin: 0; padding: 0; }}
+.cluster-link-list li {{ margin-bottom: 10px; font-size: 15px; line-height: 1.55; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }}
+.cluster-cat-tag {{ background: #DBEAFE; color: #1D4ED8; font-size: 10px; font-weight: 800; text-transform: uppercase; padding: 2px 8px; border-radius: 4px; letter-spacing: 0.5px; }}
+.cluster-link-list a {{ color: #0F172A; font-weight: 700; }}
+.cluster-link-list a:hover {{ color: var(--primary); text-decoration: underline; }}
+.eeat-verification-box {{ background: #F8FAFC; border: 1px solid #E2E8F0; border-left: 5px solid #0284C7; border-radius: 10px; padding: 20px 24px; margin: 32px 0 20px 0; }}
+.eeat-badge {{ font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.7px; color: #0369A1; margin-bottom: 10px; }}
+.eeat-text {{ font-size: 14px !important; line-height: 1.65 !important; color: #334155 !important; margin-bottom: 12px !important; }}
+.eeat-sources-title {{ font-size: 12px; font-weight: 800; text-transform: uppercase; color: #0F172A; margin-bottom: 6px; }}
+.eeat-sources-list {{ margin: 0 0 0 18px !important; padding: 0; }}
+.eeat-sources-list li {{ font-size: 13px; margin-bottom: 5px; }}
+.eeat-sources-list a {{ color: #0284C7; font-weight: 700; }}
 """
 
-def render_master_page(site_config, title, desc, canonical, main_body, active_nav="Home", ticker_title=None, ticker_url=None, schema_json_ld=""):
+def render_master_page(site_config, title, desc, canonical, main_body, active_nav="Home", ticker_title=None, ticker_url=None, schema_json_ld="", og_image=None):
     from adsterra_links import get_adsterra_config, render_adsterra_scripts, render_display_banner, ADSTERRA_BANNER_CSS
     from push_foundation import render_push_script_block
     domain = site_config["domain"]
@@ -1020,6 +1040,8 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
     
     brand_prefix = name[:4].upper()
     brand_suffix = name[4:].upper()
+    og_img_url = og_image or "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&h=675&q=80"
+    og_type = "article" if schema_json_ld else "website"
     
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -1028,13 +1050,19 @@ def render_master_page(site_config, title, desc, canonical, main_body, active_na
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{title} | {name}</title>
     <meta name="description" content="{desc}">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <link rel="canonical" href="{canonical}">
     <meta name="google-site-verification" content="google31976c4df01121b2">
     <meta property="og:title" content="{title} | {name}">
     <meta property="og:description" content="{desc}">
-    <meta property="og:type" content="website">
+    <meta property="og:type" content="{og_type}">
     <meta property="og:url" content="{canonical}">
+    <meta property="og:image" content="{og_img_url}">
     <meta property="og:site_name" content="{name}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{title} | {name}">
+    <meta name="twitter:description" content="{desc}">
+    <meta name="twitter:image" content="{og_img_url}">
     <style>{css}</style>
     <script type="application/ld+json">
     {{

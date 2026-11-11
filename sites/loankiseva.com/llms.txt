@@ -1,10 +1,17 @@
 # LoanKiSeva
 > Authoritative guides on CGTMSE collateral-free loans, PMEGP government subsidy applications, industrial equipment leases, and letter of credit issuance.
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by LoanKiSeva Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the LoanKiSeva Senior Research Desk: https://loankiseva.com/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://loankiseva.com/sitemap.xml
-- IndexNow Key: https://loankiseva.com/adstera8291a0c7e5bf4182bdc6019a.txt
+## Core Topic Hubs
+- [MSME Schemes](https://loankiseva.com/category/msme-schemes): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Machinery Finance](https://loankiseva.com/category/machinery-finance): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Working Capital](https://loankiseva.com/category/working-capital): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Subsidies](https://loankiseva.com/category/subsidies): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Interactive Financial Calculator](https://loankiseva.com/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://loankiseva.com/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://loankiseva.com/adstera8291a0c7e5bf4182bdc6019a.txt): Instant indexing verification endpoint.

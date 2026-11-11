@@ -1,10 +1,17 @@
 # TazaLoan
 > Verified insights on instant paperless cash loans, low CIBIL score borrow options, digital salary advances, and bank overdraft setups.
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by TazaLoan Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the TazaLoan Senior Research Desk: https://tazaloan.com/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://tazaloan.com/sitemap.xml
-- IndexNow Key: https://tazaloan.com/adstera8291a0c7e5bf4182bdc6019a.txt
+## Core Topic Hubs
+- [Instant Cash](https://tazaloan.com/category/instant-cash): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Salary Advance](https://tazaloan.com/category/salary-advance): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Credit Score](https://tazaloan.com/category/credit-score): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Low Interest](https://tazaloan.com/category/low-interest): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Interactive Financial Calculator](https://tazaloan.com/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://tazaloan.com/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://tazaloan.com/adstera8291a0c7e5bf4182bdc6019a.txt): Instant indexing verification endpoint.

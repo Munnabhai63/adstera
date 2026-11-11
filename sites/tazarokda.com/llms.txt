@@ -1,10 +1,17 @@
 # TazaRokda
 > Actionable wealth guides on systematic investment plans (SIPs), Nifty/Sensex index funds, equity tax harvesting (LTCG/STCG), corporate dividend payouts, and demat discount brokers.
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by TazaRokda Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the TazaRokda Senior Research Desk: https://tazarokda.com/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://tazarokda.com/sitemap.xml
-- IndexNow Key: https://tazarokda.com/adstera8291a0c7e5bf4182bdc6019a.txt
+## Core Topic Hubs
+- [SIP & Mutual Funds](https://tazarokda.com/category/sip-mutual-funds): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Stock Trading](https://tazarokda.com/category/stock-trading): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Dividends & Cash](https://tazarokda.com/category/dividends-cash): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Tax & Wealth](https://tazarokda.com/category/tax-wealth): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Interactive Financial Calculator](https://tazarokda.com/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://tazarokda.com/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://tazarokda.com/adstera8291a0c7e5bf4182bdc6019a.txt): Instant indexing verification endpoint.

@@ -1,10 +1,17 @@
 # KarzSeva
 > Actionable, legal guides on navigating one-time bank settlements (OTS), credit card debt consolidation loans, Lok Adalat negotiation strategies, and CIBIL dispute resolution.
 
-## Authoritative Coverage
-- In-depth, analytical consumer guides, empirical comparison benchmarks, statutory regulatory updates, and financial calculators.
-- Verified and fact-checked by KarzSeva Research Desk.
+## Authoritative Coverage & E-E-A-T Methodology
+- In-depth, analytical consumer guides, empirical comparison tables, Indian statutory regulatory updates (RBI, TRAI, NPCI, SEBI, NABARD), and interactive financial calculators.
+- Verified and fact-checked by the KarzSeva Senior Research Desk: https://karzseva.com/about-us
 
-## Sitemaps & Feeds
-- Canonical Sitemap: https://karzseva.com/sitemap.xml
-- IndexNow Key: https://karzseva.com/adstera8291a0c7e5bf4182bdc6019a.txt
+## Core Topic Hubs
+- [Debt Relief](https://karzseva.com/category/debt-relief): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [CIBIL Repair](https://karzseva.com/category/cibil-repair): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Consolidation](https://karzseva.com/category/consolidation): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Consumer Rights](https://karzseva.com/category/consumer-rights): Verified 2026 benchmarks, statutory rules, and comparison guides.
+- [Interactive Financial Calculator](https://karzseva.com/calculator): Live EMI, subsidy, and tariff estimator.
+
+## Sitemaps & Discovery Feeds
+- [Canonical XML Sitemap](https://karzseva.com/sitemap.xml): Full index of all published guides.
+- [IndexNow Verification Key](https://karzseva.com/adstera8291a0c7e5bf4182bdc6019a.txt): Instant indexing verification endpoint.

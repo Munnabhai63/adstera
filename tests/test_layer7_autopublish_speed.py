@@ -250,3 +250,74 @@ def test_live_ui_autopublish_speed_endpoints() -> None:
     assert "loankiseva" in k["kicked_domains"]
     assert k["pending_by_domain"]["tazaloan"] >= 3
     assert k["pending_by_domain"]["loankiseva"] >= 3
+
+
+def test_claude_seo_v2_5_full_subsystem_on_article() -> None:
+    from content_quality_gate import ContentQualityFinishGate
+    from network_registry import NETWORK_REGISTRY
+    from site_templates import render_master_page
+    import seo_pipeline
+
+    raw_draft = (
+        "<p class='lead'>In this guide we delve\u200b into SBI Commercial Truck Loan 9.25% APR rules and ₹45,000 subsidy math under RBI circulars.</p>"
+        "<h2>1. What Are the 2026 RBI Interest Slabs?</h2><p>State Bank of India and HDFC Bank offer 9.25% to 11.40% APR for BS-VI fleet operators.</p>"
+        "<h2>2. Commercial Vehicle Loan Comparison Table</h2>"
+        "<div class='table-responsive'><table><thead><tr><th>Bank</th><th>APR</th><th>Max Tenure</th></tr></thead>"
+        "<tbody><tr><td>SBI Fleet</td><td>9.25%</td><td>84 Months</td></tr><tr><td>HDFC Transport</td><td>10.10%</td><td>72 Months</td></tr></tbody></table></div>"
+        "<h2>3. Step-by-Step CGTMSE & Fleet Application Checklist</h2><ol><li>Verify GSTIN and Udyam certificate.</li><li>Submit 12-month bank statement.</li></ol>"
+        "<h2>4. Penalty & Foreclosure Rules</h2><p>Floating rate MSME loans carry 0% foreclosure charges per Reserve Bank of India guidelines.</p>"
+        "<h3>What is the minimum CIBIL score for a truck loan?</h3><p>Most public sector banks require a CIBIL score of 700 or higher for zero-collateral CGTMSE coverage.</p>"
+        "<h3>How fast is the disbursement for existing fleet owners?</h3><p>Pre-approved fleet operators receive sanction letters within 48 hours of digital KYC verification.</p>"
+    )
+
+    sanitized = ContentQualityFinishGate.sanitize_raw_html(raw_draft)
+    assert "\u200b" not in sanitized
+    assert "delve" not in sanitized.lower()
+
+    formatted_html, faqs, meta = ContentQualityFinishGate.format_editorial_layout(
+        clean_html=sanitized,
+        title="SBI Commercial Truck Loan 2026: Complete Guide",
+        domain_key="loanraaj",
+        primary_kw="sbi commercial truck loan 2026",
+        category="Commercial Finance",
+        site_name="LoanRaaj",
+    )
+    assert meta["has_summary"] is True
+    assert meta["has_toc"] is True
+    assert meta["has_cluster"] is True
+    assert meta["has_eeat"] is True
+    assert meta["has_table"] is True
+    assert len(faqs) >= 2
+    assert 'class="article-toc"' in formatted_html
+    assert 'class="topic-cluster-box"' in formatted_html
+    assert 'class="eeat-verification-box"' in formatted_html
+    assert "rbi.org.in" in formatted_html
+
+    canonical = "https://loanraaj.com/sbi-commercial-truck-loan-2026"
+    schema_ld = seo_pipeline.build_schema_json_ld(
+        site_domain="loanraaj.com",
+        site_name="LoanRaaj",
+        title="SBI Commercial Truck Loan 2026: Complete Guide",
+        desc="Complete guide to SBI commercial truck loan 2026 rates and RBI rules.",
+        canonical_url=canonical,
+        img_url="https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=1200&h=675&q=85",
+        faqs=faqs,
+        category="Commercial Finance",
+        cat_slug="commercial-finance",
+        word_count=1650,
+        keywords=["sbi commercial truck loan", "rbi msme loan"],
+    )
+    site_info = NETWORK_REGISTRY["loanraaj"]
+    full_page = render_master_page(
+        site_info,
+        title="SBI Commercial Truck Loan 2026: Complete Guide",
+        desc="Complete guide to SBI commercial truck loan 2026 rates and RBI rules.",
+        canonical=canonical,
+        main_body=f"<main><article><h1 class='post-h1'>SBI Commercial Truck Loan 2026: Complete Guide</h1>{formatted_html}</article></main>",
+        active_nav="Commercial Finance",
+        schema_json_ld=schema_ld,
+    )
+    audit = seo_pipeline.run_full_claude_seo_audit(full_page, canonical, formatted_html)
+    assert audit["claude_seo_score"] == 100.0
+    assert all(audit["checks"].values())
+
