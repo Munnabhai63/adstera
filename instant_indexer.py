@@ -197,8 +197,8 @@ def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
         try:
             conn = sqlite3.connect(DB_PATH)
             conn.cursor().execute(
-                "UPDATE published_posts SET google_pinged = 1 WHERE domain = ? AND ? LIKE '%' || slug || '%'",
-                (site_id, new_post_url)
+                "UPDATE published_posts SET google_pinged = ? WHERE domain = ? AND ? LIKE '%' || slug || '%'",
+                (1 if (indexnow_ok or google_ok) else 0, site_id, new_post_url)
             )
             conn.commit()
             conn.close()

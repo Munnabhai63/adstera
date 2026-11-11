@@ -8,6 +8,7 @@ Supports dual-mode execution: Live Telegram Bot API and Mock/Interactive Standby
 from __future__ import annotations
 
 import argparse
+import html
 import logging
 import os
 import sys
@@ -18,6 +19,8 @@ from typing import Any
 import httpx
 
 import db
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 # Ensure clean UTF-8 output on Windows consoles
 if sys.stdout.encoding != "utf-8":
@@ -327,6 +330,39 @@ class TelegramAlertBot:
             f"🕒 <i>{now}</i>"
         )
         return self.send_message(msg, alert_type="test_ping", level="INFO")
+
+    def send_pipeline_error_alert(
+        self,
+        stage: str,
+        detail: str,
+        domain: str = "",
+        level: str = "WARNING",
+        cooldown_sec: int = 900,
+    ) -> dict[str, Any]:
+        """Dispatch a rate-limited instant pipeline failure or daemon error alert to Telegram."""
+        safe_stage = stage.strip() or "pipeline"
+        cache_key = f"pipeline_err:{safe_stage}:{domain or 'FLEET'}"
+        now_ts = datetime.now(timezone.utc).timestamp()
+        last_ts = self._last_alert_ts.get(cache_key, 0.0)
+        if cooldown_sec > 0 and (now_ts - last_ts) < cooldown_sec:
+            return {"success": True, "suppressed": True, "reason": "cooldown", "stage": safe_stage, "domain": domain}
+
+        self._last_alert_ts[cache_key] = now_ts
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        icon = "🚨" if level.upper() == "CRITICAL" else "⚠️"
+        escaped_stage = html.escape(safe_stage)
+        escaped_domain = html.escape(domain or "ALL FLEET")
+        escaped_detail = html.escape(str(detail or "Unknown pipeline error")[:350])
+        msg = (
+            f"{icon} <b>PIPELINE ERROR ALERT</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🔧 <b>Stage:</b> <code>{escaped_stage}</code>\n"
+            f"🌐 <b>Domain:</b> <code>{escaped_domain}</code>\n"
+            f"❗ <b>Detail:</b> {escaped_detail}\n"
+            "━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🕒 <i>{now}</i>"
+        )
+        return self.send_message(msg, alert_type=f"error_{safe_stage}", level=level.upper(), domain=domain)
 
 
 def check_and_trigger_circuit_breaker(domain: str, bot: TelegramAlertBot | None = None) -> dict[str, Any]:

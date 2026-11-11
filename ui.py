@@ -1098,6 +1098,7 @@ HTML_PAGE = """<!DOCTYPE html>
         <span id="telegramBadge" style="font-size: 11px; background: rgba(34, 197, 94, 0.15); color: #4ade80; padding: 2px 8px; border-radius: 4px; border: 1px solid rgba(34, 197, 94, 0.3);">@Liveadsterabot</span>
         <button id="btnTgTest" class="btn btn-secondary" onclick="sendTelegramTestAlert()" style="padding: 4px 10px; font-size: 11px;">⚡ Send Test Ping</button>
         <button id="btnTgHeartbeat" class="btn btn-secondary" onclick="sendTelegramHeartbeat()" style="padding: 4px 10px; font-size: 11px;">📊 Push Heartbeat</button>
+        <button id="btnTgDailyReport" class="btn btn-secondary" onclick="sendTelegramDailyReport()" style="padding: 4px 10px; font-size: 11px;">📰 Send Daily Report</button>
       </div>
     </div>
     <div style="font-size: 0.85rem; color: var(--muted); margin-bottom: 12px;">
@@ -2229,6 +2230,20 @@ HTML_PAGE = """<!DOCTYPE html>
     }
   }
 
+  async function sendTelegramDailyReport() {
+    const btn = document.getElementById('btnTgDailyReport');
+    if (btn) btn.innerText = '⏳ Sending…';
+    try {
+      const res = await fetch('/api/telegram/daily-report', { method: 'POST' });
+      await res.json();
+      await fetchTelegramStatus();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      if (btn) btn.innerText = '📰 Send Daily Report';
+    }
+  }
+
   async function fetchFailoverStatus() {
     try {
       const res = await fetch('/api/failover/status');
@@ -3000,6 +3015,16 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 bot = TelegramAlertBot()
                 res = bot.send_heartbeat()
                 self._send_json({"success": True, "result": res})
+            except Exception as e:
+                self._send_json({"success": False, "error": str(e)}, 500)
+            return
+
+        if path == "/api/telegram/daily-report":
+            try:
+                import daily_report
+                ok = daily_report.send_daily_report_telegram()
+                stats = daily_report.get_daily_fleet_stats()
+                self._send_json({"success": ok, "stats": stats})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)
             return

@@ -240,6 +240,21 @@ def sync_github(site_id: str, slug: str, topic: str) -> None:
     except Exception as e:
         print(f"[{site_id}] Git sync exception: {e}")
 
+_PIPELINE_BOT = None
+
+
+def _notify_pipeline_error(stage: str, detail: str, domain: str = "", level: str = "WARNING") -> None:
+    """Best-effort rate-limited instant error alert to Telegram without interrupting publishing."""
+    global _PIPELINE_BOT
+    try:
+        from alert_bot import TelegramAlertBot
+        if _PIPELINE_BOT is None:
+            _PIPELINE_BOT = TelegramAlertBot()
+        _PIPELINE_BOT.send_pipeline_error_alert(stage=stage, detail=detail, domain=domain, level=level)
+    except Exception as exc:
+        print(f"[Alert Hook] Notification failed: {exc}")
+
+
 # 4. PUBLISH & DEPLOY SINGLE ARTICLE
 def publish_next_post(specific_site=None):
     from network_registry import NETWORK_REGISTRY
@@ -290,6 +305,7 @@ def publish_next_post(specific_site=None):
     # PHASE 3: Claude-SEO Content Generation with Empirical Data Table & FAQs
     raw_content_html, raw_faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
     if not raw_content_html:
+        _notify_pipeline_error("article_generation", f"Empty LLM output for topic: {topic[:120]}", domain=site_id)
         conn = sqlite3.connect(DB_PATH)
         conn.cursor().execute("UPDATE topic_queue SET status = 'pending' WHERE id = ?", (q_id,))
         conn.commit()
@@ -415,18 +431,26 @@ def publish_next_post(specific_site=None):
         if cf_success:
             print(f"[{site_id}] Cloudflare Pages updated live with new post!")
         else:
-            print(f"[{site_id}] Cloudflare deploy warning: {res.stderr[:200]}")
+            err_tail = (res.stderr or res.stdout or "Wrangler non-zero exit")[:200]
+            print(f"[{site_id}] Cloudflare deploy warning: {err_tail}")
+            _notify_pipeline_error("cloudflare_deploy", f"Wrangler exit={res.returncode}: {err_tail}", domain=site_id)
     except Exception as e:
         print(f"[{site_id}] Cloudflare deploy error: {e}")
+        _notify_pipeline_error("cloudflare_deploy", f"Wrangler exception: {e}", domain=site_id)
         cf_success = 0
 
     # Phase 5: Instant IndexNow & Multi-Engine Search Broadcast
+    indexnow_ok = 0
     try:
         from instant_indexer import broadcast_new_post
         full_post_url = f"{domain_url}/{slug}"
-        broadcast_new_post(site_id, full_post_url)
+        ping_ok = bool(broadcast_new_post(site_id, full_post_url))
+        indexnow_ok = 1 if ping_ok else 0
+        if not ping_ok:
+            _notify_pipeline_error("indexnow_ping", f"IndexNow & Google ping failed for {full_post_url}", domain=site_id)
     except Exception as e:
         print(f"[{site_id}] Instant Indexer broadcast note: {e}")
+        _notify_pipeline_error("indexnow_ping", f"Indexer exception: {e}", domain=site_id)
 
     # Automatically commit and push to GitHub repository
     sync_github(site_id, slug, topic)
@@ -436,8 +460,8 @@ def publish_next_post(specific_site=None):
     cur = conn.cursor()
     cur.execute("""
     INSERT INTO published_posts (domain, slug, title, category, words, published_at, cf_deployed, google_pinged, quality_score)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 1, 99.5)
-    """, (site_id, slug, topic, category, words_count, datetime.now().isoformat(), cf_success))
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 99.5)
+    """, (site_id, slug, topic, category, words_count, datetime.now().isoformat(), cf_success, indexnow_ok))
     cur.execute("UPDATE topic_queue SET status = 'published' WHERE id = ?", (q_id,))
     conn.commit()
     conn.close()
@@ -457,6 +481,14 @@ def run_daemon(interval_minutes=35):
     
     while True:
         try:
+            try:
+                import daily_report
+                sched_res = daily_report.maybe_send_scheduled_morning_report()
+                if sched_res.get("sent"):
+                    print(f"[Daily Report] Morning Telegram digest sent for {sched_res.get('date')}.")
+            except Exception as rep_exc:
+                print(f"[Daily Report] Scheduler notice: {rep_exc}")
+
             print(f"\n[Daemon Pulse] Initiating scheduled post generation at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
             publish_next_post()
             
@@ -470,6 +502,7 @@ def run_daemon(interval_minutes=35):
             break
         except Exception as e:
             print(f"[Daemon Recovery] Handled exception: {e}. Sleeping 2 minutes before retry...")
+            _notify_pipeline_error("daemon_loop", f"Unhandled daemon exception: {e}", level="CRITICAL")
             time.sleep(120)
 
 if __name__ == "__main__":
