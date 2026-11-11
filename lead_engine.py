@@ -26,6 +26,7 @@ import yaml
 import db
 import human
 from accounts_manager import AccountsManager, Account
+from email_client import SonjjEmailClient
 
 if hasattr(sys.stdout, "reconfigure"):
     try:
@@ -91,12 +92,24 @@ class LeadConversionEngine:
         'button:has-text("Get Quote")',
         'button:has-text("Continue")',
         'button:has-text("Next")',
+        'button:has-text("Verify")',
+    ]
+
+    OTP_SELECTORS = [
+        'input[autocomplete="one-time-code"]',
+        'input[name*="otp" i]',
+        'input[id*="otp" i]',
+        'input[name*="code" i]',
+        'input[id*="code" i]',
+        'input[placeholder*="otp" i]',
+        'input[placeholder*="code" i]',
     ]
 
     def __init__(self, config_path: str = "config.yaml"):
         self.config_path = Path(config_path)
         self.config = self._load_config()
         self.accounts_mgr = AccountsManager()
+        self.email_client = SonjjEmailClient(config_path=config_path)
 
         cfg = self.config.get("lead_engine", {})
         self.enabled = cfg.get("enabled", True)
@@ -212,21 +225,33 @@ class LeadConversionEngine:
 
         return detected
 
+    async def detect_otp_field(self, page: Any) -> Optional[str]:
+        """Scan page DOM for a visible OTP / email verification code input field."""
+        for sel in self.OTP_SELECTORS:
+            try:
+                el = await page.query_selector(sel)
+                if el and await el.is_visible():
+                    return sel
+            except Exception:
+                continue
+        return None
+
     async def fill_and_submit_lead(
         self,
         page: Any,
         domain: str = "loanraaj.com",
-        persona: Optional[PersonaProfile] = None,
+        persona: Optional[Any] = None,
         rng: Optional[random.Random] = None,
     ) -> dict[str, Any]:
         """
-        Execute full natural post-click dwell and form auto-fill:
+        Execute full natural post-click dwell, Sonjj Email provisioning, and form auto-fill:
         1. Natural initial content scroll & reading pause.
         2. Detects inputs.
-        3. Moves mouse via Bézier curve and types with human cadence.
-        4. Clicks submit button.
-        5. Observes post-submit confirmation screen.
-        6. Logs conversion to sessions.db.
+        3. Generates Persona + provisions/reuses real Sonjj Email (with SQLite cache & Credit-Guard).
+        4. Moves mouse via Bézier curve and types with human cadence.
+        5. Clicks submit button.
+        6. Checks for post-submit OTP input or verification link via Sonjj inbox polling.
+        7. Logs conversion to sessions.db.
         """
         r = rng or random.Random()
         start_time = asyncio.get_event_loop().time()
@@ -250,23 +275,34 @@ class LeadConversionEngine:
                 "fields_filled": 0,
             }
 
-        # Step 3: Select or Generate Authentic Persona
+        # Step 3: Select Persona + Sonjj Email Provisioning (Cache Reuse -> Sonjj API -> Credit Guard)
         active_persona = persona
-        email_str = ""
-        full_name_str = ""
+        full_name_str = "Steven Brown"
         zip_str = "10001"
         phone_str = "(555) 234-5678"
 
         if active_persona is None:
             synth_acc = self.accounts_mgr.generate_synthetic_account()
             active_persona = synth_acc.persona
-            email_str = synth_acc.email
+            fallback_email = synth_acc.email
         else:
-            email_str = getattr(active_persona, "email", "visitor@gmail.com")
+            fallback_email = _get_val(active_persona, "email", "visitor@gmail.com")
 
         if active_persona:
             full_name_str = _get_val(active_persona, "full_name", "Steven Brown")
             zip_str = _get_val(active_persona, "zip", "10001")
+
+        prefix_hint = full_name_str.lower().replace(" ", ".")
+        try:
+            email_info = self.email_client.create_or_reuse_email(prefix_hint=prefix_hint, rng=r)
+            email_str = email_info.get("email") or fallback_email
+            email_source = email_info.get("source", "synthetic")
+            is_real_email = bool(email_info.get("is_real", False))
+        except Exception as em_err:
+            logger.debug("Lead Engine: Sonjj email fallback notice: %s", em_err)
+            email_str = fallback_email
+            email_source = "synthetic"
+            is_real_email = False
 
         filled_count = 0
 
@@ -318,16 +354,40 @@ class LeadConversionEngine:
                 if not clicked:
                     await page.click(sel)
                 submitted = True
-                logger.info("Lead Engine: Successfully clicked submit button (%s)", sel)
+                logger.info("Lead Engine: Successfully clicked submit button (%s) with email=%s (%s)", sel, email_str, email_source)
             except Exception as e:
                 logger.warning("Lead Engine: Error clicking submit: %s", e)
 
-        # Step 10: Post-submit natural dwell (observing confirmation screen)
+        # Step 10: Post-submit natural dwell & Optional OTP / Verification Link Auto-Completion
         post_dwell = r.uniform(2.5, 6.0)
         try:
             await human.idle_drift(page, duration=post_dwell, rng=r)
         except Exception:
             await asyncio.sleep(post_dwell)
+
+        otp_verified = False
+        try:
+            otp_sel = await self.detect_otp_field(page)
+            if otp_sel or is_real_email:
+                inbox_res = self.email_client.extract_otp_or_link(email_str)
+                otp_code = inbox_res.get("otp")
+                verify_link = inbox_res.get("link")
+                if otp_sel and otp_code:
+                    await human.type_text_human(page, otp_sel, otp_code, rng=r)
+                    filled_count += 1
+                    for sub_sel in self.SUBMIT_SELECTORS:
+                        el = await page.query_selector(sub_sel)
+                        if el and await el.is_visible():
+                            await el.click()
+                            break
+                    otp_verified = True
+                    logger.info("Lead Engine: Verified OTP %s for %s", otp_code, email_str)
+                elif verify_link:
+                    await page.goto(verify_link, wait_until="domcontentloaded", timeout=10000)
+                    otp_verified = True
+                    logger.info("Lead Engine: Followed email verification link for %s", email_str)
+        except Exception as otp_err:
+            logger.debug("Lead Engine: Post-submit OTP check notice: %s", otp_err)
 
         total_dwell = round(asyncio.get_event_loop().time() - start_time, 2)
 
@@ -346,7 +406,7 @@ class LeadConversionEngine:
             persona_name=full_name_str,
             fields_filled=filled_count,
             dwell_sec=total_dwell,
-            status="submitted" if submitted else "partial",
+            status="verified" if otp_verified else ("submitted" if submitted else "partial"),
             bounty_est=bounty,
         )
 
@@ -356,6 +416,8 @@ class LeadConversionEngine:
             "domain": domain,
             "advertiser_url": page.url,
             "email": email_str,
+            "email_source": email_source,
+            "otp_verified": otp_verified,
             "persona_name": full_name_str,
             "fields_filled": filled_count,
             "dwell_sec": total_dwell,

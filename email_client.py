@@ -118,7 +118,7 @@ class SonjjEmailClient:
                     WHERE is_active = 1 
                     AND use_count < ? 
                     AND datetime(expires_at) > datetime('now', '+5 hours', '30 minutes')
-                    ORDER BY use_count ASC, id DESC LIMIT 1
+                    ORDER BY use_count ASC, created_at DESC, id DESC LIMIT 1
                     """,
                     (self.max_uses_per_email,),
                 ).fetchone()
@@ -138,21 +138,22 @@ class SonjjEmailClient:
             logger.warning("Failed to retrieve cached email: %s", e)
         return None
 
-    def _save_email_to_cache(self, email: str, domain: str, expiry_minutes: int) -> None:
+    def _save_email_to_cache(self, email: str, domain: str, expiry_minutes: int, initial_use_count: int = 0) -> None:
         """Store newly provisioned email in local SQLite cache."""
         try:
             with db._conn() as con:
                 modifier = f"+{int(expiry_minutes)} minutes"
                 con.execute(
                     """
-                    INSERT INTO email_cache (email, domain, provider, expires_at, use_count, is_active)
-                    VALUES (?, ?, 'sonjj', datetime('now', '+5 hours', '30 minutes', ?), 0, 1)
+                    INSERT INTO email_cache (email, domain, provider, created_at, expires_at, use_count, is_active)
+                    VALUES (?, ?, 'sonjj', datetime('now', '+5 hours', '30 minutes'), datetime('now', '+5 hours', '30 minutes', ?), ?, 1)
                     ON CONFLICT(email) DO UPDATE SET 
-                        use_count = 0,
+                        use_count = excluded.use_count,
+                        created_at = excluded.created_at,
                         expires_at = excluded.expires_at,
                         is_active = 1
                     """,
-                    (email, domain, modifier),
+                    (email, domain, modifier, int(initial_use_count)),
                 )
         except Exception as e:
             logger.warning("Failed to cache email %s: %s", email, e)
@@ -280,7 +281,7 @@ class SonjjEmailClient:
                     data = res.json()
                     real_email = data.get("email") or requested_email
                     domain = real_email.split("@")[-1]
-                    self._save_email_to_cache(real_email, domain, self.expiry_minutes)
+                    self._save_email_to_cache(real_email, domain, self.expiry_minutes, initial_use_count=1)
                     logger.info("[Sonjj Email] Created real email: %s (Daily spent: %d/%d)", 
                                 real_email, today_creations + 1, self.daily_limit)
                     return {

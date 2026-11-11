@@ -469,13 +469,14 @@ async def run_session(
         if "use_fixture" in kwargs:
             use_fixture = kwargs["use_fixture"]
     fp = fp_mod.build(proxy)
-    # FP-1: Match UA to running browser major version (LEAK-05 fix)
+    # FP-1: Match UA from 27,103 pool to running browser major version (LEAK-05 fix) & lock 4 dimensions
     try:
         if browser and hasattr(browser, "version"):
             b_ver = browser.version
             if b_ver:
                 chrome_major = b_ver.split(".")[0]
-                fp.user_agent = ua_provider.get_matching_ua(chrome_major, fp.is_mobile)
+                fp.user_agent = ua_provider.get_matching_ua(chrome_major, fp.is_mobile, seed_key=proxy.proxy_id)
+                fp_mod.sync_fingerprint_to_ua(fp, fp.user_agent)
     except Exception as ua_err:
         logger.debug("FP-1 UA sync notice: %s", ua_err)
     proxy_country = proxy.geo.country if getattr(proxy, "geo", None) else None
@@ -487,7 +488,6 @@ async def run_session(
     if use_fixture and not start_url.startswith("http"):
         clean_path = start_url.replace("\\", "/").lstrip("/")
         start_url = "file:///" + clean_path
-    _record_active_ua(proxy.proxy_id, fp, active=True, target_url=start_url)
 
     # Extract target domain for per-domain CTR governance
     parsed_dom = urlparse(start_url).netloc
@@ -521,8 +521,18 @@ async def run_session(
                     fp.viewport_height = int(disp["screenHeight"])
                 if brw.get("userAgent"):
                     fp.user_agent = brw["userAgent"]
+                    if browser and hasattr(browser, "version") and browser.version:
+                        chrome_major = browser.version.split(".")[0]
+                        fp.user_agent = ua_provider.get_matching_ua(
+                            chrome_major,
+                            fp.is_mobile,
+                            seed_key=f"{proxy.proxy_id}:{mahi_profile.get('id', '')}",
+                        )
+                    fp_mod.sync_fingerprint_to_ua(fp, fp.user_agent)
         except Exception as mahi_err:
             logger.debug("MAHI profile bridge fallback: %s", mahi_err)
+
+    _record_active_ua(proxy.proxy_id, fp, active=True, target_url=start_url)
 
     # Pillar 3: Dynamic SERP Organic Referrer Synthesis
     referrer = ""
@@ -583,13 +593,15 @@ async def run_session(
     _session_logged = False  # SCHED-4: guard to ensure exactly-once DB write
 
     try:
-        # Build context options
+        # Build context options with 4-Dimension Client-Hint headers locked to UA
+        extra_headers = {"Accept-Language": ",".join(fp.languages)}
+        extra_headers.update(fp_mod.build_client_hint_headers(fp))
         context_kwargs: dict = {
             "user_agent": fp.user_agent,
             "viewport": {"width": fp.viewport_width, "height": fp.viewport_height},
             "locale": fp.locale,
             "timezone_id": fp.timezone,
-            "extra_http_headers": {"Accept-Language": ",".join(fp.languages)},
+            "extra_http_headers": extra_headers,
         }
         if proxy.playwright_proxy:
             context_kwargs["proxy"] = proxy.playwright_proxy

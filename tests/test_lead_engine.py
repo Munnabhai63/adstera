@@ -64,6 +64,7 @@ def test_lead_form_detection_and_human_submission():
         file_url = fixture_path.as_uri()
 
         engine = LeadConversionEngine()
+        engine.email_client._save_email_to_cache("lead_cached_test@momroad.org", "momroad.org", expiry_minutes=60)
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(headless=True)
@@ -110,3 +111,38 @@ def test_today_leads_summary():
     assert "estimated_bounty" in summary
     assert summary["today_leads"] >= 1
     assert summary["estimated_bounty"] > 0.0
+
+
+def test_ua_pool_27k_and_4d_hardware_lock():
+    import ua_provider
+    import fingerprint as fp_mod
+    from pool import Proxy, GeoInfo
+
+    d_pool = ua_provider.get_desktop_uas()
+    m_pool = ua_provider.get_mobile_uas()
+    assert len(d_pool) >= 8000
+    assert len(m_pool) >= 18000
+    assert len(d_pool) + len(m_pool) >= 27000
+
+    # Verify deterministic seed_key rotation across the 27,103 pool
+    ua_1 = ua_provider.get_matching_ua("131", is_mobile=True, seed_key="ip_slot_1")
+    ua_2 = ua_provider.get_matching_ua("131", is_mobile=True, seed_key="ip_slot_2")
+    assert "Chrome/131." in ua_1
+    assert "Chrome/131." in ua_2
+    assert ua_1 == ua_provider.get_matching_ua("131", is_mobile=True, seed_key="ip_slot_1")
+
+    # Verify 4-Dimension Hardware & Client Hint Lock on Mobile Android UA
+    p = Proxy(host="1.39.154.111", port=8080)
+    p.geo = GeoInfo(country="IN", region="MH", city="Mumbai", timezone="Asia/Kolkata", locale="en-IN")
+    fp = fp_mod.build(p, force_mobile=True)
+    fp_mod.sync_fingerprint_to_ua(fp, ua_1)
+
+    assert fp.is_mobile is True
+    assert fp.platform == "Linux armv8l"
+    assert fp.max_touch_points == 5
+    assert any(gpu in fp.webgl_renderer for gpu in ("Adreno", "Mali"))
+    ch_headers = fp_mod.build_client_hint_headers(fp)
+    assert ch_headers["Sec-CH-UA-Mobile"] == "?1"
+    assert ch_headers["Sec-CH-UA-Platform"] == '"Android"'
+    assert '"131"' in ch_headers["Sec-CH-UA"]
+

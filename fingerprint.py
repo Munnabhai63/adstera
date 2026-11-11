@@ -33,16 +33,35 @@ _MOBILE_UAS = [
     "Mozilla/5.0 (Linux; Android 14; OnePlus 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36",
 ]
 
-# ── WebGL vendor/renderer pairs (never SwiftShader) ────────────────────────────
-_WEBGL_PAIRS = [
+# ── WebGL vendor/renderer pairs (strictly partitioned by OS, never SwiftShader) ──
+_WEBGL_WINDOWS = [
     ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
     ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) UHD Graphics 630 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
     ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon RX 6600 Direct3D11 vs_5_0 ps_5_0, D3D11)"),
     ("Google Inc. (NVIDIA)", "ANGLE (NVIDIA, NVIDIA GeForce GTX 1660 Ti Direct3D11 vs_5_0 ps_5_0, D3D11)"),
     ("Google Inc. (Intel)", "ANGLE (Intel, Intel(R) Iris(R) Xe Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)"),
-    ("Apple", "Apple GPU"),
-    ("Google Inc. (Apple)", "ANGLE (Apple, Apple M1, OpenGL 4.1)"),
 ]
+
+_WEBGL_MACOS = [
+    ("Google Inc. (Apple)", "ANGLE (Apple, Apple M1, OpenGL 4.1)"),
+    ("Google Inc. (Apple)", "ANGLE (Apple, Apple M2, OpenGL 4.1)"),
+    ("Apple", "Apple GPU"),
+]
+
+_WEBGL_LINUX = [
+    ("Google Inc. (Intel)", "ANGLE (Intel, Mesa Intel(R) UHD Graphics 630 (CFL GT2), OpenGL 4.6)"),
+    ("Google Inc. (AMD)", "ANGLE (AMD, AMD Radeon Graphics (renoir, LLVM 15.0.7), OpenGL 4.6)"),
+]
+
+_WEBGL_ANDROID = [
+    ("Qualcomm", "Adreno (TM) 740"),
+    ("Qualcomm", "Adreno (TM) 730"),
+    ("Qualcomm", "Adreno (TM) 650"),
+    ("ARM", "Mali-G710"),
+    ("ARM", "Mali-G78"),
+]
+
+_WEBGL_PAIRS = _WEBGL_WINDOWS + _WEBGL_MACOS + _WEBGL_LINUX + _WEBGL_ANDROID
 
 # ── Desktop viewport sizes ──────────────────────────────────────────────────────
 _DESKTOP_VIEWPORTS = [
@@ -206,6 +225,45 @@ def _generate_extensions(is_mobile: bool, rng: _SeededRng) -> list[dict]:
     return base + shuffled[:k]
 
 
+def _select_webgl_for_ua(ua: str, rng: _SeededRng) -> tuple[str, str]:
+    """Select an OS-coherent WebGL vendor/renderer pair strictly locked to the UA's OS."""
+    prof = ua_provider.parse_ua_hardware_profile(ua)
+    os_name = prof["os_name"]
+    if os_name == "Android":
+        return rng.choice(_WEBGL_ANDROID)
+    if os_name in ("macOS", "iOS"):
+        return rng.choice(_WEBGL_MACOS)
+    if os_name == "Linux":
+        return rng.choice(_WEBGL_LINUX)
+    return rng.choice(_WEBGL_WINDOWS)
+
+
+def sync_fingerprint_to_ua(fp: Fingerprint, ua: str, rng: Optional[_SeededRng] = None) -> Fingerprint:
+    """
+    Lock all 4 dimensions (DEVICE FORMAT, OPERATING SYSTEM, BROWSER, WebGL GPU, Fonts,
+    Viewport, TouchPoints) directly to the selected User-Agent string so 0% mismatch ever occurs.
+    """
+    if rng is None:
+        seed_bytes = hashlib.sha256(f"{fp.proxy_id}:{ua}".encode("utf-8")).digest()
+        rng = _SeededRng(seed_bytes)
+
+    prof = ua_provider.parse_ua_hardware_profile(ua)
+    fp.user_agent = ua
+    fp.is_mobile = bool(prof["is_mobile"])
+    fp.platform = prof["platform"]
+    fp.max_touch_points = 5 if fp.is_mobile else 0
+    fp.webgl_vendor, fp.webgl_renderer = _select_webgl_for_ua(ua, rng)
+    fp.fonts = _generate_fonts(fp.platform, fp.is_mobile, rng)
+    fp.extensions = _generate_extensions(fp.is_mobile, rng)
+
+    if fp.is_mobile and fp.viewport_width > 900:
+        fp.viewport_width, fp.viewport_height = rng.choice(_MOBILE_VIEWPORTS)
+    elif not fp.is_mobile and fp.viewport_width < 900:
+        fp.viewport_width, fp.viewport_height = rng.choice(_DESKTOP_VIEWPORTS)
+
+    return fp
+
+
 def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
     """
     Build a fully deterministic Fingerprint from the proxy's sha256 seed.
@@ -238,7 +296,7 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
         dm = rng.choice([4, 8, 16])
         mtp = 0
 
-    webgl_vendor, webgl_renderer = rng.choice(_WEBGL_PAIRS)
+    webgl_vendor, webgl_renderer = _select_webgl_for_ua(ua, rng)
     screen_avail_offset = rng.randint(60, 140)
 
     # Connection
@@ -285,63 +343,42 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
 
 
 def _extract_client_hints(fp: Fingerprint) -> dict:
-    ua = fp.user_agent
-    m_ver = re.search(r"(?:Chrome|CriOS|Edg)/(\d+)(?:\.([\d\.]+))?", ua)
-    major_ver = m_ver.group(1) if m_ver else "130"
-    full_ver = f"{major_ver}.{m_ver.group(2)}" if m_ver and m_ver.group(2) else f"{major_ver}.0.0.0"
-
+    prof = ua_provider.parse_ua_hardware_profile(fp.user_agent)
+    major_ver = prof["major_ver"]
+    full_ver = prof["full_ver"]
     is_mob = fp.is_mobile
-    ch_platform = "Windows"
-    ch_platform_version = "15.0.0"
-    ch_arch = "x86"
-    ch_model = ""
-
-    ua_low = ua.lower()
-    if "android" in ua_low:
-        ch_platform = "Android"
-        ch_arch = "arm"
-        m_os = re.search(r"Android (\d+(?:\.\d+)?)", ua, re.IGNORECASE)
-        ch_platform_version = f"{m_os.group(1)}.0.0" if m_os else "14.0.0"
-        m_mod = re.search(r"Android [^;]+; ([^)]+)\)", ua)
-        if m_mod:
-            ch_model = m_mod.group(1).split("Build")[0].strip()
-        else:
-            ch_model = "SM-S928B"
-    elif "iphone" in ua_low or "ipad" in ua_low:
-        ch_platform = "iOS"
-        ch_arch = "arm"
-        ch_model = "iPhone" if "iphone" in ua_low else "iPad"
-        ch_platform_version = "17.4.0"
-    elif "macintosh" in ua_low or "mac os x" in ua_low:
-        ch_platform = "macOS"
-        ch_arch = "arm"
-        ch_model = ""
-        ch_platform_version = "14.5.0"
-    elif "linux" in ua_low or "x11" in ua_low:
-        ch_platform = "Linux"
-        ch_arch = "x86"
-        ch_model = ""
-        ch_platform_version = "6.5.0"
 
     brands = [
         {"brand": "Chromium", "version": major_ver},
-        {"brand": "Google Chrome", "version": major_ver},
+        {"brand": prof["browser_brand"], "version": major_ver},
         {"brand": "Not?A_Brand", "version": "99"},
     ]
-    if "edg" in ua_low:
-        brands[1] = {"brand": "Microsoft Edge", "version": major_ver}
 
     return {
         "major_ver": major_ver,
         "full_ver": full_ver,
         "brands": brands,
         "mobile": is_mob,
-        "platform": ch_platform,
-        "platform_version": ch_platform_version,
-        "architecture": ch_arch,
+        "platform": prof["os_name"],
+        "platform_version": prof["os_version"],
+        "architecture": prof["architecture"],
         "bitness": "64",
-        "model": ch_model,
+        "model": prof["model"],
     }
+
+
+def build_client_hint_headers(fp: Fingerprint) -> dict[str, str]:
+    """Build HTTP Client-Hint headers (Sec-CH-UA-*) locked 100% to fp.user_agent."""
+    ch = _extract_client_hints(fp)
+    sec_ch_ua = ", ".join(f'"{b["brand"]}";v="{b["version"]}"' for b in ch["brands"])
+    headers = {
+        "Sec-CH-UA": sec_ch_ua,
+        "Sec-CH-UA-Mobile": "?1" if ch["mobile"] else "?0",
+        "Sec-CH-UA-Platform": f'"{ch["platform"]}"',
+    }
+    if ch["model"]:
+        headers["Sec-CH-UA-Model"] = f'"{ch["model"]}"'
+    return headers
 
 
 def _generate_media_devices(fp: Fingerprint) -> list[dict]:
