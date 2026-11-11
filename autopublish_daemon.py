@@ -787,11 +787,11 @@ def publish_parallel_batch(parallel_domains: int | None = None, specific_sites: 
 
 # 5. 24-HOUR 5-WAVE SEQUENTIAL SCHEDULER (10 DOMAINS x 5 ARTICLES/DAY = 50 ARTICLES/DAY)
 def get_today_domain_counts() -> dict[str, int]:
-    """Return number of deep (1,000+ word) articles published today (local date) per domain."""
+    """Return number of deep (1,000+ word) articles published today (after 5-Wave cutover) per domain."""
     today_prefix = datetime.now().strftime("%Y-%m-%d")
     conn = _connect_db()
     rows = conn.execute(
-        "SELECT domain, COUNT(*) FROM published_posts WHERE published_at LIKE ? AND COALESCE(words, 0) >= 1000 GROUP BY domain",
+        "SELECT domain, COUNT(*) FROM published_posts WHERE published_at LIKE ? AND published_at >= '2026-11-11T21:10:00' AND COALESCE(words, 0) >= 1000 GROUP BY domain",
         (f"{today_prefix}%",),
     ).fetchall()
     conn.close()
