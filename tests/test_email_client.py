@@ -10,7 +10,10 @@ import db
 
 
 @pytest.fixture(autouse=True)
-def setup_db():
+def setup_db(tmp_path, monkeypatch):
+    import accounts_manager
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "test_email_sessions.db")
+    monkeypatch.setattr(accounts_manager, "REGISTRY_PATH", tmp_path / "test_registry.json")
     db.init()
 
 

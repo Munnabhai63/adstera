@@ -384,7 +384,7 @@ gsc:
   oauth_token_json: state/gsc_oauth_token.json
   oauth_client_json: state/gsc_oauth_client.json
   default_days: 7
-  mock_fallback: true
+  mock_fallback: false
   weekly_report_enabled: true
   weekly_report_day: 0
   weekly_report_hour: 9

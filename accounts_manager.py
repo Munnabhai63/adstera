@@ -248,25 +248,31 @@ class AccountsManager:
 
     def generate_persona(self, email_seed: str, rng: Optional[random.Random] = None, country: str = "US") -> Dict[str, Any]:
         """Generates a consistent, geo-coherent high-intent financial persona (IN or US)."""
-        seed_int = int(hashlib.sha256(f"{email_seed}:{country}".encode()).hexdigest()[:8], 16)
+        is_in = str(country or "").upper() == "IN"
+        seed_raw = f"{email_seed}:IN" if is_in else email_seed
+        seed_int = int(hashlib.sha256(seed_raw.encode()).hexdigest()[:8], 16)
         r = random.Random(seed_int) if rng is None else rng
 
-        is_in = str(country or "").upper() == "IN"
         if is_in:
             first = r.choice(_FIRST_NAMES_IN)
             last = r.choice(_LAST_NAMES_IN)
             city_info = r.choice(_CITIES_IN)
-            phone = f"9{r.choice(['8', '9', '7'])}{r.randint(10000000, 99999999)}"
-            income_str = f"₹{r.randint(6, 24) * 100000:,}"
         else:
             first = r.choice(_FIRST_NAMES)
             last = r.choice(_LAST_NAMES)
             city_info = r.choice(_CITIES_US)
-            phone = f"({r.randint(201, 899)}) {r.randint(200, 999)}-{r.randint(1000, 9999)}"
-            income_str = f"${r.randint(65, 140) * 1000:,}"
 
         intent = r.choice(_FINANCIAL_INTENTS)
         age = r.randint(28, 58)
+        if is_in:
+            income_str = f"₹{r.randint(6, 24) * 100000:,}"
+        else:
+            income_str = f"${r.randint(65, 140) * 1000:,}"
+        credit_score = r.randint(680, 810)
+        if is_in:
+            phone = f"9{r.choice(['8', '9', '7'])}{r.randint(10000000, 99999999)}"
+        else:
+            phone = f"({r.randint(201, 899)}) {r.randint(200, 999)}-{r.randint(1000, 9999)}"
 
         return {
             "country": "IN" if is_in else "US",
@@ -280,7 +286,7 @@ class AccountsManager:
             "phone": phone,
             "timezone": city_info[3],
             "annual_income": income_str,
-            "credit_score": r.randint(680, 810),
+            "credit_score": credit_score,
             "commercial_intent": intent,
             "search_query": f"best {intent.lower()} rates {city_info[0]}",
         }

@@ -1,9 +1,4 @@
-# accounts.txt — Multi-format account and persona pool
-# Formats supported:
-# 1. email:password
-# 2. email:password:proxy_host:proxy_port
-# 3. email:password:proxy_host:proxy_port:proxy_user:proxy_pass
-# 4. JSON: [{"email": "...", "password": "..."}]
-david.miller.invest88@gmail.com:PassSecure#2026
-sarah.connor.finance@yahoo.com:LoanRefi$992
-alex.turner.cloud@outlook.com:CloudVPS*774
+# accounts.txt — Live Geo-Coherent Account & Persona Pool (IN)
+mz37sfae336oz0@newszig.com:SonjjLive#2026
+rajesh.sharma.fin@gmail.com:PassSecure#2026
+amit.patel.invest@gmail.com:LoanRefi#2026

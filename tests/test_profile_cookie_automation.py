@@ -13,7 +13,9 @@ TEST_ACCOUNTS_TXT = Path("test_accounts_sample.txt")
 
 
 @pytest.fixture(autouse=True)
-def cleanup():
+def cleanup(tmp_path, monkeypatch):
+    import accounts_manager
+    monkeypatch.setattr(accounts_manager, "REGISTRY_PATH", tmp_path / "test_registry.json")
     yield
     if TEST_ACCOUNTS_TXT.exists():
         TEST_ACCOUNTS_TXT.unlink()

@@ -117,6 +117,17 @@ DEFAULT_US_GEOS = [
     {"city": "Phoenix", "state": "AZ"},
 ]
 
+DEFAULT_IN_GEOS = [
+    {"city": "Mumbai", "state": "Maharashtra"},
+    {"city": "New Delhi", "state": "Delhi"},
+    {"city": "Bengaluru", "state": "Karnataka"},
+    {"city": "Pune", "state": "Maharashtra"},
+    {"city": "Ahmedabad", "state": "Gujarat"},
+    {"city": "Hyderabad", "state": "Telangana"},
+    {"city": "Jaipur", "state": "Rajasthan"},
+    {"city": "Lucknow", "state": "Uttar Pradesh"},
+]
+
 
 class SerpSynthesizer:
     """Dynamic SERP organic search query generator and natural referrer builder."""

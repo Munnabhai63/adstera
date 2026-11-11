@@ -3416,11 +3416,14 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/serp/preview":
-            from serp_synthesizer import SerpSynthesizer, DOMAIN_QUERY_MATRIX, DEFAULT_US_GEOS
+            from serp_synthesizer import SerpSynthesizer, DOMAIN_QUERY_MATRIX, DEFAULT_US_GEOS, DEFAULT_IN_GEOS
+            cfg = read_config()
+            is_mobile = cfg.get("network", {}).get("mode") == "mobile_tether"
+            geo_pool = DEFAULT_IN_GEOS if is_mobile else DEFAULT_US_GEOS
             synth = SerpSynthesizer()
             queries = []
             for idx, dom in enumerate(DOMAIN_QUERY_MATRIX.keys()):
-                geo = DEFAULT_US_GEOS[idx % len(DEFAULT_US_GEOS)]
+                geo = geo_pool[idx % len(geo_pool)]
                 q = synth.generate_query(dom, city=geo["city"], state=geo["state"])
                 queries.append({
                     "domain": dom,
@@ -3743,8 +3746,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/accounts/generate":
             try:
                 from accounts_manager import AccountsManager
+                cfg = read_config()
+                default_country = "IN" if cfg.get("network", {}).get("mode") == "mobile_tether" else "US"
+                req_country = payload.get("country", default_country) if isinstance(payload, dict) else default_country
                 mgr = AccountsManager()
-                acc = mgr.generate_synthetic_account()
+                acc = mgr.generate_synthetic_account(country=req_country)
                 self._send_json({"success": True, "account": acc.to_dict()})
             except Exception as e:
                 self._send_json({"success": False, "error": str(e)}, 500)

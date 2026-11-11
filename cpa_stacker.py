@@ -49,7 +49,7 @@ class CPAOffer:
 
 
 # ---------------------------------------------------------------------------
-# Default offer catalog (placeholder URLs — replace with real affiliate links)
+# Default offer catalog (mapped to live Adsterra CPA/Smartlink endpoints)
 # ---------------------------------------------------------------------------
 _DEFAULT_OFFERS: list[CPAOffer] = [
     # --- US / Tier 1 --- Loan / Finance
@@ -59,7 +59,7 @@ _DEFAULT_OFFERS: list[CPAOffer] = [
         niche="loan",
         geo_tiers=["tier1"],
         payout_usd=18.50,
-        landing_url="https://www.maxbounty.com/links.cfm?cid=PLACEHOLDER_MB_LOAN",
+        landing_url="https://araplhn.org/4/17dc693c036f3b211f48887d232add4b",
         daily_cap=50,
         min_dwell_s=20.0,
     ),
@@ -69,7 +69,7 @@ _DEFAULT_OFFERS: list[CPAOffer] = [
         niche="credit_card",
         geo_tiers=["tier1"],
         payout_usd=15.00,
-        landing_url="https://www.maxbounty.com/links.cfm?cid=PLACEHOLDER_MB_CREDIT",
+        landing_url="https://araplhn.org/4/36def2a0119696fb23e3fe034ccfcbc6",
         daily_cap=30,
         min_dwell_s=18.0,
     ),
@@ -80,7 +80,7 @@ _DEFAULT_OFFERS: list[CPAOffer] = [
         niche="loan",
         geo_tiers=["tier2", "tier3"],
         payout_usd=5.50,
-        landing_url="https://www.vcommission.com/aff_c?offer_id=PLACEHOLDER_VC_LOAN",
+        landing_url="https://araplhn.org/4/efed43a0653e93bd1dc62b74d42e4c6a",
         daily_cap=100,
         min_dwell_s=15.0,
     ),
@@ -90,7 +90,7 @@ _DEFAULT_OFFERS: list[CPAOffer] = [
         niche="recharge",
         geo_tiers=["tier2", "tier3"],
         payout_usd=3.00,
-        landing_url="https://www.vcommission.com/aff_c?offer_id=PLACEHOLDER_VC_RECHARGE",
+        landing_url="https://araplhn.org/4/b85c5d24beb88d58bfb4e161e1f74dd9",
         daily_cap=200,
         min_dwell_s=12.0,
     ),
@@ -100,7 +100,7 @@ _DEFAULT_OFFERS: list[CPAOffer] = [
         niche="insurance",
         geo_tiers=["tier2"],
         payout_usd=8.00,
-        landing_url="https://www.vcommission.com/aff_c?offer_id=PLACEHOLDER_VC_INSURANCE",
+        landing_url="https://araplhn.org/4/2caa4b8918499ce7fd21fc1b92ec94aa",
         daily_cap=50,
         min_dwell_s=20.0,
     ),
@@ -111,7 +111,7 @@ _DEFAULT_OFFERS: list[CPAOffer] = [
         niche="loan",
         geo_tiers=["tier1", "tier2"],
         payout_usd=12.00,
-        landing_url="https://alitems.com/g/PLACEHOLDER_AA_LOAN",
+        landing_url="https://araplhn.org/4/8b6f18f361f42dc7c2c708b4ce5f6f28",
         daily_cap=40,
         min_dwell_s=20.0,
     ),
@@ -122,7 +122,7 @@ _DEFAULT_OFFERS: list[CPAOffer] = [
         niche="loan",
         geo_tiers=["tier1", "tier2", "tier3"],
         payout_usd=2.50,
-        landing_url="https://asiafilm.org/4/4cef2f60b337a83398fd5d4eccb2b035",  # Adsterra smartlink fallback
+        landing_url="https://araplhn.org/4/5758e39593ed52767a2328758c2683da",
         daily_cap=0,   # Unlimited
         min_dwell_s=10.0,
     ),

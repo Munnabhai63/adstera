@@ -298,17 +298,32 @@ def _fallback_geo(host: str) -> GeoInfo:
 def _locale_for_country(country: str) -> str:
     _map = {
         "United States": "en-US",
+        "US": "en-US",
         "United Kingdom": "en-GB",
+        "GB": "en-GB",
+        "UK": "en-GB",
         "Canada": "en-CA",
+        "CA": "en-CA",
         "Australia": "en-AU",
+        "AU": "en-AU",
         "Germany": "de-DE",
+        "DE": "de-DE",
         "France": "fr-FR",
+        "FR": "fr-FR",
         "Spain": "es-ES",
+        "ES": "es-ES",
         "Italy": "it-IT",
+        "IT": "it-IT",
         "Netherlands": "nl-NL",
+        "NL": "nl-NL",
         "Poland": "pl-PL",
+        "PL": "pl-PL",
         "Brazil": "pt-BR",
+        "BR": "pt-BR",
         "India": "en-IN",
+        "IN": "en-IN",
+        "Singapore": "en-SG",
+        "SG": "en-SG",
     }
     return _map.get(country, "en-US")
 
@@ -353,10 +368,12 @@ class MobileTetherPool:
             current_ip = ip_info.get("ip") or new_ip or old_ip or "127.0.0.1"
             self._current_ip = current_ip
 
-            country = ip_info.get("country", "US")
-            city = ip_info.get("city", "Chicago")
+            country = ip_info.get("country") or "IN"
+            city = ip_info.get("city") or ("Mumbai" if country in ("IN", "India") else "Chicago")
+            region = ip_info.get("region") or ("Maharashtra" if country in ("IN", "India") else "IL")
             geo = GeoInfo(
                 country=country,
+                region=region,
                 city=city,
                 timezone=_tz_for_country_city(country, city),
                 locale=_locale_for_country(country),
