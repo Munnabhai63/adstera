@@ -766,6 +766,54 @@ img { max-width: 100%; height: auto; display: block; }
     text-align: center;
     border-top: 1px solid #1E293B;
 }
+
+/* Adsterra Responsive Display Banner & Native Slots (Layer 1) */
+.adsterra-slot-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+.adsterra-slot-tag {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: #94A3B8;
+    margin-bottom: 6px;
+}
+.adsterra-slot-frame {
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.adsterra-leaderboard-wrap {
+    margin: 16px auto 0 auto;
+    padding: 8px 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 8px;
+    max-width: 760px;
+}
+.adsterra-mrec-wrap {
+    margin: 0 auto 24px auto;
+    padding: 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.adsterra-native-wrap {
+    margin: 28px 0;
+    padding: 16px 18px;
+    background: #F8FAFC;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+}
 </style>
     <script type="application/ld+json">
     {
@@ -817,6 +865,8 @@ img { max-width: 100%; height: auto; display: block; }
             </ul>
         </div>
     </nav>
+    <div class="container"><!-- ADSTERRA_SLOT:728x90 --><!-- /ADSTERRA_SLOT:728x90 --></div>
+
 
     <!-- Main Body Content -->
     
@@ -833,6 +883,8 @@ img { max-width: 100%; height: auto; display: block; }
         </div>
         <div class="post-content">
             <p><strong>RechargeKar</strong> was established with a singular objective: <em>to democratize complex institutional knowledge and empower consumers with mathematically transparent comparison tools</em>. As digital products, financial instruments, and telecommunication tariffs multiply in complexity, everyday consumers deserve unambiguous, data-driven analysis.</p>
+<!-- ADSTERRA_SLOT:native --><!-- /ADSTERRA_SLOT:native -->
+
 
             <h2>Our Core Mission: Modern eSIM, Global Roaming & 5G Data Portal</h2>
             <p>Expert guides on converting physical SIM cards to eSIM, global international roaming packages vs travel SIM cards, and emergency 5G booster packs.</p>
@@ -885,6 +937,7 @@ img { max-width: 100%; height: auto; display: block; }
                     </section>
                     
     <aside class="sidebar-col">
+        <!-- ADSTERRA_SLOT:300x250 --><!-- /ADSTERRA_SLOT:300x250 -->
         <!-- Interactive Tool Widget -->
         <div class="widget-card">
             <div class="widget-title">International Roaming vs Travel eSIM Cost Comparison</div>

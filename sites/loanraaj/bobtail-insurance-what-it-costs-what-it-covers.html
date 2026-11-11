@@ -608,6 +608,54 @@ img { max-width: 100%; height: auto; display: block; }
     text-align: center;
     border-top: 1px solid #1E293B;
 }
+
+/* Adsterra Responsive Display Banner & Native Slots (Layer 1) */
+.adsterra-slot-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+.adsterra-slot-tag {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: #94A3B8;
+    margin-bottom: 6px;
+}
+.adsterra-slot-frame {
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.adsterra-leaderboard-wrap {
+    margin: 16px auto 0 auto;
+    padding: 8px 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 8px;
+    max-width: 760px;
+}
+.adsterra-mrec-wrap {
+    margin: 0 auto 24px auto;
+    padding: 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.adsterra-native-wrap {
+    margin: 28px 0;
+    padding: 16px 18px;
+    background: #F8FAFC;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+}
 </style>
     <script type="application/ld+json">
     {
@@ -657,6 +705,8 @@ img { max-width: 100%; height: auto; display: block; }
             </ul>
         </div>
     </nav>
+    <div class="container"><!-- ADSTERRA_SLOT:728x90 --><!-- /ADSTERRA_SLOT:728x90 --></div>
+
 
     <!-- Main Content -->
     
@@ -723,6 +773,8 @@ img { max-width: 100%; height: auto; display: block; }
 <p><strong>What bobtail insurance does NOT cover:</strong></p>
 <ul><li>Your own truck: Bobtail insurance is liability only — it does not pay for damage to your tractor. That is what physical damage coverage is for.</li><li>Cargo: You are not hauling freight when bobtailing, so cargo coverage is not relevant — but make sure your cargo policy is clear on this point</li><li>Medical expenses for yourself: Occupational accident insurance covers your own injuries — bobtail insurance covers other people</li><li>Operation under active carrier dispatch: Once you are under dispatch, the carrier’s primary liability applies — bobtail coverage is specifically for the gap outside that dispatch relationship</li></ul>
 <p>Understanding this coverage structure helped me see bobtail insurance for what it is: a relatively inexpensive liability net for a very specific and very real exposure window. It does not replace your other coverages. It fills the gap between them.</p>
+<!-- ADSTERRA_SLOT:native --><!-- /ADSTERRA_SLOT:native -->
+
 <h2>What Does Bobtail Insurance Cost</h2>
 <p>Bobtail insurance is one of the more affordable components of a complete owner-operator insurance package. Here are realistic 2025 market ranges:</p>
 <div class="table-responsive"><table class="article-table"><tr><th>Driver Profile</th><th>Annual Premium Range</th><th>Monthly Estimate</th></tr><tr><td>New CDL holder, clean record</td><td>$600 — $1,200</td><td>$50 — $100</td></tr><tr><td>Experienced driver (3+ years), clean record</td><td>$400 — $800</td><td>$33 — $67</td></tr><tr><td>Driver with minor violations</td><td>$800 — $1,500</td><td>$67 — $125</td></tr><tr><td>Driver with major violations or prior claims</td><td>$1,200 — $2,500+</td><td>$100 — $208+</td></tr><tr><td>Combined bobtail and non-trucking liability</td><td>$600 — $1,400</td><td>$50 — $117</td></tr></table></div>
@@ -787,6 +839,7 @@ img { max-width: 100%; height: auto; display: block; }
             </div>
         </div>
 
+        <!-- ADSTERRA_SLOT:300x250 --><!-- /ADSTERRA_SLOT:300x250 -->
         <!-- EMI Calculator -->
         <div class="widget-card">
             <h3 class="widget-title">Loan EMI Calculator</h3>

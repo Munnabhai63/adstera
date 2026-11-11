@@ -608,6 +608,54 @@ img { max-width: 100%; height: auto; display: block; }
     text-align: center;
     border-top: 1px solid #1E293B;
 }
+
+/* Adsterra Responsive Display Banner & Native Slots (Layer 1) */
+.adsterra-slot-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+.adsterra-slot-tag {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: #94A3B8;
+    margin-bottom: 6px;
+}
+.adsterra-slot-frame {
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.adsterra-leaderboard-wrap {
+    margin: 16px auto 0 auto;
+    padding: 8px 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 8px;
+    max-width: 760px;
+}
+.adsterra-mrec-wrap {
+    margin: 0 auto 24px auto;
+    padding: 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.adsterra-native-wrap {
+    margin: 28px 0;
+    padding: 16px 18px;
+    background: #F8FAFC;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+}
 </style>
     <script type="application/ld+json">
     {
@@ -657,6 +705,8 @@ img { max-width: 100%; height: auto; display: block; }
             </ul>
         </div>
     </nav>
+    <div class="container"><!-- ADSTERRA_SLOT:728x90 --><!-- /ADSTERRA_SLOT:728x90 --></div>
+
 
     <!-- Main Content -->
     
@@ -728,6 +778,8 @@ img { max-width: 100%; height: auto; display: block; }
 <p><strong>3. Truck Value and Age</strong></p>
 <p>Physical damage coverage on your tow vehicle is priced as a percentage of current market value. A new $65,000 Ram 3500 carries meaningfully higher physical damage premiums than a $28,000 used truck with similar capabilities. Newer trucks with advanced safety features — forward collision warning, automatic emergency braking, trailer sway control — can qualify for safety discounts on liability coverage that partially offset the higher physical damage cost.</p>
 <p><strong>4. Trailer Type and Value</strong></p>
+<!-- ADSTERRA_SLOT:native --><!-- /ADSTERRA_SLOT:native -->
+
 <p>Your trailer is insured separately from your truck under physical damage coverage. Gooseneck trailers, flatbeds, and specialized equipment trailers vary significantly in value and replacement cost. Make sure your trailer’s stated value on your policy accurately reflects current replacement cost — undervaluing your trailer to reduce premium creates a gap at claim time that costs more than the premium savings.</p>
 <p><strong>5. Freight Type and Average Cargo Value</strong></p>
 <p>The type of freight you haul directly affects your hotshot trucking insurance cargo premium and can influence liability rates as well. General cargo and agricultural equipment are priced most favorably. Oil field equipment, high-value machinery, and time-sensitive industrial parts carry higher cargo premiums because the liability exposure in the event of loss or delay is greater. Operators who can clearly define their primary freight type at application often receive more favorable pricing than those who describe their operations vaguely.</p>
@@ -797,6 +849,7 @@ img { max-width: 100%; height: auto; display: block; }
             </div>
         </div>
 
+        <!-- ADSTERRA_SLOT:300x250 --><!-- /ADSTERRA_SLOT:300x250 -->
         <!-- EMI Calculator -->
         <div class="widget-card">
             <h3 class="widget-title">Loan EMI Calculator</h3>

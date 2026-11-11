@@ -608,6 +608,54 @@ img { max-width: 100%; height: auto; display: block; }
     text-align: center;
     border-top: 1px solid #1E293B;
 }
+
+/* Adsterra Responsive Display Banner & Native Slots (Layer 1) */
+.adsterra-slot-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+.adsterra-slot-tag {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: #94A3B8;
+    margin-bottom: 6px;
+}
+.adsterra-slot-frame {
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.adsterra-leaderboard-wrap {
+    margin: 16px auto 0 auto;
+    padding: 8px 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 8px;
+    max-width: 760px;
+}
+.adsterra-mrec-wrap {
+    margin: 0 auto 24px auto;
+    padding: 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.adsterra-native-wrap {
+    margin: 28px 0;
+    padding: 16px 18px;
+    background: #F8FAFC;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+}
 </style>
     <script type="application/ld+json">
     {
@@ -657,6 +705,8 @@ img { max-width: 100%; height: auto; display: block; }
             </ul>
         </div>
     </nav>
+    <div class="container"><!-- ADSTERRA_SLOT:728x90 --><!-- /ADSTERRA_SLOT:728x90 --></div>
+
 
     <!-- Main Content -->
     
@@ -716,6 +766,8 @@ img { max-width: 100%; height: auto; display: block; }
 <p>A complete trucking insurance quote is not a single number. It is a package of individual coverages, each priced separately. Understanding what each line item covers helps you compare quotes accurately rather than just comparing total premium numbers.</p>
 <div class="table-responsive"><table class="article-table"><tr><th>Coverage</th><th>What It Covers</th><th>2025 Annual Range</th></tr><tr><td>Primary Auto Liability</td><td>Bodily injury and property damage to others when at fault</td><td>$9,000 — $16,000</td></tr><tr><td>Physical Damage</td><td>Your truck — collision, theft, fire, weather</td><td>$2,500 — $5,500</td></tr><tr><td>Motor Truck Cargo</td><td>Freight you are hauling if lost or damaged</td><td>$1,200 — $3,000</td></tr><tr><td>General Liability</td><td>Non-driving incidents — loading, unloading, premises</td><td>$500 — $1,500</td></tr><tr><td>Non-Trucking Liability</td><td>Personal use of truck when not under dispatch</td><td>$400 — $900</td></tr><tr><td>Uninsured Motorist</td><td>Protection when hit by uninsured or underinsured driver</td><td>$300 — $800</td></tr></table></div>
 <p>When comparing quotes from multiple brokers, never compare only the total number at the bottom of the page. Compare each line item individually. I once received two quotes that were $800 apart in total premium — but the cheaper quote had $500,000 less in cargo coverage limits. That is not a fair comparison. That is a coverage gap dressed up as a deal.</p>
+<!-- ADSTERRA_SLOT:native --><!-- /ADSTERRA_SLOT:native -->
+
 <h2>What Underwriters Look at When Pricing Your Quote</h2>
 <p>Every trucking insurance quote starts with an underwriter reviewing your risk profile. Understanding what they are looking for helps you present your application as favorably as possible — and helps you understand why your quotes are coming in at the numbers they are.</p>
 <p><strong>CDL Experience:</strong> The single most influential factor in your quote. Drivers under two years of CDL experience consistently receive the highest rates in the market. The experience discount that kicks in after two and three clean years is significant — often $3,000 to $5,000 annually on primary liability alone.</p>
@@ -773,6 +825,7 @@ img { max-width: 100%; height: auto; display: block; }
             </div>
         </div>
 
+        <!-- ADSTERRA_SLOT:300x250 --><!-- /ADSTERRA_SLOT:300x250 -->
         <!-- EMI Calculator -->
         <div class="widget-card">
             <h3 class="widget-title">Loan EMI Calculator</h3>

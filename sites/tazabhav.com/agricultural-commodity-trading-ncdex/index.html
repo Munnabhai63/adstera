@@ -766,6 +766,54 @@ img { max-width: 100%; height: auto; display: block; }
     text-align: center;
     border-top: 1px solid #1E293B;
 }
+
+/* Adsterra Responsive Display Banner & Native Slots (Layer 1) */
+.adsterra-slot-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+    overflow-x: auto;
+    box-sizing: border-box;
+}
+.adsterra-slot-tag {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.9px;
+    color: #94A3B8;
+    margin-bottom: 6px;
+}
+.adsterra-slot-frame {
+    max-width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.adsterra-leaderboard-wrap {
+    margin: 16px auto 0 auto;
+    padding: 8px 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 8px;
+    max-width: 760px;
+}
+.adsterra-mrec-wrap {
+    margin: 0 auto 24px auto;
+    padding: 12px;
+    background: #FFFFFF;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+}
+.adsterra-native-wrap {
+    margin: 28px 0;
+    padding: 16px 18px;
+    background: #F8FAFC;
+    border: 1px solid var(--border, #E2E8F0);
+    border-radius: 10px;
+}
 </style>
     <script type="application/ld+json">
     {
@@ -818,6 +866,8 @@ img { max-width: 100%; height: auto; display: block; }
             </ul>
         </div>
     </nav>
+    <div class="container"><!-- ADSTERRA_SLOT:728x90 --><!-- /ADSTERRA_SLOT:728x90 --></div>
+
 
     <!-- Main Body Content -->
     
@@ -842,7 +892,9 @@ img { max-width: 100%; height: auto; display: block; }
                                 <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=800&q=80" alt="NCDEX Agricultural Commodity Trading: How Agri-Businesses Hedge Crop Price Risks" loading="eager">
                             </div>
                             <div class="post-content">
-                                <p class='lead'>Discover how mustard seed, guar gum, and soybean futures traded on the National Commodity and Derivatives Exchange (NCDEX) protect processors from seasonal price crashes.</p><h2>Hedging vs Speculation</h2><p>Hedging allows agricultural millers to lock in purchase prices months in advance, safeguarding manufacturing margins against unanticipated weather shocks.</p>
+                                <p class='lead'>Discover how mustard seed, guar gum, and soybean futures traded on the National Commodity and Derivatives Exchange (NCDEX) protect processors from seasonal price crashes.</p>
+<!-- ADSTERRA_SLOT:native --><!-- /ADSTERRA_SLOT:native -->
+<h2>Hedging vs Speculation</h2><p>Hedging allows agricultural millers to lock in purchase prices months in advance, safeguarding manufacturing margins against unanticipated weather shocks.</p>
                             </div>
                             
     <div class="native-ad-card">
@@ -870,6 +922,7 @@ img { max-width: 100%; height: auto; display: block; }
                     </article>
                     
     <aside class="sidebar-col">
+        <!-- ADSTERRA_SLOT:300x250 --><!-- /ADSTERRA_SLOT:300x250 -->
         <!-- Interactive Tool Widget -->
         <div class="widget-card">
             <div class="widget-title">Gold Hallmarking Purity & Resale Value Calculator</div>
