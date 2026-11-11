@@ -1,6 +1,6 @@
 # Architecture & Engineering Decisions (`docs/decisions.md`)
 
-> Detailed chronological decision log and Known Gaps live in [`DECISIONS.md`](../DECISIONS.md) (Decisions #1–#83). This quick index summarizes active architectural choices for every session start.
+> Detailed chronological decision log and Known Gaps live in [`DECISIONS.md`](../DECISIONS.md) (Decisions #1–#84). This quick index summarizes active architectural choices for every session start.
 
 | Area | Decision | Reason / Impact |
 |------|----------|-----------------|

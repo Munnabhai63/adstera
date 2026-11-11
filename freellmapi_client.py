@@ -1,14 +1,17 @@
 """
-freellmapi_client.py — High-Performance Free LLM API Client for Autonomous Content & Lead Realism.
+freellmapi_client.py — 3-Layer 24x7 Always-On FreeLLMAPI & Cloudflare Edge Router Client.
 
-Connects to the local FreeLLMAPI aggregator daemon (http://localhost:3001/v1) powered by
-7.4 billion monthly tokens across 34 free providers (Kilo, OVH, AIHorde, Google, Groq, etc.).
+Architecture (Zero Single-Point-of-Failure):
+  Layer 1 — Cloudflare 24x7 Serverless Edge Gateway (https://loanraaj.com/v1)
+  Layer 2 — Local FreeLLMAPI Daemon (http://127.0.0.1:3001/v1) with Auto-Start Watchdog
+  Layer 3 — Direct Multi-Provider Cloud Failover (OVH AI Endpoints & Kilo Gateway)
 
-Use Cases:
-- Hyper-realistic persona inquiry/notes generation for high-payout CPL/CPA lead forms.
-- Dynamic search query generation for organic referrer emulation.
-- SEO content & article enhancement across the 10 publisher sites.
-- Resilient fallback to local heuristic generators if daemon is offline.
+Fast Instruct Model Chain (avoids slow reasoning token starvation):
+  1. Qwen2.5-VL-72B-Instruct (OVH — 72B fast instruct, zero <think> overhead)
+  2. Mistral-Small-3.2-24B-Instruct-2506 (OVH — fast structured HTML)
+  3. gpt-oss-120b (OVH — 120B high-depth model)
+  4. cohere/north-mini-code:free (Kilo — 1.2s TTFB ultra-fast instruct)
+  5. nvidia/nemotron-3.5-lightning:free (Kilo)
 """
 
 from __future__ import annotations
@@ -16,6 +19,8 @@ from __future__ import annotations
 import logging
 import os
 import random
+import subprocess
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -24,20 +29,102 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_API_URL = "http://localhost:3001"
-DEFAULT_MODEL = "auto"
+CLOUDFLARE_EDGE_URL = "https://loanraaj.com"
+LOCAL_DAEMON_URL = "http://127.0.0.1:3001"
+DEFAULT_API_URL = CLOUDFLARE_EDGE_URL
+DEFAULT_MODEL = "Qwen2.5-VL-72B-Instruct"
+FREELLMAPI_SERVER_DIR = Path(r"F:\UserData\Downloads\ai-power-tools\freellmapi\server")
+
+FAST_INSTRUCT_CHAIN: List[Dict[str, str]] = [
+    {
+        "provider": "ovh",
+        "model": "Qwen2.5-VL-72B-Instruct",
+        "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
+    },
+    {
+        "provider": "ovh",
+        "model": "Mistral-Small-3.2-24B-Instruct-2506",
+        "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
+    },
+    {
+        "provider": "ovh",
+        "model": "gpt-oss-120b",
+        "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
+    },
+    {
+        "provider": "kilo",
+        "model": "cohere/north-mini-code:free",
+        "url": "https://api.kilo.ai/api/gateway/v1/chat/completions",
+    },
+    {
+        "provider": "kilo",
+        "model": "nvidia/nemotron-3.5-lightning:free",
+        "url": "https://api.kilo.ai/api/gateway/v1/chat/completions",
+    },
+]
+
+_LAST_WATCHDOG_ATTEMPT = 0.0
+
+
+def ensure_local_daemon_running(api_key: str = "") -> bool:
+    """Check if localhost:3001 is up; if not, auto-spawn FreeLLMAPI server in background."""
+    global _LAST_WATCHDOG_ATTEMPT
+    token = api_key or "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f"
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        with httpx.Client(timeout=2.5) as client:
+            res = client.get(f"{LOCAL_DAEMON_URL}/v1/models", headers=headers)
+            if res.status_code == 200:
+                return True
+    except Exception:
+        pass
+
+    now = time.time()
+    if (now - _LAST_WATCHDOG_ATTEMPT) < 30.0:
+        return False
+    _LAST_WATCHDOG_ATTEMPT = now
+
+    entry_js = FREELLMAPI_SERVER_DIR / "dist" / "index.js"
+    if not entry_js.exists():
+        return False
+
+    try:
+        creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) | getattr(subprocess, "DETACHED_PROCESS", 0)
+        subprocess.Popen(
+            ["node", "dist/index.js"],
+            cwd=str(FREELLMAPI_SERVER_DIR),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=creationflags,
+        )
+        for _ in range(10):
+            time.sleep(0.5)
+            try:
+                with httpx.Client(timeout=2.0) as client:
+                    res = client.get(f"{LOCAL_DAEMON_URL}/v1/models", headers=headers)
+                    if res.status_code == 200:
+                        logger.info("[FreeLLMClient] Auto-started local FreeLLMAPI daemon on 127.0.0.1:3001")
+                        return True
+            except Exception:
+                continue
+    except Exception as exc:
+        logger.warning("[FreeLLMClient] Watchdog spawn warning: %s", exc)
+    return False
 
 
 class FreeLLMClient:
-    """Client for FreeLLMAPI OpenAI-compatible router on localhost:3001."""
+    """3-Layer 24x7 Client for Cloudflare Edge Gateway + Local Daemon + Direct Cloud Providers."""
 
     def __init__(self, config_path: str = "config.yaml"):
         self.config_path = Path(config_path)
         self.config = self._load_config()
         self.api_url, self.api_key = self._resolve_credentials()
-        self.enabled = bool(self.config.get("freellm", {}).get("enabled", True))
-        self.timeout = float(self.config.get("freellm", {}).get("timeout", 20.0))
-        self.default_model = self.config.get("freellm", {}).get("model", DEFAULT_MODEL)
+        freellm_cfg = self.config.get("freellm", {}) or {}
+        self.enabled = bool(freellm_cfg.get("enabled", True))
+        self.timeout = float(freellm_cfg.get("timeout", 150.0))
+        self.default_model = str(freellm_cfg.get("model", DEFAULT_MODEL))
+        self.edge_url = str(freellm_cfg.get("edge_url", CLOUDFLARE_EDGE_URL)).rstrip("/")
+        self.local_url = str(freellm_cfg.get("local_url", LOCAL_DAEMON_URL)).rstrip("/")
 
     def _load_config(self) -> dict:
         if self.config_path.exists():
@@ -65,63 +152,140 @@ class FreeLLMClient:
                 except Exception:
                     pass
 
-        url = url or DEFAULT_API_URL
+        url = (url or DEFAULT_API_URL).rstrip("/")
         key = key or "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f"
         return url, key
 
     def is_available(self) -> bool:
-        """Ping FreeLLMAPI service status."""
-        try:
-            with httpx.Client(timeout=3.0) as client:
-                res = client.get(f"{self.api_url}/v1/models", headers={"Authorization": f"Bearer {self.api_key}"})
-                return res.status_code == 200
-        except Exception:
-            return False
+        """Verify whether Cloudflare 24x7 Edge Gateway, Local Daemon, or Direct Cloud is reachable."""
+        headers = {"Authorization": f"Bearer {self.api_key}"}
+        for base in (self.edge_url, self.api_url, self.local_url):
+            if not base:
+                continue
+            try:
+                with httpx.Client(timeout=4.0) as client:
+                    res = client.get(f"{base}/v1/models", headers=headers)
+                    if res.status_code == 200 and '"object"' in res.text:
+                        return True
+            except Exception:
+                continue
+        return ensure_local_daemon_running(self.api_key)
+
+    @staticmethod
+    def _extract_message_text(data: dict) -> Optional[str]:
+        choices = data.get("choices") or []
+        if not choices or not isinstance(choices[0], dict):
+            return None
+        msg = choices[0].get("message") or {}
+        text = (msg.get("content") or msg.get("reasoning_content") or msg.get("reasoning") or "").strip()
+        return text if text else None
 
     def generate_completion(
         self,
         prompt: str,
         system_prompt: str = "You are a professional assistant.",
-        max_tokens: int = 120,
+        max_tokens: int = 2500,
         temperature: float = 0.7,
         model: Optional[str] = None,
+        timeout: Optional[float] = None,
     ) -> Optional[str]:
-        """Send chat completion request to FreeLLMAPI router."""
-        if not self.enabled or not self.is_available():
+        """
+        Send chat completion across the 3-Layer 24x7 Failover Architecture:
+          1. Cloudflare 24x7 Edge Gateway (https://loanraaj.com/v1/chat/completions)
+          2. Direct Fast-Instruct Multi-Provider Cloud Chain (OVH / Kilo)
+          3. Local FreeLLMAPI Daemon (http://127.0.0.1:3001/v1/chat/completions with Watchdog)
+        """
+        if not self.enabled:
             return None
 
+        req_timeout = float(timeout or self.timeout or 150.0)
         chosen_model = model or self.default_model
-        payload = {
-            "model": chosen_model,
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": prompt},
-            ],
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-        }
-        headers = {
+        if chosen_model in ("claude-sonnet-4-5", "auto", "fusion"):
+            chosen_model = DEFAULT_MODEL
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ]
+        auth_headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
 
-        try:
-            with httpx.Client(timeout=self.timeout) as client:
-                res = client.post(f"{self.api_url}/v1/chat/completions", headers=headers, json=payload)
-                if res.status_code == 200:
-                    data = res.json()
-                    choices = data.get("choices", [])
-                    if choices and "message" in choices[0]:
-                        return choices[0]["message"].get("content", "").strip()
-                else:
-                    logger.warning("[FreeLLMClient] API status %d: %s", res.status_code, res.text[:160])
-        except Exception as e:
-            logger.warning("[FreeLLMClient] Request failed (%s) — using fallback.", e)
+        # Layer 1: Cloudflare 24x7 Serverless Edge Gateway (https://loanraaj.com/v1/chat/completions)
+        if self.edge_url:
+            try:
+                with httpx.Client(timeout=min(req_timeout, 90.0)) as client:
+                    res = client.post(
+                        f"{self.edge_url}/v1/chat/completions",
+                        headers=auth_headers,
+                        json={
+                            "model": chosen_model,
+                            "messages": messages,
+                            "max_tokens": max_tokens,
+                            "temperature": temperature,
+                        },
+                    )
+                    if res.status_code == 200:
+                        text = self._extract_message_text(res.json())
+                        if text:
+                            return text
+            except Exception as exc:
+                logger.debug("[FreeLLMClient] Edge gateway notice: %s", exc)
+
+        # Layer 2: Direct Fast-Instruct Cloud Failover Chain (OVH & Kilo)
+        ordered_routes = sorted(
+            FAST_INSTRUCT_CHAIN,
+            key=lambda r: 0 if r["model"] == chosen_model else 1,
+        )
+        for route in ordered_routes:
+            try:
+                with httpx.Client(timeout=req_timeout) as client:
+                    res = client.post(
+                        route["url"],
+                        headers={
+                            "Content-Type": "application/json",
+                            "User-Agent": "Mozilla/5.0 FreeLLMAPI-CloudRouter/2.0",
+                        },
+                        json={
+                            "model": route["model"],
+                            "messages": messages,
+                            "max_tokens": max_tokens,
+                            "temperature": temperature,
+                        },
+                    )
+                    if res.status_code == 200:
+                        text = self._extract_message_text(res.json())
+                        if text:
+                            return text
+            except Exception as exc:
+                logger.debug("[FreeLLMClient] Direct route %s/%s failed: %s", route["provider"], route["model"], exc)
+
+        # Layer 3: Local FreeLLMAPI Daemon (with Auto-Start Watchdog)
+        if ensure_local_daemon_running(self.api_key):
+            try:
+                with httpx.Client(timeout=req_timeout) as client:
+                    res = client.post(
+                        f"{self.local_url}/v1/chat/completions",
+                        headers=auth_headers,
+                        json={
+                            "model": chosen_model,
+                            "messages": messages,
+                            "max_tokens": max_tokens,
+                            "temperature": temperature,
+                        },
+                    )
+                    if res.status_code == 200:
+                        text = self._extract_message_text(res.json())
+                        if text:
+                            return text
+            except Exception as exc:
+                logger.warning("[FreeLLMClient] Local daemon fallback failed: %s", exc)
 
         return None
 
     # =========================================================================
-    # High-Value Domain Domain-Specific Realism Synthesizers
+    # High-Value Domain-Specific Realism Synthesizers
     # =========================================================================
 
     def generate_loan_inquiry_purpose(self, domain: str, niche: str, rng: Optional[random.Random] = None) -> str:
@@ -134,17 +298,16 @@ class FreeLLMClient:
         )
         system_prompt = "You simulate real loan applicants in India submitting online inquiry forms."
 
-        result = self.generate_completion(prompt, system_prompt=system_prompt, max_tokens=50, temperature=0.8)
+        result = self.generate_completion(prompt, system_prompt=system_prompt, max_tokens=120, temperature=0.8, timeout=25.0)
         if result and len(result) > 10:
-            return result.replace('"', '').strip()
+            return result.replace('"', "").strip()
 
-        # Heuristic fallback
         fallbacks = [
             "Need urgent funds for medical emergency and hospital bill clearance.",
             "Applying for business loan to purchase working capital inventory before festive season.",
             "Looking for lowest interest personal loan to consolidate existing high-cost debts.",
             "Need immediate personal loan for house renovation and urgent civil repairs.",
-            "Urgent short-term salary advance loan required for sibling college fee payment."
+            "Urgent short-term salary advance loan required for sibling college fee payment.",
         ]
         return rng.choice(fallbacks)
 
@@ -155,9 +318,14 @@ class FreeLLMClient:
             f"Given keyword '{base_keyword}' for site '{domain}', generate one natural, authentic Google search query "
             "that a real person in India would type in 2026. Return ONLY the search query text, no quotes, no explanation."
         )
-        result = self.generate_completion(prompt, max_tokens=30, temperature=0.85)
-        if result and len(result) > 5 and len(result) < 80:
-            return result.replace('"', '').strip()
+        result = self.generate_completion(prompt, max_tokens=80, temperature=0.85, timeout=25.0)
+        if result and 5 < len(result) < 80:
+            return result.replace('"', "").strip()
 
-        suffixes = ["low cibil score fast approval", "best interest rates 2026", "online apply without document", "eligibility check direct bank"]
+        suffixes = [
+            "low cibil score fast approval",
+            "best interest rates 2026",
+            "online apply without document",
+            "eligibility check direct bank",
+        ]
         return f"{base_keyword} {rng.choice(suffixes)}"

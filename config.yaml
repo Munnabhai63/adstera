@@ -367,9 +367,11 @@ email_service:
   test_mode: false
 freellm:
   enabled: true
-  url: http://localhost:3001
-  model: auto
-  timeout: 20.0
+  url: https://loanraaj.com
+  edge_url: https://loanraaj.com
+  local_url: http://127.0.0.1:3001
+  model: Qwen2.5-VL-72B-Instruct
+  timeout: 150.0
 gsc:
   enabled: true
   service_account_json: state/gsc_service_account.json
@@ -390,3 +392,14 @@ autopublish:
   min_winner_score: 65.0
   min_pending_per_domain: 3
   sync_winners_to_queue: true
+  schedule_mode: 5_wave_24h
+  wave_hours_ist:
+  - "07:00"
+  - "11:30"
+  - "16:00"
+  - "20:00"
+  - "00:00"
+  articles_per_domain_per_day: 5
+  daily_total_target: 50
+  wave_domain_gap_seconds: 300
+  discover_20_before_publish: true

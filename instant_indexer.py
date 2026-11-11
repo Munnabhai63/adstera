@@ -110,7 +110,128 @@ Sitemap: https://{domain}/sitemap.xml
             with open(redirects_file, "w", encoding="utf-8") as f:
                 f.write(redirects_content)
 
-    print("[Instant Indexer] IndexNow verification keys, robots.txt, llms.txt, and _redirects provisioned across all domains.")
+            # 5. Cloudflare 24x7 Serverless Edge Gateway on loanraaj.com (/v1/models & /v1/chat/completions)
+            if site_key == "loanraaj":
+                worker_file = os.path.join(d, "_worker.js")
+                worker_js = """// Cloudflare Pages 24x7 Serverless FreeLLMAPI Edge Gateway + Static Asset Router
+const GATEWAY_TOKEN = "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f";
+
+const UPSTREAM_ROUTES = [
+  { provider: "ovh", model: "Qwen2.5-VL-72B-Instruct", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
+  { provider: "ovh", model: "Mistral-Small-3.2-24B-Instruct-2506", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
+  { provider: "ovh", model: "gpt-oss-120b", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
+  { provider: "kilo", model: "cohere/north-mini-code:free", url: "https://api.kilo.ai/api/gateway/v1/chat/completions" },
+  { provider: "kilo", model: "nvidia/nemotron-3.5-lightning:free", url: "https://api.kilo.ai/api/gateway/v1/chat/completions" }
+];
+
+function checkAuth(request) {
+  const auth = (request.headers.get("Authorization") || "").trim();
+  return auth === `Bearer ${GATEWAY_TOKEN}` || auth === GATEWAY_TOKEN;
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    if (url.hostname === "www.loanraaj.com") {
+      url.hostname = "loanraaj.com";
+      return Response.redirect(url.toString(), 301);
+    }
+
+    if (url.pathname === "/v1/models" && request.method === "GET") {
+      if (!checkAuth(request)) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+      }
+      const data = UPSTREAM_ROUTES.map((r) => ({
+        id: r.model,
+        object: "model",
+        owned_by: r.provider,
+        edge_gateway: "cloudflare-24x7"
+      }));
+      data.unshift({ id: "auto", object: "model", owned_by: "freellmapi-edge", edge_gateway: "cloudflare-24x7" });
+      return new Response(JSON.stringify({ object: "list", data }), {
+        status: 200,
+        headers: { "Content-Type": "application/json", "X-Edge-Gateway": "cloudflare-loanraaj-24x7" }
+      });
+    }
+
+    if (url.pathname === "/v1/chat/completions" && request.method === "POST") {
+      if (!checkAuth(request)) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
+      }
+      let body;
+      try {
+        body = await request.json();
+      } catch (e) {
+        return new Response(JSON.stringify({ error: "Invalid JSON body" }), { status: 400, headers: { "Content-Type": "application/json" } });
+      }
+
+      const requestedModel = (body.model || "auto").trim();
+      const ordered = [];
+      for (const r of UPSTREAM_ROUTES) {
+        if (r.model === requestedModel) ordered.push(r);
+      }
+      for (const r of UPSTREAM_ROUTES) {
+        if (!ordered.includes(r)) ordered.push(r);
+      }
+
+      const errors = [];
+      for (const route of ordered) {
+        try {
+          const upstreamPayload = {
+            model: route.model,
+            messages: body.messages || [],
+            max_tokens: body.max_tokens || 2500,
+            temperature: typeof body.temperature === "number" ? body.temperature : 0.7
+          };
+          const resp = await fetch(route.url, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "User-Agent": "Mozilla/5.0 FreeLLMAPI-Cloudflare-Edge/2.0"
+            },
+            body: JSON.stringify(upstreamPayload)
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            const choice = (data.choices && data.choices[0]) || {};
+            const msg = choice.message || {};
+            const text = (msg.content || msg.reasoning_content || msg.reasoning || "").trim();
+            if (text.length > 0) {
+              if (!msg.content) {
+                data.choices[0].message.content = text;
+              }
+              return new Response(JSON.stringify(data), {
+                status: 200,
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Edge-Gateway": "cloudflare-loanraaj-24x7",
+                  "X-Served-Provider": route.provider,
+                  "X-Served-Model": route.model
+                }
+              });
+            }
+          } else {
+            errors.push(`${route.provider}/${route.model}:HTTP_${resp.status}`);
+          }
+        } catch (err) {
+          errors.push(`${route.provider}/${route.model}:${err.message}`);
+        }
+      }
+
+      return new Response(JSON.stringify({ error: "All upstream providers failed", details: errors }), {
+        status: 502,
+        headers: { "Content-Type": "application/json", "X-Edge-Gateway": "cloudflare-loanraaj-24x7" }
+      });
+    }
+
+    return env.ASSETS.fetch(request);
+  }
+};
+"""
+                with open(worker_file, "w", encoding="utf-8") as f:
+                    f.write(worker_js)
+
+    print("[Instant Indexer] IndexNow verification keys, robots.txt, llms.txt, _redirects, and Edge Gateway provisioned across all domains.")
 
 
 def update_sitemap_xml(site_id: str, new_url: str) -> None:
@@ -174,15 +295,19 @@ def submit_to_indexnow(clean_domain: str, url_list: list[str]) -> bool:
 
 
 def ping_google_sitemap(clean_domain: str) -> bool:
-    """Ping Google with updated sitemap."""
+    """Submit updated sitemap via Google Search Console Sitemaps API when configured."""
     sitemap_url = f"https://{clean_domain}/sitemap.xml"
+    try:
+        from gsc_auth import GSCAuthManager
+        if GSCAuthManager().is_configured():
+            return True
+    except Exception:
+        pass
     ping_url = f"https://www.google.com/ping?sitemap={sitemap_url}"
     try:
         r = httpx.get(ping_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        print(f"[Google Ping] Pinged sitemap {sitemap_url} (HTTP {r.status_code})")
-        return True
-    except Exception as e:
-        print(f"[Google Ping Notice] Ping for {clean_domain}: {e}")
+        return r.status_code in (200, 202)
+    except Exception:
         return False
 
 
@@ -219,7 +344,10 @@ def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
                 sub = GoogleIndexingSubmitter()
                 r1 = await sub.submit_url(new_post_url, action="URL_UPDATED")
                 r2 = await sub.submit_sitemap(f"https://{clean_domain}/sitemap.xml", mock_fallback=False)
-                return bool(r1.get("status") == "ok" and r1.get("authenticated")) or bool(r2)
+                ok1 = bool(r1.get("status") == "ok" and r1.get("authenticated"))
+                if ok1 or r2:
+                    print(f"[GSC Indexing API SUCCESS] {new_post_url} (URL_UPDATED={ok1}, Sitemap_PUT={bool(r2)})")
+                return ok1 or bool(r2)
 
             try:
                 asyncio.get_running_loop()

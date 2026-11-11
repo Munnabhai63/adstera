@@ -42,6 +42,12 @@ DEFAULT_AUTOPUBLISH_CFG = {
     "min_winner_score": 65.0,
     "min_pending_per_domain": 3,
     "sync_winners_to_queue": True,
+    "schedule_mode": "5_wave_24h",
+    "wave_hours_ist": ["07:00", "11:30", "16:00", "20:00", "00:00"],
+    "articles_per_domain_per_day": 5,
+    "daily_total_target": 50,
+    "wave_domain_gap_seconds": 300,
+    "discover_20_before_publish": True,
 }
 
 
@@ -461,9 +467,25 @@ def _reset_topic_pending(q_id: int) -> None:
         pass
 
 
-def publish_next_post(specific_site=None, exclude_domains=None):
+def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_20: bool = False):
     from network_registry import NETWORK_REGISTRY
     MASTER_SITES = NETWORK_REGISTRY
+
+    if discover_fresh_20 and specific_site:
+        clean_dom = specific_site.replace(".com", "").strip().lower()
+        try:
+            ap_cfg = _load_autopublish_config()
+            min_score = float(ap_cfg.get("min_winner_score", 65.0))
+            print(f"[{clean_dom}] Stage 1 & 2: Discovering 20 Google Trends + High-CPC topics & selecting Top-5 winners...")
+            topic_intelligence.discover_20_topics_for_domain(
+                clean_dom,
+                min_winner_score=min_score,
+                sync_to_queue=True,
+                fetch_live=True,
+                db_path=DB_PATH,
+            )
+        except Exception as disc_exc:
+            print(f"[{clean_dom}] 20-topic discovery notice: {disc_exc}")
 
     row = _claim_next_topic(specific_site=specific_site, exclude_domains=exclude_domains)
     if not row:
@@ -637,6 +659,13 @@ def publish_next_post(specific_site=None, exclude_domains=None):
 
         print(f"[{site_id}] Successfully compiled & saved '{slug}' ({words_count} words).")
 
+        # Ensure _redirects, _worker.js, robots.txt, and llms.txt are provisioned BEFORE Cloudflare deploy
+        try:
+            from instant_indexer import provision_verification_keys
+            provision_verification_keys()
+        except Exception:
+            pass
+
         # Deploy to Cloudflare Pages
         deploy_cmd = ["npx.cmd", "wrangler", "pages", "deploy", os.path.join("sites", f"{site_id}.com"), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
         try:
@@ -756,18 +785,55 @@ def publish_parallel_batch(parallel_domains: int | None = None, specific_sites: 
     }
 
 
-# 5. CONTINUOUS 24/7 DAEMON LOOP
+# 5. 24-HOUR 5-WAVE SEQUENTIAL SCHEDULER (10 DOMAINS x 5 ARTICLES/DAY = 50 ARTICLES/DAY)
+def get_today_domain_counts() -> dict[str, int]:
+    """Return number of deep (1,000+ word) articles published today (local date) per domain."""
+    today_prefix = datetime.now().strftime("%Y-%m-%d")
+    conn = _connect_db()
+    rows = conn.execute(
+        "SELECT domain, COUNT(*) FROM published_posts WHERE published_at LIKE ? AND COALESCE(words, 0) >= 1000 GROUP BY domain",
+        (f"{today_prefix}%",),
+    ).fetchall()
+    conn.close()
+    return {str(r[0]): int(r[1]) for r in rows if r[0]}
+
+
+def select_next_wave_domain(per_domain_cap: int = 5) -> str | None:
+    """
+    Pick the next domain needing an article today (under `per_domain_cap`),
+    prioritizing the domain with the fewest posts published today so all 10 domains
+    receive 1 article per wave sequentially (5 waves x 10 domains = 50/day).
+    """
+    from network_registry import NETWORK_REGISTRY
+    today_counts = get_today_domain_counts()
+    all_domains = list(NETWORK_REGISTRY.keys())
+    eligible = [d for d in all_domains if today_counts.get(d, 0) < per_domain_cap]
+    if not eligible:
+        return None
+    eligible.sort(key=lambda d: (today_counts.get(d, 0), all_domains.index(d)))
+    return eligible[0]
+
+
 def run_daemon(interval_minutes=None, parallel_domains=None):
     ap_cfg = _load_autopublish_config()
-    eff_interval = int(interval_minutes if interval_minutes is not None else ap_cfg.get("interval_minutes", 20))
-    eff_parallel = max(1, int(parallel_domains if parallel_domains is not None else ap_cfg.get("parallel_domains", 2)))
-    jitter_cap = int(ap_cfg.get("jitter_seconds", 180))
-    min_sleep = int(ap_cfg.get("min_sleep_seconds", 900))
+    schedule_mode = str(ap_cfg.get("schedule_mode", "5_wave_24h"))
+    per_dom_cap = int(ap_cfg.get("articles_per_domain_per_day", 5))
+    daily_target = int(ap_cfg.get("daily_total_target", 50))
+    wave_hours = [str(w) for w in (ap_cfg.get("wave_hours_ist") or ["07:00", "11:30", "16:00", "20:00", "00:00"])]
+    discover_20 = bool(ap_cfg.get("discover_20_before_publish", True))
 
-    print("=" * 70)
-    print("STARTING 24/7 AUTOPUBLISH DAEMON (LAYER 7 PARALLEL SPEED MODE)")
-    print(f"Publishing cadence: {eff_parallel} parallel domains every {eff_interval} minutes across 10 rotating domains")
-    print("=" * 70)
+    # Ensure local FreeLLMAPI daemon is warm alongside Cloudflare 24x7 Edge Gateway
+    try:
+        from freellmapi_client import ensure_local_daemon_running
+        ensure_local_daemon_running()
+    except Exception:
+        pass
+
+    print("=" * 74)
+    print("STARTING 24/7 AUTOPUBLISH DAEMON (5-WAVE 24H SEQUENTIAL QUALITY MODE)")
+    print(f"Target: {per_dom_cap} articles/domain/day x 10 domains = {daily_target} articles/24h")
+    print(f"Daily Waves (IST): {', '.join(wave_hours)} | Mode: 1 Domain at a time (20-Topic -> Top-5 -> 2-Part Deep AI)")
+    print("=" * 74)
 
     init_db()
     seed_queue(fetch_live=False)
@@ -793,14 +859,39 @@ def run_daemon(interval_minutes=None, parallel_domains=None):
             except Exception as gsc_exc:
                 print(f"[GSC Weekly Report] Scheduler notice: {gsc_exc}")
 
-            print(f"\n[Daemon Pulse] Initiating {eff_parallel}-domain parallel publish cycle at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
-            publish_parallel_batch(parallel_domains=eff_parallel, kick_stuck=True)
+            if schedule_mode == "5_wave_24h" and parallel_domains is None:
+                today_counts = get_today_domain_counts()
+                total_today = sum(today_counts.values())
+                next_dom = select_next_wave_domain(per_domain_cap=per_dom_cap)
+                if next_dom is None or total_today >= daily_target:
+                    print(f"[5-Wave Scheduler] Daily target reached ({total_today}/{daily_target} articles today across 10 domains). Sleeping 30m until next day window...")
+                    time.sleep(1800)
+                    continue
 
-            # Fast Layer 7 sleep cadence (~20 mins +/- 3 mins, min 15 mins)
-            jitter = random.randint(-jitter_cap, jitter_cap)
-            sleep_sec = max(min_sleep, (eff_interval * 60) + jitter)
-            print(f"[Daemon Sleeping] Next {eff_parallel}-domain parallel batch in {sleep_sec / 60:.1f} minutes...")
-            time.sleep(sleep_sec)
+                dom_today = today_counts.get(next_dom, 0) + 1
+                print(
+                    f"\n[5-Wave Sequential Pulse] {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | "
+                    f"Domain: {next_dom}.com (Wave {dom_today}/{per_dom_cap} today | Fleet today: {total_today + 1}/{daily_target})"
+                )
+                publish_next_post(specific_site=next_dom, discover_fresh_20=discover_20)
+
+                # 50 articles across 24 hours = 1 article every ~28 minutes (1,680s +/- 120s jitter)
+                base_gap = int((24 * 3600) // max(1, daily_target))
+                jitter = random.randint(-120, 120)
+                sleep_sec = max(600, base_gap + jitter)
+                print(f"[5-Wave Sleeping] Next single-domain deep article in {sleep_sec / 60:.1f} minutes...")
+                time.sleep(sleep_sec)
+            else:
+                eff_interval = int(interval_minutes if interval_minutes is not None else ap_cfg.get("interval_minutes", 20))
+                eff_parallel = max(1, int(parallel_domains if parallel_domains is not None else ap_cfg.get("parallel_domains", 2)))
+                jitter_cap = int(ap_cfg.get("jitter_seconds", 180))
+                min_sleep = int(ap_cfg.get("min_sleep_seconds", 900))
+                print(f"\n[Daemon Pulse] Initiating {eff_parallel}-domain parallel publish cycle at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}...")
+                publish_parallel_batch(parallel_domains=eff_parallel, kick_stuck=True)
+                jitter = random.randint(-jitter_cap, jitter_cap)
+                sleep_sec = max(min_sleep, (eff_interval * 60) + jitter)
+                print(f"[Daemon Sleeping] Next {eff_parallel}-domain parallel batch in {sleep_sec / 60:.1f} minutes...")
+                time.sleep(sleep_sec)
         except KeyboardInterrupt:
             print("[Daemon] Stopped by user.")
             break
@@ -823,8 +914,8 @@ if __name__ == "__main__":
         print(json.dumps(res, indent=2))
     elif len(sys.argv) > 1 and sys.argv[1] == "--once":
         seed_queue(fetch_live=False)
-        site_arg = sys.argv[2] if len(sys.argv) > 2 else None
-        print(f"Executing single auto-publish run (Site: {site_arg or 'Next in Queue'})...")
-        publish_next_post(specific_site=site_arg)
+        site_arg = sys.argv[2] if len(sys.argv) > 2 else select_next_wave_domain(per_domain_cap=5)
+        print(f"Executing single 5-Stage deep auto-publish run (Site: {site_arg or 'Next in Queue'})...")
+        publish_next_post(specific_site=site_arg, discover_fresh_20=True)
     else:
         run_daemon()
