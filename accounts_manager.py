@@ -50,6 +50,28 @@ _CITIES_US = [
     ("Seattle", "WA", "98101", "America/Los_Angeles"),
 ]
 
+_FIRST_NAMES_IN = [
+    "Rahul", "Amit", "Rohit", "Vikram", "Suresh", "Rajesh", "Ankit", "Gaurav",
+    "Deepak", "Manish", "Sachin", "Pradeep", "Priya", "Neha", "Pooja", "Anjali",
+    "Kavita", "Sneha", "Swati", "Ritu",
+]
+
+_LAST_NAMES_IN = [
+    "Sharma", "Verma", "Patel", "Singh", "Kumar", "Gupta", "Yadav", "Joshi",
+    "Mehta", "Chauhan", "Mishra", "Reddy", "Nair", "Kulkarni", "Tiwari", "Agarwal",
+]
+
+_CITIES_IN = [
+    ("Mumbai", "MH", "400001", "Asia/Kolkata"),
+    ("New Delhi", "DL", "110001", "Asia/Kolkata"),
+    ("Bengaluru", "KA", "560001", "Asia/Kolkata"),
+    ("Pune", "MH", "411001", "Asia/Kolkata"),
+    ("Ahmedabad", "GJ", "380001", "Asia/Kolkata"),
+    ("Hyderabad", "TG", "500001", "Asia/Kolkata"),
+    ("Jaipur", "RJ", "302001", "Asia/Kolkata"),
+    ("Lucknow", "UP", "226001", "Asia/Kolkata"),
+]
+
 _FINANCIAL_INTENTS = [
     "Personal Loans Refinancing",
     "Low Interest Mortgages 2026",
@@ -224,19 +246,30 @@ class AccountsManager:
 
         return accounts
 
-    def generate_persona(self, email_seed: str, rng: Optional[random.Random] = None) -> Dict[str, Any]:
-        """Generates a consistent, authentic American high-intent financial persona."""
-        seed_int = int(hashlib.sha256(email_seed.encode()).hexdigest()[:8], 16)
+    def generate_persona(self, email_seed: str, rng: Optional[random.Random] = None, country: str = "US") -> Dict[str, Any]:
+        """Generates a consistent, geo-coherent high-intent financial persona (IN or US)."""
+        seed_int = int(hashlib.sha256(f"{email_seed}:{country}".encode()).hexdigest()[:8], 16)
         r = random.Random(seed_int) if rng is None else rng
 
-        first = r.choice(_FIRST_NAMES)
-        last = r.choice(_LAST_NAMES)
-        city_info = r.choice(_CITIES_US)
+        is_in = str(country or "").upper() == "IN"
+        if is_in:
+            first = r.choice(_FIRST_NAMES_IN)
+            last = r.choice(_LAST_NAMES_IN)
+            city_info = r.choice(_CITIES_IN)
+            phone = f"9{r.choice(['8', '9', '7'])}{r.randint(10000000, 99999999)}"
+            income_str = f"₹{r.randint(6, 24) * 100000:,}"
+        else:
+            first = r.choice(_FIRST_NAMES)
+            last = r.choice(_LAST_NAMES)
+            city_info = r.choice(_CITIES_US)
+            phone = f"({r.randint(201, 899)}) {r.randint(200, 999)}-{r.randint(1000, 9999)}"
+            income_str = f"${r.randint(65, 140) * 1000:,}"
+
         intent = r.choice(_FINANCIAL_INTENTS)
         age = r.randint(28, 58)
-        income = r.randint(65, 140) * 1000
 
         return {
+            "country": "IN" if is_in else "US",
             "first_name": first,
             "last_name": last,
             "full_name": f"{first} {last}",
@@ -244,17 +277,19 @@ class AccountsManager:
             "city": city_info[0],
             "state": city_info[1],
             "zip": city_info[2],
+            "phone": phone,
             "timezone": city_info[3],
-            "annual_income": f"${income:,}",
+            "annual_income": income_str,
             "credit_score": r.randint(680, 810),
             "commercial_intent": intent,
             "search_query": f"best {intent.lower()} rates {city_info[0]}",
         }
 
-    def generate_synthetic_account(self, domain: str = "gmail.com") -> Account:
-        """Create a brand new synthetic account with realistic persona on-the-fly."""
-        first = random.choice(_FIRST_NAMES).lower()
-        last = random.choice(_LAST_NAMES).lower()
+    def generate_synthetic_account(self, domain: str = "gmail.com", country: str = "US") -> Account:
+        """Create a brand new synthetic account with realistic geo-coherent persona on-the-fly."""
+        is_in = str(country or "").upper() == "IN"
+        first = (random.choice(_FIRST_NAMES_IN) if is_in else random.choice(_FIRST_NAMES)).lower()
+        last = (random.choice(_LAST_NAMES_IN) if is_in else random.choice(_LAST_NAMES)).lower()
         rand_num = random.randint(100, 9999)
         email = f"{first}.{last}{rand_num}@{domain}"
         password = f"Secure#{random.randint(10000, 99999)}"
@@ -265,7 +300,7 @@ class AccountsManager:
             email=email,
             password=password,
             name=f"{first.capitalize()} {last.capitalize()}",
-            persona=self.generate_persona(email),
+            persona=self.generate_persona(email, country=country),
             created_at=random.uniform(1000000, 2000000)
         )
         self._registry[acc_id] = acc

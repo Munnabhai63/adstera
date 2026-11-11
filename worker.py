@@ -297,6 +297,7 @@ async def _attempt_ad_click(
     scroll_done: bool,
     proxy_id: str = "",
     domain: str = "loanraaj.com",
+    proxy_country: str = "",
 ) -> int:
     """
     Attempt a single smart ad click with Viewport Intersection scoring,
@@ -352,9 +353,15 @@ async def _attempt_ad_click(
                     pass
                 from lead_engine import LeadConversionEngine
                 engine = LeadConversionEngine()
-                if engine.should_attempt_conversion(rng=rng):
-                    logger.info("Pillar 2: Attempting CPL lead form conversion on %s", extra_page.url)
-                    await engine.fill_and_submit_lead(page=extra_page, domain=domain, rng=rng)
+                form_check = await engine.detect_lead_form(extra_page)
+                if form_check.get("form_found") and engine.enabled:
+                    logger.info("Pillar 2: Lead form detected on %s — executing Geo Persona + Sonjj Email conversion", extra_page.url)
+                    await engine.fill_and_submit_lead(
+                        page=extra_page,
+                        domain=domain,
+                        rng=rng,
+                        country=proxy_country or "IN",
+                    )
                 else:
                     popunder_dwell = rng.uniform(14.0, 26.0)
                     t_start = time.time()
@@ -829,7 +836,7 @@ async def run_session(
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
                 clicks = await _attempt_ad_click(
-                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain
+                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN"
                 )
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks
@@ -863,7 +870,7 @@ async def run_session(
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
                 clicks = await _attempt_ad_click(
-                    page, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain
+                    page, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN"
                 )
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks

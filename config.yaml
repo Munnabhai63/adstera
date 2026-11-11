@@ -216,7 +216,7 @@ browser:
   headless: false
   slow_mo_ms: 40
   engine: mahi
-  use_mahi_profiles: true
+  use_mahi_profiles: false
   block_resources:
   - font
   - media
@@ -230,7 +230,7 @@ adsterra_api:
   sync_interval_min: 15
 lead_engine:
   enabled: true
-  conversion_prob: 0.1
+  conversion_prob: 0.25
   max_leads_per_day: 50
   min_post_click_dwell: 25
   max_post_click_dwell: 45
@@ -308,14 +308,20 @@ ad_networks:
     enabled: true
     weight: 0.3
     smartlinks:
-    - https://propeller-direct.com/smartlink/3549341
-    - https://monetag-direct.net/smartlink/489102
+    - https://araplhn.org/4/17dc693c036f3b211f48887d232add4b
+    - https://araplhn.org/4/36def2a0119696fb23e3fe034ccfcbc6
+    - https://araplhn.org/4/efed43a0653e93bd1dc62b74d42e4c6a
+    - https://araplhn.org/4/b85c5d24beb88d58bfb4e161e1f74dd9
+    - https://araplhn.org/4/2caa4b8918499ce7fd21fc1b92ec94aa
   hilltopads:
     enabled: true
     weight: 0.2
     smartlinks:
-    - https://hilltop-direct.com/smartlink/778899
-    - https://hilltop-direct.com/smartlink/889900
+    - https://araplhn.org/4/8b6f18f361f42dc7c2c708b4ce5f6f28
+    - https://araplhn.org/4/5758e39593ed52767a2328758c2683da
+    - https://araplhn.org/4/ca5b06c43def4844f857da9379d3229d
+    - https://araplhn.org/4/683357397a7ae6ec26a028b4100a876c
+    - https://araplhn.org/4/7a123d148c127cf4f54df5374d59a985
 push_notifications:
   enabled: true
   trigger_prob: 0.175

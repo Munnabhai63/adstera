@@ -242,12 +242,13 @@ class LeadConversionEngine:
         domain: str = "loanraaj.com",
         persona: Optional[Any] = None,
         rng: Optional[random.Random] = None,
+        country: str = "",
     ) -> dict[str, Any]:
         """
         Execute full natural post-click dwell, Sonjj Email provisioning, and form auto-fill:
         1. Natural initial content scroll & reading pause.
         2. Detects inputs.
-        3. Generates Persona + provisions/reuses real Sonjj Email (with SQLite cache & Credit-Guard).
+        3. Generates Geo-Matched Persona + provisions/reuses real Sonjj Email (with SQLite cache & Credit-Guard).
         4. Moves mouse via Bézier curve and types with human cadence.
         5. Clicks submit button.
         6. Checks for post-submit OTP input or verification link via Sonjj inbox polling.
@@ -275,22 +276,26 @@ class LeadConversionEngine:
                 "fields_filled": 0,
             }
 
-        # Step 3: Select Persona + Sonjj Email Provisioning (Cache Reuse -> Sonjj API -> Credit Guard)
+        # Step 3: Select Geo-Matched Persona + Sonjj Email Provisioning (Cache Reuse -> Sonjj API -> Credit Guard)
         active_persona = persona
-        full_name_str = "Steven Brown"
-        zip_str = "10001"
-        phone_str = "(555) 234-5678"
+        effective_country = (country or "US").upper()
+        default_zip = "400001" if effective_country == "IN" else "10001"
+        default_phone = "9820456789" if effective_country == "IN" else "(555) 234-5678"
+        full_name_str = "Rahul Sharma" if effective_country == "IN" else "Steven Brown"
+        zip_str = default_zip
+        phone_str = default_phone
 
         if active_persona is None:
-            synth_acc = self.accounts_mgr.generate_synthetic_account()
+            synth_acc = self.accounts_mgr.generate_synthetic_account(country=effective_country)
             active_persona = synth_acc.persona
             fallback_email = synth_acc.email
         else:
             fallback_email = _get_val(active_persona, "email", "visitor@gmail.com")
 
         if active_persona:
-            full_name_str = _get_val(active_persona, "full_name", "Steven Brown")
-            zip_str = _get_val(active_persona, "zip", "10001")
+            full_name_str = _get_val(active_persona, "full_name", full_name_str)
+            zip_str = _get_val(active_persona, "zip", default_zip)
+            phone_str = _get_val(active_persona, "phone", default_phone)
 
         prefix_hint = full_name_str.lower().replace(" ", ".")
         try:

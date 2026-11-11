@@ -380,7 +380,7 @@ def _render_streams_tabs_card() -> str:
           <h6 class="mb-0">Adsterra Placement-Level Breakdown (Popunder / Native / 728x90 / 300x250 / Smartlink)</h6>
           <small class="text-body-secondary">Official Placement Group-By</small>
         </div>
-        <div tabindex="0" role="region" aria-labelledby="u4PlCaption" class="table-wrapper u3-table-region">
+        <div tabindex="0" role="region" aria-labelledby="u4PlCaption" class="table-wrapper u3-table-region mb-5">
           <table class="table table-hover align-middle mb-0 u4-pl-table" id="u4PlacementsTable">
             <caption id="u4PlCaption" class="visually-hidden">Adsterra placement level CPM and impression breakdown</caption>
             <thead>
@@ -398,6 +398,32 @@ def _render_streams_tabs_card() -> str:
             <tbody id="u4PlacementsBody">
               <tr>
                 <td colspan="8" class="text-center text-body-secondary py-4">Loading placement-level telemetry...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center mb-2 gap-2">
+          <h6 class="mb-0">4-Dimension Sensitive Zero-Leak Audit (COUNTRY &bull; DEVICE FORMAT &bull; OPERATING SYSTEM &bull; BROWSER)</h6>
+          <small class="text-body-secondary">27,103 UA Pool Hardware Lock</small>
+        </div>
+        <div tabindex="0" role="region" aria-labelledby="u4FdCaption" class="table-wrapper u3-table-region">
+          <table class="table table-hover align-middle mb-0 u4-fd-table" id="u4FourDimTable">
+            <caption id="u4FdCaption" class="visually-hidden">4-Dimension Country, Device Format, Operating System and Browser zero-leak audit</caption>
+            <thead>
+              <tr>
+                <th scope="col">Sensitive Tab</th>
+                <th scope="col">Detected Value</th>
+                <th scope="col">Sessions</th>
+                <th scope="col">Impressions</th>
+                <th scope="col">Clicks</th>
+                <th scope="col">Hardware / Header Lock</th>
+                <th scope="col">Leak Status</th>
+              </tr>
+            </thead>
+            <tbody id="u4FourDimBody">
+              <tr>
+                <td colspan="7" class="text-center text-body-secondary py-4">Loading 4-Dimension Zero-Leak telemetry...</td>
               </tr>
             </tbody>
           </table>

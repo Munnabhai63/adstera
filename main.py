@@ -167,7 +167,7 @@ async def main() -> None:
     net_mode = cfg.get("network", {}).get("mode", "proxy")
     failover_enabled = cfg.get("failover", {}).get("enabled", False)
 
-    if failover_enabled or net_mode == "dual_failover":
+    if (failover_enabled and net_mode != "mobile_tether") or net_mode == "dual_failover":
         from failover_manager import DualTransportManager
         from pool import MobileTetherPool
         logger.info("Operating in Dual-ISP Hot-Failover Mode (Mobile ADB + Residential Proxy)")

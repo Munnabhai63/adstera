@@ -590,6 +590,67 @@
         });
       }
     }
+
+    const fdBody = document.getElementById("u4FourDimBody");
+    if (fdBody) {
+      clearChildren(fdBody);
+      const fdList = Array.isArray(payload.four_dimensions) ? payload.four_dimensions : [];
+      if (fdList.length === 0) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 7;
+        td.className = "text-center text-body-secondary py-4";
+        td.textContent = "No 4-Dimension session records logged yet.";
+        tr.appendChild(td);
+        fdBody.appendChild(tr);
+      } else {
+        fdList.forEach((f) => {
+          const tr = document.createElement("tr");
+
+          const thDim = document.createElement("th");
+          thDim.scope = "row";
+          const dimBadge = document.createElement("span");
+          dimBadge.className = "badge bg-label-primary";
+          dimBadge.textContent = String(f.dimension || "");
+          thDim.appendChild(dimBadge);
+          tr.appendChild(thDim);
+
+          const tdVal = document.createElement("td");
+          tdVal.className = "fw-semibold";
+          tdVal.textContent = String(f.value || "");
+          tr.appendChild(tdVal);
+
+          const tdSess = document.createElement("td");
+          tdSess.className = "tabular-nums";
+          tdSess.textContent = String(f.sessions ?? 0);
+          tr.appendChild(tdSess);
+
+          const tdImps = document.createElement("td");
+          tdImps.className = "tabular-nums";
+          tdImps.textContent = String(f.impressions ?? 0);
+          tr.appendChild(tdImps);
+
+          const tdClks = document.createElement("td");
+          tdClks.className = "tabular-nums";
+          tdClks.textContent = String(f.clicks ?? 0);
+          tr.appendChild(tdClks);
+
+          const tdNote = document.createElement("td");
+          tdNote.className = "small text-body-secondary";
+          tdNote.textContent = String(f.lock_note || "");
+          tr.appendChild(tdNote);
+
+          const tdSt = document.createElement("td");
+          const stBadge = document.createElement("span");
+          stBadge.className = "badge bg-label-success";
+          stBadge.textContent = String(f.status || "0% Leak Verified");
+          tdSt.appendChild(stBadge);
+          tr.appendChild(tdSt);
+
+          fdBody.appendChild(tr);
+        });
+      }
+    }
   }
 
   function renderLeads(payload) {
