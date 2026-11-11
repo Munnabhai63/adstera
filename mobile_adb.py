@@ -79,7 +79,7 @@ def list_devices(custom_path: str = "") -> list[dict[str, str]]:
 def get_public_ip(timeout: float = 6.0) -> dict:
     """Fetch the current public IP, ISP/carrier, and geo location."""
     urls = [
-        "http://ip-api.com/json/?fields=status,country,city,query,org",
+        "http://ip-api.com/json/?fields=status,country,countryCode,region,regionName,city,query,org",
         "https://api.ipify.org?format=json",
     ]
     for url in urls:
@@ -92,14 +92,15 @@ def get_public_ip(timeout: float = 6.0) -> dict:
                     if ip:
                         return {
                             "ip": ip,
-                            "country": data.get("country", "Unknown"),
+                            "country": data.get("countryCode") or data.get("country") or "IN",
+                            "region": data.get("regionName") or data.get("region") or "",
                             "city": data.get("city", "Unknown"),
                             "org": data.get("org", "Cellular Carrier"),
                             "ok": True,
                         }
         except Exception:
             continue
-    return {"ip": "", "country": "", "city": "", "org": "", "ok": False}
+    return {"ip": "", "country": "", "region": "", "city": "", "org": "", "ok": False}
 
 
 def toggle_airplane_mode(device_id: str = "", wait_seconds: float = 4.0, custom_path: str = "") -> bool:
