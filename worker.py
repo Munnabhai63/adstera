@@ -288,6 +288,71 @@ async def get_in_view_ad_candidates(page: Page) -> list[dict]:
     return candidates
 
 
+async def _handle_extra_popunder_pages(
+    context: BrowserContext,
+    rng: random.Random,
+    domain: str,
+    proxy_country: str,
+    cfg: dict | None = None,
+    use_fixture: bool = False,
+) -> None:
+    """Dwell naturally on any popunder/advertiser tabs and close them cleanly."""
+    extra_pages = list(context.pages[1:])
+    if not extra_pages:
+        return
+    await asyncio.sleep(rng.uniform(0.8, 1.8) if not use_fixture else 0.2)
+    for extra_page in context.pages[1:]:
+        try:
+            try:
+                await extra_page.wait_for_load_state("domcontentloaded", timeout=8000)
+            except Exception:
+                pass
+            payout_cfg = (cfg or {}).get("payout_safety") or {}
+            lead_cfg = (cfg or {}).get("lead_engine") or {}
+            explicit_skip = (
+                bool(payout_cfg["skip_lead_form_submit"])
+                if "skip_lead_form_submit" in payout_cfg
+                else (
+                    bool(lead_cfg["payout_safe_skip_submit"])
+                    if "payout_safe_skip_submit" in lead_cfg
+                    else None
+                )
+            )
+            engine = None
+            if explicit_skip is True:
+                skip_lead = True
+            else:
+                from lead_engine import LeadConversionEngine
+                engine = LeadConversionEngine(config=cfg)
+                skip_lead = bool(explicit_skip) if explicit_skip is not None else bool(getattr(engine, "payout_safe_skip_submit", False))
+            form_check = {"form_found": False} if skip_lead else await engine.detect_lead_form(extra_page)
+            if form_check.get("form_found") and engine and engine.enabled and not skip_lead:
+                logger.info("Pillar 2: Lead form detected on %s — executing Geo Persona + Sonjj Email conversion", extra_page.url)
+                await engine.fill_and_submit_lead(
+                    page=extra_page,
+                    domain=domain,
+                    rng=rng,
+                    country=proxy_country or "IN",
+                )
+            else:
+                popunder_dwell = rng.uniform(0.8, 1.5) if use_fixture else rng.uniform(10.0, 20.0)
+                t_start = time.time()
+                while time.time() - t_start < popunder_dwell:
+                    try:
+                        await extra_page.evaluate("window.scrollBy({top: 180, behavior: 'smooth'});")
+                    except Exception:
+                        pass
+                    await human.idle_drift(extra_page, rng, duration_s=0.6)
+                    await asyncio.sleep(min(rng.uniform(2.5, 4.5), max(0.0, popunder_dwell - (time.time() - t_start))))
+        except Exception as le_exc:
+            logger.debug("Lead Engine execution notice: %s", le_exc)
+        finally:
+            try:
+                await extra_page.close()
+            except Exception:
+                pass
+
+
 async def _attempt_ad_click(
     page: Page,
     rng: random.Random,
@@ -336,59 +401,10 @@ async def _attempt_ad_click(
         record_clicked_ad_slot(proxy_id, candidate["selector"])
         logger.debug("Smart clicked ad slot %s on proxy %s at (%.0f, %.0f)", candidate["selector"], proxy_id, tx, ty)
 
-        # Handle popunder / new advertiser tab with human dwell and scroll (never fire untrusted JS el.click())
-        await asyncio.sleep(rng.uniform(1.0, 2.0))
-        pages = page.context.pages
-        for extra_page in pages[1:]:
-            try:
-                try:
-                    await extra_page.wait_for_load_state("domcontentloaded", timeout=8000)
-                except Exception:
-                    pass
-                payout_cfg = (cfg or {}).get("payout_safety") or {}
-                lead_cfg = (cfg or {}).get("lead_engine") or {}
-                explicit_skip = (
-                    bool(payout_cfg["skip_lead_form_submit"])
-                    if "skip_lead_form_submit" in payout_cfg
-                    else (
-                        bool(lead_cfg["payout_safe_skip_submit"])
-                        if "payout_safe_skip_submit" in lead_cfg
-                        else None
-                    )
-                )
-                engine = None
-                if explicit_skip is True:
-                    skip_lead = True
-                else:
-                    from lead_engine import LeadConversionEngine
-                    engine = LeadConversionEngine(config=cfg)
-                    skip_lead = bool(explicit_skip) if explicit_skip is not None else bool(getattr(engine, "payout_safe_skip_submit", False))
-                form_check = {"form_found": False} if skip_lead else await engine.detect_lead_form(extra_page)
-                if form_check.get("form_found") and engine and engine.enabled and not skip_lead:
-                    logger.info("Pillar 2: Lead form detected on %s — executing Geo Persona + Sonjj Email conversion", extra_page.url)
-                    await engine.fill_and_submit_lead(
-                        page=extra_page,
-                        domain=domain,
-                        rng=rng,
-                        country=proxy_country or "IN",
-                    )
-                else:
-                    popunder_dwell = rng.uniform(14.0, 26.0)
-                    t_start = time.time()
-                    while time.time() - t_start < popunder_dwell:
-                        try:
-                            await extra_page.evaluate("window.scrollBy({top: 180, behavior: 'smooth'});")
-                        except Exception:
-                            pass
-                        await human.idle_drift(extra_page, rng, duration_s=0.6)
-                        await asyncio.sleep(rng.uniform(2.5, 4.5))
-            except Exception as le_exc:
-                logger.debug("Lead Engine execution notice: %s", le_exc)
-            finally:
-                try:
-                    await extra_page.close()
-                except Exception:
-                    pass
+        # Handle popunder / new advertiser tab with human dwell and scroll
+        await _handle_extra_popunder_pages(
+            page.context, rng, domain=domain, proxy_country=proxy_country or "IN", cfg=cfg
+        )
 
         return 1
     except Exception as exc:
@@ -492,7 +508,9 @@ async def run_session(
             b_ver = browser.version
             if b_ver:
                 chrome_major = b_ver.split(".")[0]
-                fp.user_agent = ua_provider.get_matching_ua(chrome_major, fp.is_mobile, seed_key=proxy.proxy_id)
+                fp.user_agent = ua_provider.get_matching_ua(
+                    chrome_major, fp.is_mobile, seed_key=proxy.proxy_id, browser_version=b_ver
+                )
                 fp_mod.sync_fingerprint_to_ua(fp, fp.user_agent)
     except Exception as ua_err:
         logger.debug("FP-1 UA sync notice: %s", ua_err)
@@ -544,6 +562,7 @@ async def run_session(
                             chrome_major,
                             fp.is_mobile,
                             seed_key=f"{proxy.proxy_id}:{mahi_profile.get('id', '')}",
+                            browser_version=browser.version,
                         )
                     fp_mod.sync_fingerprint_to_ua(fp, fp.user_agent)
         except Exception as mahi_err:
@@ -864,15 +883,17 @@ async def run_session(
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks
 
-        # First page
-        await on_page_loaded(page, start_url, 1)
-
-        # Multi-page navigation
+        # Multi-page navigation (invokes on_page_loaded for page 1 and each subsequent page)
         pages_visited, final_url = await nav.run_session_pages(
             page, start_url, cfg, rng,
             on_page_loaded=on_page_loaded,
         )
         result["pages"] = pages_visited
+
+        # Handle any popunder tabs opened during page interactions or internal navigation
+        await _handle_extra_popunder_pages(
+            context, rng, domain=target_domain, proxy_country=proxy_country or "IN", cfg=cfg, use_fixture=use_fixture
+        )
 
         # Remaining dwell after navigation
         elapsed = time.time() - t_on_page

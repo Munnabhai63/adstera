@@ -194,9 +194,9 @@ _DESKTOP_EXTENSIONS = [
         "version": "1.0.0.6",
     },
     {
-        "id": "cjpalhdlnbpafiamejdnhcphjbkeiagm",
-        "name": "uBlock Origin",
-        "version": "1.58.0",
+        "id": "aapbdbdomjkkjkaonfhkkikfgjllcleb",
+        "name": "Google Translate",
+        "version": "2.0.16",
     },
     {
         "id": "kbfnbcaeplbcioakkpcpgfkobkghlhen",
@@ -272,24 +272,23 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
     seed_bytes = proxy.fingerprint_seed          # sha256(proxy_id), 32 bytes
     rng = _SeededRng(seed_bytes)
 
-    # 80–85% desktop, 15–20% mobile
+    # 80–85% desktop, 15–20% mobile for proxy pools; ~72% mobile on cellular USB tethering
     if force_mobile is not None:
         is_mobile = force_mobile
+    elif proxy.proxy_id.startswith("mobile:"):
+        is_mobile = rng.chance(0.72)
     else:
         is_mobile = rng.chance(0.17)
 
-    desktop_pool = ua_provider.get_desktop_uas()
-    mobile_pool = ua_provider.get_mobile_uas()
-
     if is_mobile:
-        ua = rng.choice(mobile_pool)
+        ua = ua_provider.get_matching_ua("130", True, seed_key=proxy.proxy_id)
         vw, vh = rng.choice(_MOBILE_VIEWPORTS)
         platform = ua_provider.infer_platform(ua)
         hc = rng.choice([4, 6, 8])
         dm = rng.choice([2, 4])
         mtp = 5
     else:
-        ua = rng.choice(desktop_pool)
+        ua = ua_provider.get_matching_ua("130", False, seed_key=proxy.proxy_id)
         vw, vh = rng.choice(_DESKTOP_VIEWPORTS)
         platform = ua_provider.infer_platform(ua)
         hc = rng.choice([4, 6, 8, 12, 16])

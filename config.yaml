@@ -227,7 +227,7 @@ network:
   reconnect_poll_interval: 1.5
 adsterra_api:
   enabled: true
-  api_key: 23f635cd7b6e6709533dfe45f6ac0f94
+  api_key: ""  # Loaded securely from .env (ADSTERRA_API_KEY)
   endpoint: https://api3.adsterratools.com/publisher/stats.json
   sync_interval_min: 15
 payout_safety:
@@ -251,7 +251,7 @@ serp:
   max_serp_scroll_depth: 3
 telegram:
   enabled: true
-  bot_token: 9153118554:AAFfheV-T-3-uM1lF39aDv2LqKKvvGHWnQc
+  bot_token: ""  # Loaded securely from .env (TELEGRAM_BOT_TOKEN)
   chat_id: '5812452868'
   heartbeat_hours: 2
   daily_report_hour: 8

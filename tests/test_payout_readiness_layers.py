@@ -367,3 +367,201 @@ def test_worker_solo_network_and_skip_lead_submit(tmp_path, monkeypatch):
 
     asyncio.run(_run())
 
+
+def test_no_adblocker_extension_and_realistic_ua_distribution():
+    import ua_provider
+
+    ext_ids = {ext["id"] for ext in fp_mod._DESKTOP_EXTENSIONS}
+    ext_names = " ".join(ext["name"].lower() for ext in fp_mod._DESKTOP_EXTENSIONS)
+    assert "cjpalhdlnbpafiamejdnhcphjbkeiagm" not in ext_ids
+    assert "ublock" not in ext_names
+    assert "adblock" not in ext_names
+    assert fp_mod._DESKTOP_EXTENSIONS[0]["id"] == "ghbmnnjldmmeejimcflloakocagkodme"
+
+    win_count = 0
+    linux_count = 0
+    for i in range(100):
+        ua = ua_provider.get_matching_ua(
+            "138",
+            is_mobile=False,
+            seed_key=f"mobile:1.39.{i}.10",
+            browser_version="138.0.7204.0",
+        )
+        assert "138.0.6834.83" not in ua
+        assert not ("X11; Linux" in ua and "Edg/" in ua)
+        if "Windows NT" in ua:
+            win_count += 1
+        elif "X11; Linux" in ua:
+            linux_count += 1
+
+    assert win_count >= 65
+    assert linux_count <= 15
+
+    in_geo = GeoInfo(country="IN", region="MH", city="Mumbai", timezone="Asia/Kolkata", locale="en-IN")
+    mob_count = sum(1 for i in range(50) if fp_mod.build(Proxy(host=f"1.39.163.{i}", port=0, geo=in_geo)).is_mobile)
+    assert mob_count >= 28  # mobile-first (>55%) for cellular tethering
+
+    us_geo = GeoInfo(country="US", region="IL", city="Chicago", timezone="America/Chicago", locale="en-US")
+    proxy_mob_count = sum(1 for i in range(100) if fp_mod.build(Proxy(host=f"10.0.1.{i}", port=8080, geo=us_geo)).is_mobile)
+    assert proxy_mob_count <= 30  # desktop-dominant for regular proxy pools
+
+
+def test_desktop_extensions_reject_ublock_probe_in_runtime():
+    from playwright.async_api import async_playwright
+
+    async def _run():
+        proxy = Proxy(
+            host="1.39.163.44",
+            port=0,
+            geo=GeoInfo(country="IN", region="MH", city="Mumbai", timezone="Asia/Kolkata", locale="en-IN"),
+        )
+        fp = fp_mod.build(proxy, force_mobile=False)
+        assert all("ublock" not in ext["name"].lower() for ext in fp.extensions)
+
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True)
+            try:
+                context = await browser.new_context()
+                await context.add_init_script(fp_mod.init_script(fp))
+                page = await context.new_page()
+                ublock_detected = await page.evaluate("""async () => {
+                    try {
+                        await window.chrome.runtime.sendMessage('cjpalhdlnbpafiamejdnhcphjbkeiagm', { cmd: 'ping' });
+                        return true;
+                    } catch (e) {
+                        return false;
+                    }
+                }""")
+                assert ublock_detected is False
+            finally:
+                await browser.close()
+
+    asyncio.run(_run())
+
+
+def test_mobile_tether_pool_daily_cap_mark_dead_and_reset(monkeypatch):
+    async def _run():
+        ips = iter(["106.10.20.1", "106.10.20.1", "106.10.20.1", "106.10.20.2", "106.10.20.1"])
+        active = {"ip": "106.10.20.0"}
+
+        def _fake_rotate(dev_id="", wait_seconds=4.0, custom_path=""):
+            nxt = next(ips)
+            prev = active["ip"]
+            active["ip"] = nxt
+            return (True, prev, nxt, "rotated")
+
+        def _fake_ip(timeout=6.0):
+            return {"ip": active["ip"], "country": "IN", "region": "MH", "city": "Mumbai", "org": "Jio Cellular"}
+
+        monkeypatch.setattr(mobile_adb, "rotate_ip", _fake_rotate)
+        monkeypatch.setattr(mobile_adb, "get_public_ip", _fake_ip)
+
+        pool = MobileTetherPool({
+            "network": {"mode": "mobile_tether", "require_ip_rotation": False},
+            "proxy": {"max_uses_per_ip": 2},
+        })
+
+        p1 = await pool.acquire()
+        assert p1 is not None and p1.host == "106.10.20.1" and p1.uses_today == 1
+
+        p2 = await pool.acquire()
+        assert p2 is not None and p2.host == "106.10.20.1" and p2.uses_today == 2
+
+        # Third call gets capped 106.10.20.1 first, retries Airplane Mode, and switches to 106.10.20.2
+        p3 = await pool.acquire()
+        assert p3 is not None and p3.host == "106.10.20.2" and p3.uses_today == 1
+
+        pool.mark_dead(p3)
+        assert pool._ip_uses_today["106.10.20.2"] == 2
+
+        pool.reset_daily_counts()
+        assert pool._ip_uses_today == {}
+
+        p4 = await pool.acquire()
+        assert p4 is not None and p4.host == "106.10.20.1" and p4.uses_today == 1
+
+    asyncio.run(_run())
+
+
+def test_worker_executes_page_one_once_and_closes_popunders(tmp_path, monkeypatch):
+    from playwright.async_api import async_playwright
+    import random
+    import persist
+    import worker
+
+    monkeypatch.setattr(db, "_DB_PATH", tmp_path / "test_worker_page1.db")
+    monkeypatch.setattr(persist, "_STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(worker, "ACTIVE_UA_PATH", tmp_path / "state" / "active_ua.json")
+    db.init()
+
+    render_calls = []
+    orig_render = worker._ensure_ad_slots_rendered_and_viewed
+
+    async def _counting_render(page, rng, use_fixture=False):
+        render_calls.append(page.url)
+        return await orig_render(page, rng, use_fixture=use_fixture)
+
+    monkeypatch.setattr(worker, "_ensure_ad_slots_rendered_and_viewed", _counting_render)
+
+    cfg = yaml.safe_load(Path("config.yaml").read_text(encoding="utf-8"))
+    cfg["target"]["min_dwell"] = 1
+    cfg["target"]["max_dwell"] = 2
+    cfg["target"]["scroll_prob"] = 0.0
+    cfg["target"]["click_prob"] = 0.0
+    cfg["session"]["page_depth_min"] = 1
+    cfg["session"]["page_depth_max"] = 1
+    cfg["session"]["internal_nav_prob"] = 0.0
+    cfg["ab_testing"] = {"enabled": False}
+    cfg["push_notifications"] = {"enabled": False}
+    cfg["stats_csv_path"] = ""
+
+    async def _run():
+        proxy = Proxy(
+            host="106.20.30.51",
+            port=0,
+            geo=GeoInfo(country="IN", region="MH", city="Mumbai", timezone="Asia/Kolkata", locale="en-IN"),
+        )
+        async with async_playwright() as pw:
+            browser = await pw.chromium.launch(headless=True)
+            try:
+                res = await worker.run_session(pw, browser, proxy, cfg, random.Random(11), use_fixture=True)
+                assert res["status"] == "ok"
+                assert res["pages"] == 1
+                assert len(render_calls) == 1
+
+                # Direct test of _handle_extra_popunder_pages closing leftover tabs
+                ctx = await browser.new_context()
+                main_pg = await ctx.new_page()
+                await main_pg.set_content("<html><body>main</body></html>")
+                pop_pg = await ctx.new_page()
+                await pop_pg.set_content("<html><body>ad popunder</body></html>")
+                assert len(ctx.pages) == 2
+                await worker._handle_extra_popunder_pages(
+                    ctx, random.Random(3), domain="tazaloan.com", proxy_country="IN", cfg=cfg, use_fixture=True
+                )
+                assert len(ctx.pages) == 1
+                await ctx.close()
+            finally:
+                await browser.close()
+
+    asyncio.run(_run())
+
+
+def test_config_secrets_stripped_and_env_fallbacks(monkeypatch):
+    from adsterra_api import AdsterraApiClient
+    from alert_bot import TelegramAlertBot
+
+    cfg = yaml.safe_load(Path("config.yaml").read_text(encoding="utf-8"))
+    assert (cfg.get("adsterra_api") or {}).get("api_key", "") == ""
+    assert (cfg.get("telegram") or {}).get("bot_token", "") == ""
+
+    monkeypatch.setenv("ADSTERRA_API_KEY", "live_test_token_98765")
+    client = AdsterraApiClient(api_key=None)
+    assert client.is_mock_mode() is False
+
+    monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "123456:TESTTOKEN")
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "999999")
+    bot = TelegramAlertBot()
+    assert bot.is_live_configured() is True
+
+

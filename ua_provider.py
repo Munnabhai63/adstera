@@ -72,6 +72,23 @@ _REAL_CHROME_VERSIONS = [
     ("134", "134.0.6998.45"),
 ]
 
+# Authentic Chrome major -> Chromium release build numbers (prevents impossible major+build pairs)
+_CHROME_MAJOR_BUILDS: dict[str, tuple[str, ...]] = {
+    "128": ("128.0.6613.119", "128.0.6613.138"),
+    "129": ("129.0.6668.70", "129.0.6668.100"),
+    "130": ("130.0.6723.69", "130.0.6723.102"),
+    "131": ("131.0.6778.108", "131.0.6778.135"),
+    "132": ("132.0.6834.83", "132.0.6834.110"),
+    "133": ("133.0.6943.54", "133.0.6943.98"),
+    "134": ("134.0.6998.45", "134.0.6998.89"),
+    "135": ("135.0.7049.42", "135.0.7049.95"),
+    "136": ("136.0.7103.48", "136.0.7103.92"),
+    "137": ("137.0.7151.55", "137.0.7151.103"),
+    "138": ("138.0.7204.49", "138.0.7204.92", "138.0.7204.157"),
+    "139": ("139.0.7258.66", "139.0.7258.127"),
+    "140": ("140.0.7339.80", "140.0.7339.127"),
+}
+
 
 def _ensure_cache_dir() -> Path:
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -241,7 +258,7 @@ def _normalize_ua_for_chromium(ua: str, idx: int, is_mobile: bool) -> str:
     else:
         os_token = "Windows NT 10.0; Win64; x64"
 
-    if "edg/" in low:
+    if "edg/" in low and "linux" not in os_token.lower():
         return (
             f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 "
             f"(KHTML, like Gecko) Chrome/{ch_full} Safari/537.36 Edg/{ch_full}"
@@ -263,11 +280,48 @@ def _filter_recent_uas(ua_list: list[str], min_chrome_version: int = 118, is_mob
     return [_normalize_ua_for_chromium(ua, i, is_mobile) for i, ua in enumerate(ua_list)]
 
 
-def get_matching_ua(chrome_major: str, is_mobile: bool = False, seed_key: str = "") -> str:
+def _select_desktop_os_bucket(pool: list[str], seed_bytes: bytes, is_cellular: bool) -> list[str]:
+    """Partition desktop UAs with realistic Windows/macOS/Linux weights instead of raw 47% Linux."""
+    bucket = seed_bytes[8] % 100
+    if is_cellular:
+        # Indian cellular tethering laptops are predominantly Windows/macOS
+        win_cut, mac_cut = 82, 96
+    else:
+        win_cut, mac_cut = 72, 92
+
+    if bucket < win_cut:
+        sub = [u for u in pool if "Windows NT" in u]
+    elif bucket < mac_cut:
+        sub = [u for u in pool if "Macintosh" in u]
+    else:
+        sub = [u for u in pool if "X11; Linux" in u]
+    return sub if sub else pool
+
+
+def _resolve_chrome_build(chrome_major: str, existing_ua: str, seed_bytes: bytes, browser_version: str) -> str:
+    """Return an authentic Chrome X.Y.Z.W build string coherent with chrome_major."""
+    m_cur = re.search(r"Chrome/(\d+)\.([\d\.]+)", existing_ua)
+    if m_cur and m_cur.group(1) == str(chrome_major) and m_cur.group(2) != "0.0.0":
+        return f"{chrome_major}.{m_cur.group(2)}"
+
+    builds = _CHROME_MAJOR_BUILDS.get(str(chrome_major))
+    if builds:
+        return builds[seed_bytes[9] % len(builds)]
+
+    if browser_version and browser_version.startswith(f"{chrome_major}."):
+        return browser_version
+    return f"{chrome_major}.0.0.0"
+
+
+def get_matching_ua(
+    chrome_major: str,
+    is_mobile: bool = False,
+    seed_key: str = "",
+    browser_version: str = "",
+) -> str:
     """
     FP-1: Return a User-Agent from the 27,103 pool deterministically selected via seed_key
-    and aligned to the exact Chromium major version running (prevents LEAK-05 while
-    utilizing all 27,103 UAs).
+    and aligned to the exact Chromium major & authentic release build running.
     """
     import hashlib
     pool = get_mobile_uas() if is_mobile else get_desktop_uas()
@@ -276,16 +330,22 @@ def get_matching_ua(chrome_major: str, is_mobile: bool = False, seed_key: str = 
             return f"Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_major}.0.0.0 Mobile Safari/537.36"
         return f"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_major}.0.0.0 Safari/537.36"
 
+    seed_bytes = hashlib.sha256((seed_key or str(chrome_major)).encode("utf-8")).digest()
     if seed_key:
-        idx = int.from_bytes(hashlib.sha256(seed_key.encode("utf-8")).digest()[:8], "big") % len(pool)
-        chosen = pool[idx]
+        target_pool = (
+            _select_desktop_os_bucket(pool, seed_bytes, is_cellular=seed_key.startswith("mobile:"))
+            if not is_mobile
+            else pool
+        )
+        idx = int.from_bytes(seed_bytes[:8], "big") % len(target_pool)
+        chosen = target_pool[idx]
     else:
         target_pattern = f"Chrome/{chrome_major}."
         chosen = next((u for u in pool if target_pattern in u), pool[0])
 
-    # Align Chrome/<major> and Edg/<major> to the running browser's major version
-    chosen = re.sub(r"Chrome/\d+\.", f"Chrome/{chrome_major}.", chosen)
-    chosen = re.sub(r"Edg/\d+\.", f"Edg/{chrome_major}.", chosen)
+    target_build = _resolve_chrome_build(chrome_major, chosen, seed_bytes, browser_version)
+    chosen = re.sub(r"Chrome/\d+(?:\.[\d\.]+)?", f"Chrome/{target_build}", chosen)
+    chosen = re.sub(r"Edg/\d+(?:\.[\d\.]+)?", f"Edg/{target_build}", chosen)
     return chosen
 
 

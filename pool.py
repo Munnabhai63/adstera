@@ -361,6 +361,19 @@ class MobileTetherPool:
         self._cfg = cfg
         self._lock = asyncio.Lock()
         self._current_ip = ""
+        self._ip_uses_today: dict[str, int] = {}
+        self._ip_uses_date: str = time.strftime("%Y-%m-%d")
+
+    @staticmethod
+    def _subnet24(ip: str) -> str:
+        parts = (ip or "").split(".")
+        return ".".join(parts[:3]) if len(parts) == 4 else ""
+
+    def _rollover_daily_counts_if_needed(self) -> None:
+        today = time.strftime("%Y-%m-%d")
+        if today != self._ip_uses_date:
+            self._ip_uses_today.clear()
+            self._ip_uses_date = today
 
     async def acquire(self) -> Optional[Proxy]:
         """
@@ -369,7 +382,9 @@ class MobileTetherPool:
         """
         async with self._lock:
             import mobile_adb
+            self._rollover_daily_counts_if_needed()
             net_cfg = self._cfg.get("network") or {}
+            proxy_cfg = self._cfg.get("proxy") or {}
             dev_id = net_cfg.get("device_id", "")
             wait_s = float(net_cfg.get("airplane_mode_wait", 4.0))
             adb_path = net_cfg.get("adb_path", "")
@@ -377,6 +392,7 @@ class MobileTetherPool:
             max_attempts = max(1, int(net_cfg.get("max_rotation_attempts", 2)))
             reconnect_polls = max(0, int(net_cfg.get("reconnect_polls", 4)))
             poll_interval_s = float(net_cfg.get("reconnect_poll_interval", 1.5))
+            max_uses_per_ip = max(1, int(proxy_cfg.get("max_uses_per_ip", 12)))
 
             loop = asyncio.get_running_loop()
             previous_ip = self._current_ip
@@ -431,6 +447,15 @@ class MobileTetherPool:
                     )
                     continue
 
+                if self._ip_uses_today.get(current_ip, 0) >= max_uses_per_ip:
+                    logger.warning(
+                        "[Mobile ADB] Carrier reassigned capped IP %s (%d/%d uses today) — retrying Airplane Mode.",
+                        current_ip, self._ip_uses_today[current_ip], max_uses_per_ip,
+                    )
+                    previous_ip = current_ip
+                    verified_rotated = False
+                    continue
+
                 if not require_rotation:
                     verified_rotated = True
                     break
@@ -466,6 +491,14 @@ class MobileTetherPool:
                 )
                 return None
 
+            if previous_ip and self._subnet24(previous_ip) and self._subnet24(previous_ip) == self._subnet24(current_ip):
+                logger.info(
+                    "[Mobile ADB] Carrier assigned new IP in same /24 subnet (%s -> %s)",
+                    previous_ip, current_ip,
+                )
+
+            uses_now = self._ip_uses_today.get(current_ip, 0) + 1
+            self._ip_uses_today[current_ip] = uses_now
             self._current_ip = current_ip
 
             country = ip_info.get("country") or "IN"
@@ -486,16 +519,19 @@ class MobileTetherPool:
                 )
                 return None
             # port=0 signals direct mobile connection (no proxy server dict)
-            return Proxy(host=current_ip, port=0, geo=geo)
+            return Proxy(host=current_ip, port=0, geo=geo, uses_today=uses_now)
 
     def release(self, proxy: Proxy) -> None:
         pass
 
     def mark_dead(self, proxy: Proxy) -> None:
-        pass
+        if proxy and proxy.host:
+            max_uses = max(1, int((self._cfg.get("proxy") or {}).get("max_uses_per_ip", 12)))
+            self._ip_uses_today[proxy.host] = max_uses
 
     def reset_daily_counts(self) -> None:
-        pass
+        self._ip_uses_today.clear()
+        self._ip_uses_date = time.strftime("%Y-%m-%d")
 
     def __len__(self) -> int:
         return 1
