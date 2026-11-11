@@ -100,7 +100,17 @@ Sitemap: https://{domain}/sitemap.xml
             with open(llms_file, "w", encoding="utf-8") as f:
                 f.write(llms_content)
 
-    print("[Instant Indexer] IndexNow verification keys, robots.txt, and llms.txt provisioned across all domains.")
+            # 4. Cloudflare Pages _redirects (enforce non-www canonical 301 redirect)
+            redirects_file = os.path.join(d, "_redirects")
+            redirects_content = (
+                f"https://www.{domain}/* https://{domain}/:splat 301\n"
+                f"http://www.{domain}/* https://{domain}/:splat 301\n"
+                f"http://{domain}/* https://{domain}/:splat 301\n"
+            )
+            with open(redirects_file, "w", encoding="utf-8") as f:
+                f.write(redirects_content)
+
+    print("[Instant Indexer] IndexNow verification keys, robots.txt, llms.txt, and _redirects provisioned across all domains.")
 
 
 def update_sitemap_xml(site_id: str, new_url: str) -> None:

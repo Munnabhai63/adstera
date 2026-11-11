@@ -105,6 +105,53 @@ def test_register_bulk_and_render_balanced_banners(isolated_banner_state: pathli
     assert html_nat.count("<div") == html_nat.count("</div>")
 
 
+def test_register_anti_adblock_domain_dump_with_bauval_urls(isolated_banner_state: pathlib.Path) -> None:
+    bulk_dump = f"""
+karzseva.com
+
+Popunder
+<script data-cfasync="false" src="https://abscloud.org/1/{KEY_728}"></script>
+
+Social Bar
+<script data-cfasync="false" src="https://bauval.org/14/{KEY_300}"></script>
+
+Native Banner
+<script async="async" data-cfasync="false" src="https://bauval.org/21/{KEY_NAT}"></script>
+<div id="container-{KEY_NAT}"></div>
+
+Banner 300x250
+<script>
+  atOptions = {{
+    'key' : '{KEY_300}',
+    'format' : 'iframe',
+    'height' : 250,
+    'width' : 300,
+    'params' : {{}}
+  }};
+</script>
+<script src="https://bauval.org/22/{KEY_300}"></script>
+
+Banner 728x90
+<script>
+  atOptions = {{
+    'key' : '{KEY_728}',
+    'format' : 'iframe',
+    'height' : 90,
+    'width' : 728,
+    'params' : {{}}
+  }};
+</script>
+<script src="https://bauval.org/22/{KEY_728}"></script>
+"""
+    saved = adsterra_links.register_bulk_snippets("karzseva.com", bulk_dump)
+    assert len(saved) == 3
+    assert {item["slot"]: item["zone_key"] for item in saved} == {
+        "native_banner": KEY_NAT,
+        "banner_300x250": KEY_300,
+        "banner_728x90": KEY_728,
+    }
+
+
 def test_rejects_dummy_mismatched_and_wrong_slot_snippets(isolated_banner_state: pathlib.Path) -> None:
     dummy_hex = "0" * 32
     dummy_snippet = SNIPPET_300.replace(KEY_300, dummy_hex)

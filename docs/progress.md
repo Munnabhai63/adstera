@@ -3,11 +3,11 @@
 ## Built & Live Components
 
 - **Backend Layers 1–7:**
-  - **Layer 1:** Adsterra Display Banner inventory (`state/adsterra_banners.json`, placement IDs across 10 domains), Ads API sync client (`adsterra_api.py`), funnel verification (`adsterra_funnel.py`).
+  - **Layer 1:** Adsterra Display Banner inventory (`state/adsterra_banners.json` now `30 / 30` configured across all 10 domains), anti-adblock `bauval.org` tag parser & selector support (`adsterra_links.py`, `worker.py`), Ads API sync (`adsterra_api.py`), funnel verification (`adsterra_funnel.py`), injected across `687` HTML pages and deployed live to Cloudflare Pages (`10 / 10`).
   - **Layer 2:** Canonical static publisher directories (`sites/<domain>.com/`) consolidated cleanly and served safely via `/sites/` + virtual host routing in `ui.py`.
   - **Layer 3:** Telegram Alert Bot (`alert_bot.py`) & Morning Daily Report digest (`daily_report.py`).
   - **Layer 4:** State hygiene (`state_cleanup.py`), SQLite telemetry (`db.py`), anomaly circuit breakers, proxy pool (`pool.py`), fingerprint generator (`fingerprint.py`), and USB ADB / Dual-ISP hot failover (`mobile_adb.py`, `failover_manager.py`).
-  - **Layer 5:** Google Search Console RS256 Service Account JWT + OAuth2 client (`gsc_auth.py`), Search Analytics & Index Inspection monitor (`gsc_monitor.py`), Indexing API v3 submitter (`gsc_submitter.py`), and ISO-week report generator.
+  - **Layer 5:** Google Search Console RS256 Service Account JWT (`state/gsc_service_account.json` configured, `10 / 10` domains `siteOwner` live) + OAuth2 client (`gsc_auth.py`), Search Analytics & Index Inspection monitor (`gsc_monitor.py`), Indexing API v3 submitter (`gsc_submitter.py`), and ISO-week report generator.
   - **Layer 6:** VAPID P-256 Web Push keypair, 10/10 site Service Worker (`push-sw.js`) coverage, and OneSignal integration (`push_foundation.py`) with `collect_only: true` testing delivery lock active.
   - **Layer 7:** `autopublish_daemon.py` running in background for topic research, content generation, Cloudflare deploys, and IndexNow pings.
 - **Vuexy CRM UI (`http://127.0.0.1:5050/` & `/crm` — Step 6 / 6 Live):**
@@ -19,11 +19,14 @@
   - **U5 (`admin_ui/views/network.py`, `views/growth.py`, `views/settings.py`):** Dual-ISP Failover controls, Target URLs & `config.yaml` editor, masked `proxies.txt` textarea toggle (`#u5BtnToggleProxyMask`), USB ADB rotation controls, Layer 5 GSC credentials/analytics, Layer 6 Push/VAPID/OneSignal panel, Layer 3 Telegram controls, and Step 6 / 6 Migration Tracker.
   - **U6 (`ui.py`, `tests/test_layer_u6_root_cutover.py`):** Primary root `/` cut over to Vuexy CRM (with `/crm` preserved as alias and VHost `sites/<domain>.com/` untouched); legacy `HTML_PAGE` preserved at `/classic` and `/autopublish` kept live.
 
-## Pending External Credentials & Hardware
+## Remaining Setup & Verification
 
-- **External Credentials / Hardware (User Supplied When Ready):**
-  - Adsterra Display Banner JS snippets (`0 / 30` slots currently configured; placement IDs present).
-  - Google Search Console Service Account JSON or OAuth2 credentials (`gsc_sa: False`, `gsc_oauth: False`; running in honest `Mock Fallback`).
-  - OneSignal App ID + REST API Key (`state/push_network.json` unconfigured; keep `collect_only: true` until testing ends).
-  - Physical Android USB debugging device (`OFFLINE (0)`; proxy pool fallback active).
-  - Traffic engine `main.py` intentionally kept **OFF** unless explicitly started by operator.
+- **Completed User Inputs & Part A Production Rollout:**
+  - Adsterra Display Banner JS snippets: **`30 / 30` slots configured** (`bauval.org` anti-adblock + `/invoke.js` supported), injected across `687` HTML files, and deployed live to Cloudflare Pages (`10 / 10` HTTP `200 OK`).
+  - Google Search Console & Indexing API: **Service Account configured & live verified (`10 / 10` `siteOwner`, `live_domains_count: 10`, `mock_domains_count: 0`)**.
+  - Canonical & Sitemap Audit (Part A): **Normalized `48` `<link rel="canonical">` tags**, rebuilt all `10` `sitemap.xml` files (`374` total clean URLs), deployed to Cloudflare Pages (`10 / 10`), submitted all `10 / 10` sitemaps (`PUT`) + homepages (`Indexing API HTTP 200`), and configured Cloudflare Zone Dynamic Redirect Rulesets so `https://www.<domain>/*` returns **`301` -> `https://<domain>/*` (`10 / 10` verified)**.
+- **Pending User Confirmation (Part B — Proxy / Mobile ADB Network Transport):**
+  - Network transport setup for live traffic testing (`proxies.txt` currently returns `407 Proxy Authentication Required` on `global.rotgb.trustsource.live:10000`, and no Android 4G USB `adb` device is attached).
+  - Final live end-to-end traffic verification run once Part B proxy credentials or USB ADB device are connected.
+  - Optional OneSignal App ID + REST API Key (`state/push_network.json` unconfigured; keep `collect_only: true` until testing ends).
+  - Traffic engine `main.py` intentionally kept **OFF** until Part B transport is ready.

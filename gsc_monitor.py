@@ -279,35 +279,49 @@ class GSCMonitor:
         endpoint = f"{GSC_SEARCH_ANALYTICS_BASE}/{encoded}/searchAnalytics/query"
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
-        totals_resp = http.post(
-            endpoint,
-            headers=headers,
-            json={
-                "startDate": start_date,
-                "endDate": end_date,
-                "searchType": "web",
-                "dataState": "all",
-            },
-        )
-        if totals_resp.status_code != 200:
-            return totals_resp.status_code, {}, totals_resp.text[:250]
+        totals_resp = None
+        for attempt in range(2):
+            try:
+                totals_resp = http.post(
+                    endpoint,
+                    headers=headers,
+                    json={
+                        "startDate": start_date,
+                        "endDate": end_date,
+                        "searchType": "web",
+                        "dataState": "all",
+                    },
+                )
+                break
+            except Exception as exc:
+                if attempt == 1:
+                    return 504, {}, f"{type(exc).__name__}: {exc}"[:250]
+        if totals_resp is None or totals_resp.status_code != 200:
+            code = totals_resp.status_code if totals_resp is not None else 504
+            txt = totals_resp.text[:250] if totals_resp is not None else "Timeout"
+            return code, {}, txt
 
         totals_rows = totals_resp.json().get("rows", []) or []
         totals = totals_rows[0] if totals_rows else {}
 
-        detail_resp = http.post(
-            endpoint,
-            headers=headers,
-            json={
-                "startDate": start_date,
-                "endDate": end_date,
-                "dimensions": ["query", "page"],
-                "rowLimit": 25,
-                "searchType": "web",
-                "dataState": "all",
-            },
-        )
-        detail_rows = (detail_resp.json().get("rows", []) or []) if detail_resp.status_code == 200 else []
+        detail_rows: list[dict[str, Any]] = []
+        try:
+            detail_resp = http.post(
+                endpoint,
+                headers=headers,
+                json={
+                    "startDate": start_date,
+                    "endDate": end_date,
+                    "dimensions": ["query", "page"],
+                    "rowLimit": 25,
+                    "searchType": "web",
+                    "dataState": "all",
+                },
+            )
+            if detail_resp.status_code == 200:
+                detail_rows = detail_resp.json().get("rows", []) or []
+        except Exception as exc:
+            logger.debug("Detail query skipped for %s: %s", site_url, exc)
         return 200, {"totals": totals, "rows": detail_rows}, ""
 
     def fetch_domain_performance(

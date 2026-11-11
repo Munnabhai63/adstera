@@ -1,6 +1,6 @@
 # Architecture & Engineering Decisions (`docs/decisions.md`)
 
-> Detailed chronological decision log and Known Gaps live in [`DECISIONS.md`](../DECISIONS.md) (Decisions #1–#82). This quick index summarizes active architectural choices for every session start.
+> Detailed chronological decision log and Known Gaps live in [`DECISIONS.md`](../DECISIONS.md) (Decisions #1–#83). This quick index summarizes active architectural choices for every session start.
 
 | Area | Decision | Reason / Impact |
 |------|----------|-----------------|
@@ -9,3 +9,4 @@
 | **Frontend DOM & Accessibility** | Pure `createElement` / `textContent` builders (zero `innerHTML`), native HTML `<dialog>`, `<details>`, `input[type="checkbox" switch]`, `hidden="until-found"`, `focusgroup="toolbar wrap"` + JS keyboard fallbacks, and container-query responsive tables | Eliminates XSS sinks in admin scripts, follows `modern-web-guidance` progressive enhancement standards, and maintains `0px` horizontal overflow across `1440px`, `768px`, and `390px` viewports. |
 | **Credential Privacy** | Write-only credential forms (GSC JSON, OneSignal REST Key never returned to browser), `.gitignore`d `state/` secrets, zero secret tokens in `/api/profile` Connections summary, and default CSS blur mask + `aria-pressed` reveal toggle (`#u5BtnToggleProxyMask`) on `#u5ProxiesText` | Protects API tokens, `proxies.txt` `user:pass`, and Telegram bot tokens from UI leakage or screen-share exposure. |
 | **Site & Daemon Safety** | `sites/<domain>.com/` immutable during CRM work; `main.py` OFF; `autopublish_daemon.py` kept running; isolated pytest fixtures on `tmp_path` | Ensures automated test suites never corrupt live generated sites, `sessions.db`, or `state/` credentials. |
+| **Part A Adsterra & SEO Rollout** | Anti-adblock `bauval.org` tag support in `adsterra_links.py` & `worker.py`; canonical normalization (`48` files), clean `sitemap.xml` (`374` URLs), live GSC + Indexing API v3 submissions (`10/10`), and Cloudflare Zone `http_request_dynamic_redirect` (`www.` -> apex `301` on `10/10` zones) | Resolves `Duplicate, Google chose different canonical than user` warnings at the edge while ensuring all 30 Adsterra display banner slots and 10 sitemaps are live and indexed. |

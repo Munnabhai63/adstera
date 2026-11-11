@@ -242,6 +242,8 @@ def test_autopublish_daemon_error_hooks_on_failure(tmp_path: Path, monkeypatch) 
 
 
 def test_instant_indexer_records_honest_ping_status(tmp_path: Path, monkeypatch) -> None:
+    import gsc_auth
+
     ap_db = tmp_path / "autopublish.db"
     _create_test_autopublish_db(ap_db, "2026-11-11")
     monkeypatch.setattr(instant_indexer, "DB_PATH", str(ap_db))
@@ -249,6 +251,7 @@ def test_instant_indexer_records_honest_ping_status(tmp_path: Path, monkeypatch)
     monkeypatch.setattr(instant_indexer, "update_sitemap_xml", lambda site_id, url: None)
     monkeypatch.setattr(instant_indexer, "submit_to_indexnow", lambda dom, urls: False)
     monkeypatch.setattr(instant_indexer, "ping_google_sitemap", lambda dom: False)
+    monkeypatch.setattr(gsc_auth.GSCAuthManager, "is_configured", lambda self: False)
 
     ok = instant_indexer.broadcast_new_post("loankiseva", "https://loankiseva.com/mudra-post-1")
     assert ok is False

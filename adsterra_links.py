@@ -350,12 +350,12 @@ def parse_banner_snippet(raw_snippet: str, forced_slot: str | None = None) -> di
     if any(marker in low for marker in _DUMMY_MARKERS):
         raise ValueError("Rejected placeholder or dummy snippet marker.")
 
-    # Detect Standard atOptions banner (<script>atOptions = { 'key': '<32-hex>', ... }</script> + invoke.js)
+    # Detect Standard atOptions banner (<script>atOptions = { 'key': '<32-hex>', ... }</script> + invoke/anti-adblock script)
     key_match = re.search(r"""['"]key['"]\s*:\s*['"]([a-f0-9]{32})['"]""", snippet, re.IGNORECASE)
     width_match = re.search(r"""['"]width['"]\s*:\s*(\d+)""", snippet, re.IGNORECASE)
     height_match = re.search(r"""['"]height['"]\s*:\s*(\d+)""", snippet, re.IGNORECASE)
     invoke_match = re.search(
-        r"""<script[^>]+src=['"]((?:https?:)?//[^'"]+/([a-f0-9]{32})/invoke\.js)['"][^>]*>\s*</script>""",
+        r"""<script[^>]+src=['"]((?:https?:)?//[^'"]+/([a-f0-9]{32})(?:/invoke\.js)?(?:\?[^'"]*)?)['"][^>]*>\s*</script>""",
         snippet,
         re.IGNORECASE,
     )
@@ -439,8 +439,13 @@ def register_bulk_snippets(domain_or_key: str, bulk_text: str) -> list[dict[str,
     Parse multiple Adsterra banner snippets pasted together for a single domain
     (e.g. 728x90 + 300x250 + NativeBanner concatenated in one textarea) and save all valid ones.
     """
+    _script_src_pat = (
+        r"<script[^>]+src=['\"](?:https?:)?//[^'\"]+/[a-f0-9]{32}(?:/invoke\.js)?(?:\?[^'\"]*)?['\"][^>]*>\s*</script>"
+    )
+    _container_pat = r"<div[^>]+id=['\"]container-[a-f0-9]{32}['\"][^>]*>\s*</div>"
+    _at_opts_pat = r"<script[^>]*>(?:(?!</script>)[\s\S])*?atOptions(?:(?!</script>)[\s\S])*?</script>"
     chunks = re.findall(
-        r"(?:<script[^>]*>[\s\S]*?atOptions[\s\S]*?</script>\s*<script[^>]+invoke\.js[^>]*></script>|<script[^>]+invoke\.js[^>]*></script>\s*<div[^>]+id=['\"]container-[a-f0-9]{32}['\"][^>]*></div>|<div[^>]+id=['\"]container-[a-f0-9]{32}['\"][^>]*></div>\s*<script[^>]+invoke\.js[^>]*></script>)",
+        rf"(?:{_at_opts_pat}\s*{_script_src_pat}|{_script_src_pat}\s*{_container_pat}|{_container_pat}\s*{_script_src_pat})",
         bulk_text or "",
         re.IGNORECASE,
     )
