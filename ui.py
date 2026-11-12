@@ -3599,6 +3599,51 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "error": str(exc), "devices": [], "ip_info": {}})
             return
 
+        if path == "/api/phase4/health":
+            try:
+                from admin_ui.phase4_data import Phase4DashboardReader, load_phase4_config
+                reader = Phase4DashboardReader(load_phase4_config())
+                if hasattr(reader, "get_health"):
+                    health = reader.get_health()
+                else:
+                    snap = reader.get_dashboard_snapshot()
+                    db_status = str(snap.get("db_status", "error"))
+                    is_locked = db_status == "locked"
+                    health = {
+                        "ok": not is_locked,
+                        "service": "phase4_dashboard",
+                        "db_ok": bool(snap.get("ok")),
+                        "db_status": db_status,
+                        "error": snap.get("error", ""),
+                        "phase3_db_path": reader.config.phase3_db_path,
+                        "safe_mode_active": bool(
+                            (snap.get("kpis") or {}).get("safe_mode", {}).get("active", False)
+                        ),
+                        "generated_at": snap.get("generated_at", ""),
+                    }
+                status_code = 503 if str(health.get("db_status", "")) == "locked" or not health.get("ok") else 200
+                self._send_json(health, status=status_code)
+            except Exception as exc:
+                self._send_json({
+                    "ok": False,
+                    "service": "phase4_dashboard",
+                    "db_ok": False,
+                    "db_status": "error",
+                    "error": str(exc),
+                }, status=503)
+            return
+
+        if path == "/api/phase4/dashboard":
+            try:
+                from admin_ui.phase4_data import Phase4DashboardReader, load_phase4_config
+                reader = Phase4DashboardReader(load_phase4_config())
+                payload = reader.get_dashboard_snapshot()
+                status_code = 200 if payload.get("ok") else 503
+                self._send_json(json.loads(json.dumps(payload, default=str)), status=status_code)
+            except Exception as exc:
+                self._send_json({"ok": False, "db_status": "error", "error": str(exc)}, status=503)
+            return
+
         self.send_error(HTTPStatus.NOT_FOUND, "Not Found")
 
     def do_POST(self) -> None:
@@ -4154,6 +4199,22 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/force-stop":
             ok, msg = RUNNER.force_stop()
             self._send_json({"ok": ok, "msg": msg})
+            return
+
+        if path == "/api/phase4/calibration/run":
+            try:
+                from admin_ui.phase4_data import load_phase4_config
+                from phase3.calibration.monitor import CalibrationMonitor
+
+                p4_cfg = load_phase4_config()
+                monitor = CalibrationMonitor(
+                    db_path=p4_cfg.phase3_db_path,
+                    legacy_db_path=p4_cfg.legacy_db_path,
+                )
+                res = monitor.run_check()
+                self._send_json({"ok": True, "report": res})
+            except Exception as exc:
+                self._send_json({"ok": False, "error": str(exc)}, status=500)
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not Found")

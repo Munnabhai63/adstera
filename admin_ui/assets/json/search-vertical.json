@@ -2,6 +2,7 @@
   "suggestions": {
     "Workspaces": [
       { "name": "Overview & Live Ops", "icon": "tabler-smart-home", "url": "#overview" },
+      { "name": "Phase 4 Farm & AI Ops", "icon": "tabler-cpu", "url": "#phase4-farm" },
       { "name": "Operator Profile & Auth Lock", "icon": "tabler-user-shield", "url": "#profile" },
       { "name": "AutoPublish & 20-Topic CMS", "icon": "tabler-sparkles", "url": "#autopublish" },
       { "name": "Monetization & Banners", "icon": "tabler-currency-dollar", "url": "#monetization" }
@@ -16,6 +17,7 @@
   "navigation": {
     "workspaces": [
       { "name": "Overview & Live Ops (U1+U2)", "icon": "tabler-smart-home", "url": "#overview" },
+      { "name": "Phase 4 Farm & AI Ops", "icon": "tabler-cpu", "url": "#phase4-farm" },
       { "name": "Operator Profile & Security (U2.5)", "icon": "tabler-user-shield", "url": "#profile" },
       { "name": "AutoPublish & 20-Topic CMS (U3)", "icon": "tabler-sparkles", "url": "#autopublish" },
       { "name": "Monetization & Adsterra Vault (U4)", "icon": "tabler-currency-dollar", "url": "#monetization" },

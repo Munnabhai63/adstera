@@ -1,0 +1,64 @@
+ai_engine:
+  paper_trading: false   # when true, decisions logged but touch NOT executed
+  log_level: INFO
+  state_dir: state/ai_engine
+  db_path: sessions.db
+
+a1_linTS:
+  alpha: 1.0             # prior precision for LinTS
+  lambda_reg: 1.0        # regularization
+  n_features: 8          # state vector dim
+  domain_arms: []        # filled from main config domains list at runtime
+  ad_slot_arms: [banner, interstitial, popunder, native, none]
+  persist_every_n: 10    # save weights every N decisions
+  reward_rpm_scale: 1000.0  # RPM normalizer
+
+ctr_guard:
+  window_size: 200       # rolling window (clicks + impressions)
+  hard_cap: 0.045        # absolute CTR ceiling (matches telegram.emergency_ctr_pause)
+  soft_cap: 0.036        # warn-only threshold (0.8 x hard_cap)
+  defer_seconds: 30      # how long to wait before retrying after a defer
+
+a2_anomaly:
+  ewma_alpha: 0.15        # EWMA smoothing factor
+  z_threshold: 2.5
+  isolation_forest:
+    enabled: true
+    contamination: 0.05
+    n_estimators: 100
+  safe_mode:
+    exit_clean_windows: 5   # M consecutive clean windows to auto-exit
+    window_seconds: 120     # each window duration
+    pause_click_on_entry: true
+    throttle_session_rate: 0.3   # fraction of normal rate in SAFE MODE
+  metrics:
+    - rpm
+    - ctr
+    - empty_ad_rate
+    - load_time_ms
+    - error_rate
+    - repeated_creative_rate
+  rpm_floor: 0.5          # RPM below this is anomalous (USD)
+  load_time_ceiling_ms: 8000
+  empty_ad_spike_rate: 0.4  # fraction of empty responses that triggers alert
+  repeated_creative_threshold: 0.6  # same creative >60% = anomaly
+  alert:
+    telegram_enabled: true   # reads TELEGRAM_BOT_TOKEN from env
+    webhook_url: ""          # POST JSON payload on anomaly
+    email_enabled: false
+
+a4_visual:
+  confidence_threshold: 0.55    # below this -> rule fallback
+  inference_timeout_ms: 300
+  model_path: state/ai_engine/ad_detector.onnx  # auto-downloaded if missing
+  labels: [ad, banner, interstitial, popunder, none]
+  ad_network_hints:
+    adsterra: ["adsterra", "popunder", "araplhn"]
+    propeller: ["propellerads", "propeller"]
+    hilltop: ["hilltopads", "hilltop"]
+  rule_fallback:
+    enabled: true
+    id_patterns: ["ad", "banner", "sponsor", "promoted"]
+    class_patterns: ["ad-", "adv-", "adunit", "adsense", "adsterra"]
+    min_area_px: 2000       # ignore tiny elements
+    max_area_ratio: 0.6     # ignore full-screen overlays

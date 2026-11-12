@@ -8,6 +8,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from common.sqlite_utils import DEFAULT_BUSY_TIMEOUT_MS, sqlite_write_context
+
 logger = logging.getLogger(__name__)
 
 _DB_PATH = Path("sessions.db")
@@ -29,7 +31,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     geo_tier    TEXT    DEFAULT '',
     ad_network  TEXT    DEFAULT 'adsterra',
     variant_id  TEXT    DEFAULT 'default',
-    ts          TEXT    NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes'))
+    ts          TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS daily_stats (
@@ -145,7 +147,7 @@ CREATE TABLE IF NOT EXISTS published_posts (
     word_count  INTEGER NOT NULL,
     ai_score    REAL NOT NULL DEFAULT 5.0,
     url         TEXT NOT NULL,
-    published_at TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes'))
+    published_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS email_cache (
@@ -153,9 +155,9 @@ CREATE TABLE IF NOT EXISTS email_cache (
     email           TEXT UNIQUE NOT NULL,
     domain          TEXT NOT NULL,
     provider        TEXT NOT NULL DEFAULT 'sonjj',
-    created_at      TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
     expires_at      TEXT NOT NULL,
-    last_used_at    TEXT NOT NULL DEFAULT (datetime('now', '+5 hours', '30 minutes')),
+    last_used_at    TEXT NOT NULL DEFAULT (datetime('now')),
     use_count       INTEGER NOT NULL DEFAULT 1,
     is_active       INTEGER NOT NULL DEFAULT 1
 );
@@ -172,7 +174,7 @@ CREATE TABLE IF NOT EXISTS adsterra_handshakes (
     latency_ms        INTEGER DEFAULT 0,
     verified          INTEGER DEFAULT 1,
     reconciled        INTEGER DEFAULT 0,
-    ts                TEXT DEFAULT (datetime('now', '+5 hours', '30 minutes'))
+    ts                TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_adsterra_handshakes_domain ON adsterra_handshakes(domain, ts);
 
@@ -197,29 +199,25 @@ CREATE INDEX IF NOT EXISTS idx_push_subscribers_domain ON push_subscribers(domai
 
 
 @contextmanager
-def _conn():
-    con = sqlite3.connect(str(_DB_PATH), timeout=10)
-    con.row_factory = sqlite3.Row
-    try:
+def _conn(*, immediate: bool = False):
+    with sqlite_write_context(
+        _DB_PATH,
+        timeout_s=15.0,
+        busy_timeout_ms=DEFAULT_BUSY_TIMEOUT_MS,
+        immediate=immediate,
+        check_same_thread=False,
+        foreign_keys=False,
+        temp_store_memory=True,
+    ) as con:
         yield con
-        con.commit()
-    except Exception:
-        con.rollback()
-        raise
-    finally:
-        con.close()
 
 
 def init() -> None:
-    """Create tables if they don't exist, enable WAL mode (DB-1), IST timestamps (DB-2),
+    """Create tables if they don't exist, enable WAL mode (DB-1), UTC timestamps,
     and indexes (DB-3). Run incremental schema migrations."""
     with _conn() as con:
         # DB-1: Full WAL + performance PRAGMAs — no more lock errors at concurrency=6
-        con.execute("PRAGMA journal_mode=WAL")
-        con.execute("PRAGMA synchronous=NORMAL")
         con.execute("PRAGMA cache_size=10000")
-        con.execute("PRAGMA busy_timeout=5000")
-        con.execute("PRAGMA temp_store=MEMORY")
 
         con.executescript(_DDL)
 
@@ -275,7 +273,7 @@ def log_push_event(
     action: 'allow' | 'block' | 'skipped' | 'eu_skip' | 'allow_failed'
     Returns the new row id.
     """
-    with _conn() as con:
+    with _conn(immediate=True) as con:
         cur = con.execute(
             """
             INSERT INTO push_subscriptions
@@ -357,7 +355,7 @@ def log_cpa_conversion(
     status: 'submitted' | 'confirmed' | 'rejected' | 'pending'
     Returns the new row id.
     """
-    with _conn() as con:
+    with _conn(immediate=True) as con:
         cur = con.execute(
             """
             INSERT INTO cpa_conversions
@@ -462,11 +460,11 @@ def log_session(
 ) -> int:
     """Insert one session row and update daily_stats and domain_stats. Returns the new row id."""
     clean_domain = (domain or "loanraaj.com").lower().strip()
-    with _conn() as con:
+    with _conn(immediate=True) as con:
         cur = con.execute(
             """
-            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason, geo_country, geo_tier, ad_network, variant_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO sessions (proxy_id, ua, referrer, dwell, pages, ad_clicks, impressions, status, domain, error_reason, geo_country, geo_tier, ad_network, variant_id, ts)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             """,
             (proxy_id, ua, referrer, round(dwell, 2), pages, ad_clicks, impressions, status, clean_domain, error_reason or "", geo_country or "", geo_tier or "", ad_network or "adsterra", variant_id or "default"),
         )
@@ -1145,12 +1143,12 @@ def log_published_post(
     url: str,
 ) -> int:
     """Log a published article to database."""
-    with _conn() as con:
+    with _conn(immediate=True) as con:
         cur = con.execute(
             """
             INSERT INTO published_posts
-                (domain, title, slug, file_path, word_count, ai_score, url)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (domain, title, slug, file_path, word_count, ai_score, url, published_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
             """,
             (domain, title, slug, file_path, word_count, ai_score, url),
         )
@@ -1158,13 +1156,13 @@ def log_published_post(
 
 
 def get_published_count_today(domain: str = "") -> int:
-    """Count articles published today (IST) for a domain or all domains."""
+    """Count articles published today (UTC) for a domain or all domains."""
     with _conn() as con:
         if domain:
             row = con.execute(
                 """
                 SELECT COUNT(*) as c FROM published_posts
-                WHERE domain = ? AND date(published_at) = date('now', '+5 hours', '30 minutes')
+                WHERE domain = ? AND date(published_at) = date('now')
                 """,
                 (domain,),
             ).fetchone()
@@ -1172,7 +1170,7 @@ def get_published_count_today(domain: str = "") -> int:
             row = con.execute(
                 """
                 SELECT COUNT(*) as c FROM published_posts
-                WHERE date(published_at) = date('now', '+5 hours', '30 minutes')
+                WHERE date(published_at) = date('now')
                 """
             ).fetchone()
         return int(row["c"]) if row else 0
@@ -1270,13 +1268,13 @@ def log_adsterra_handshake(
     verified: int = 1,
 ) -> int:
     """Record an outbound Adsterra network handshake and gateway HTTP status."""
-    with _conn() as con:
+    with _conn(immediate=True) as con:
         cur = con.execute(
             """
             INSERT INTO adsterra_handshakes (
                 session_id, domain, proxy_id, ad_url, status_code,
-                destination_url, latency_ms, verified
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                destination_url, latency_ms, verified, ts
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
             """,
             (
                 int(session_id),

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PhoneAgent</string>
+
+    <!-- Accessibility Service rationale and labels -->
+    <string name="accessibility_service_label">PhoneAgent Gesture Controller</string>
+    <string name="accessibility_service_description">Allows PhoneAgent to perform verified tap and scroll gestures inside Chrome when triggered by the local ADB-forwarded host controller on 127.0.0.1. No screen text or personal data is collected or transmitted off-device.</string>
+    <string name="accessibility_rationale_title">Accessibility Permission Required</string>
+    <string name="accessibility_rationale_body">PhoneAgent uses Android AccessibilityService gesture dispatch (dispatchGesture) to execute tap and scroll actions in Chrome solely from local ADB-forwarded commands on 127.0.0.1. Enable PhoneAgent Gesture Controller in System Accessibility Settings to allow gesture execution.</string>
+    <string name="btn_open_accessibility_settings">Open Accessibility Settings</string>
+    <string name="btn_start_foreground_service">Start Local Control Service</string>
+
+    <!-- Foreground Service Notification strings -->
+    <string name="fg_channel_name">PhoneAgent Local Control</string>
+    <string name="fg_channel_description">Keeps the localhost ADB-forwarded WebSocket gesture server active while running sessions.</string>
+    <string name="fg_notification_title">PhoneAgent Active (Localhost Only)</string>
+    <string name="fg_notification_text">Listening on 127.0.0.1:8765 via ADB port forwarding for verified UI gestures.</string>
+</resources>

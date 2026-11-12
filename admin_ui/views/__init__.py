@@ -6,6 +6,7 @@ from admin_ui.views.login import render_login_view
 from admin_ui.views.monetization import render_monetization_view
 from admin_ui.views.network import render_network_view
 from admin_ui.views.overview import render_overview_view
+from admin_ui.views.phase4_farm import render_phase4_farm_view
 from admin_ui.views.profile import render_profile_view
 from admin_ui.views.settings import render_settings_view
 
@@ -16,6 +17,7 @@ __all__ = [
     "render_monetization_view",
     "render_network_view",
     "render_overview_view",
+    "render_phase4_farm_view",
     "render_profile_view",
     "render_settings_view",
 ]

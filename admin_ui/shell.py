@@ -8,6 +8,7 @@ from admin_ui.views import (
     render_monetization_view,
     render_network_view,
     render_overview_view,
+    render_phase4_farm_view,
     render_profile_view,
     render_settings_view,
 )
@@ -47,6 +48,13 @@ def _render_sidebar() -> str:
         <i class="menu-icon icon-base ti tabler-smart-home"></i>
         <div>Overview &amp; Live Ops</div>
         <span class="badge text-bg-success rounded-pill ms-auto">U2</span>
+      </a>
+    </li>
+    <li class="menu-item">
+      <a href="#phase4-farm" class="menu-link" data-crm-view="phase4-farm">
+        <i class="menu-icon icon-base ti tabler-cpu"></i>
+        <div>Phase 4 Farm &amp; AI Ops</div>
+        <span class="badge text-bg-secondary rounded-pill ms-auto" id="sidebarPhase4Badge">P4</span>
       </a>
     </li>
     <li class="menu-item">
@@ -208,6 +216,11 @@ def _render_navbar() -> str:
                 <a href="/autopublish" class="stretched-link">AutoPublish</a>
                 <small>Pipeline Stream</small>
               </div>
+              <div class="dropdown-shortcuts-item col">
+                <span class="dropdown-shortcuts-icon rounded-circle mb-3"><i class="icon-base ti tabler-cpu icon-26px text-heading"></i></span>
+                <a href="#phase4-farm" class="stretched-link" data-crm-view="phase4-farm">Phase 4 Farm</a>
+                <small>CGNAT &amp; AI Ops</small>
+              </div>
             </div>
           </div>
         </div>
@@ -314,6 +327,7 @@ def render_crm_shell() -> str:
     sidebar = _render_sidebar()
     navbar = _render_navbar()
     overview = render_overview_view()
+    phase4_view = render_phase4_farm_view(active=False)
     autopublish_view = render_autopublish_view()
     monetization_view = render_monetization_view()
     network_view = render_network_view()
@@ -398,6 +412,7 @@ def render_crm_shell() -> str:
               </div>
 
               {overview}
+              {phase4_view}
               {autopublish_view}
               {monetization_view}
               {network_view}
@@ -444,6 +459,7 @@ def render_crm_shell() -> str:
     <script src="/crm-assets/js/main.js"></script>
     <script src="/crm-assets/js/crm-shell.js"></script>
     <script src="/crm-assets/js/crm-overview.js"></script>
+    <script src="/crm-assets/js/crm-phase4.js"></script>
     <script src="/crm-assets/js/crm-autopublish.js"></script>
     <script src="/crm-assets/js/crm-monetization.js"></script>
     <script src="/crm-assets/js/crm-network-growth.js"></script>

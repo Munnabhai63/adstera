@@ -8,6 +8,7 @@
 
   const VALID_VIEWS = [
     "overview",
+    "phase4-farm",
     "autopublish",
     "monetization",
     "network",
@@ -18,6 +19,7 @@
 
   const VIEW_META = {
     overview: { title: "Overview & Live Ops", layer: "Layer U1 + U2" },
+    "phase4-farm": { title: "Phase 4 Farm, CGNAT & AI Ops", layer: "Phase 3 + Phase 4" },
     autopublish: { title: "AutoPublish & 20-Topic CMS", layer: "Layer U3" },
     monetization: { title: "Monetization, Adsterra & Leads", layer: "Layer U4" },
     network: { title: "Network, Proxies, ADB & Config", layer: "Layer U5" },
@@ -311,6 +313,27 @@
       if (manualPing) {
         showToast(`Live API health OK (${latencyMs} ms)`);
       }
+
+      // Non-blocking Phase 4 health probe for sidebar badge
+      (async () => {
+        try {
+          const p4Badge = document.getElementById("sidebarPhase4Badge");
+          if (!p4Badge) return;
+          const rP4 = await fetch("/api/phase4/health", { cache: "no-store" });
+          if (!rP4.ok) return;
+          const p4Data = await rP4.json();
+          if (p4Data.safe_mode_active) {
+            p4Badge.textContent = "SAFE";
+            p4Badge.className = "badge text-bg-danger rounded-pill ms-auto";
+          } else if (p4Data.db_ok) {
+            p4Badge.textContent = "OK";
+            p4Badge.className = "badge text-bg-success rounded-pill ms-auto";
+          } else {
+            p4Badge.textContent = "P4";
+            p4Badge.className = "badge text-bg-secondary rounded-pill ms-auto";
+          }
+        } catch (_) {}
+      })();
     } catch (err) {
       const pingOut = document.getElementById("u1ApiPingReadout");
       if (pingOut) pingOut.textContent = `Telemetry check error: ${err}`;

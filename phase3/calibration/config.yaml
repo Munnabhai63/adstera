@@ -1,0 +1,26 @@
+# Phase 4 Calibration & Drift Monitoring Configuration
+# Environment overrides:
+#   PHASE4_CALIBRATION_WINDOW_DAYS -> rolling_window_days
+#   PHASE4_DB_PATH                 -> db_path
+#   PHASE4_LEGACY_DB_PATH          -> legacy_db_path
+#   PHASE4_CHECK_INTERVAL_SECONDS  -> check_interval_seconds
+# Secrets (Telegram / Webhook) MUST come from environment variables only.
+
+rolling_window_days: 30
+target_coverage: 0.80
+min_acceptable_coverage: 0.65
+max_acceptable_coverage: 0.95
+rpm_mape_drift_threshold: 0.35
+rpm_bias_threshold: 0.30
+min_samples_for_drift_check: 5
+db_path: state/phase3/phase3.db
+legacy_db_path: sessions.db
+check_interval_seconds: 3600
+db_timeout_seconds: 2.0
+log_level: INFO
+
+alerts:
+  telegram_token_env_var: TELEGRAM_BOT_TOKEN
+  telegram_chat_id_env_var: TELEGRAM_CHAT_ID
+  webhook_url_env_var: PHASE3_ALERT_WEBHOOK_URL
+  timeout_seconds: 10.0

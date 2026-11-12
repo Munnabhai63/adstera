@@ -1,0 +1,16 @@
+# Phase 4 Admin Dashboard Configuration
+# Environment variable overrides:
+#   PHASE4_DASHBOARD_HOST
+#   PHASE4_DASHBOARD_PORT
+#   PHASE4_DB_PATH
+#   PHASE4_SAFE_MODE_PATH
+#   PHASE4_LEGACY_DB_PATH
+
+host: "127.0.0.1"
+port: 5054
+phase3_db_path: "state/phase3/phase3.db"
+safe_mode_path: "state/phase3/ai_engine/safe_mode.json"
+legacy_db_path: "sessions.db"
+refresh_interval_ms: 5000
+max_rows: 200
+sqlite_timeout_seconds: 0.5

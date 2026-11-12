@@ -99,7 +99,7 @@ class SonjjEmailClient:
                     """
                     SELECT COUNT(*) as cnt FROM email_cache 
                     WHERE provider = 'sonjj' 
-                    AND date(created_at) = date('now', '+5 hours', '30 minutes')
+                    AND date(created_at) = date('now')
                     """
                 ).fetchone()
                 return int(row["cnt"]) if row else 0
@@ -110,14 +110,14 @@ class SonjjEmailClient:
     def _get_active_cached_email(self) -> Optional[Dict[str, Any]]:
         """Find an active cached email that has not exceeded max reuse count and is not expired."""
         try:
-            with db._conn() as con:
+            with db._conn(immediate=True) as con:
                 row = con.execute(
                     """
                     SELECT id, email, domain, use_count, expires_at 
                     FROM email_cache 
                     WHERE is_active = 1 
                     AND use_count < ? 
-                    AND datetime(expires_at) > datetime('now', '+5 hours', '30 minutes')
+                    AND datetime(expires_at) > datetime('now')
                     ORDER BY use_count ASC, created_at DESC, id DESC LIMIT 1
                     """,
                     (self.max_uses_per_email,),
@@ -128,7 +128,7 @@ class SonjjEmailClient:
                         """
                         UPDATE email_cache 
                         SET use_count = use_count + 1, 
-                            last_used_at = datetime('now', '+5 hours', '30 minutes')
+                            last_used_at = datetime('now')
                         WHERE id = ?
                         """,
                         (row["id"],),
@@ -141,12 +141,12 @@ class SonjjEmailClient:
     def _save_email_to_cache(self, email: str, domain: str, expiry_minutes: int, initial_use_count: int = 0) -> None:
         """Store newly provisioned email in local SQLite cache."""
         try:
-            with db._conn() as con:
+            with db._conn(immediate=True) as con:
                 modifier = f"+{int(expiry_minutes)} minutes"
                 con.execute(
                     """
                     INSERT INTO email_cache (email, domain, provider, created_at, expires_at, use_count, is_active)
-                    VALUES (?, ?, 'sonjj', datetime('now', '+5 hours', '30 minutes'), datetime('now', '+5 hours', '30 minutes', ?), ?, 1)
+                    VALUES (?, ?, 'sonjj', datetime('now'), datetime('now', ?), ?, 1)
                     ON CONFLICT(email) DO UPDATE SET 
                         use_count = excluded.use_count,
                         created_at = excluded.created_at,

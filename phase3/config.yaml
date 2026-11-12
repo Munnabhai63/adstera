@@ -1,0 +1,138 @@
+# Phase 3 Unified Configuration — Zero magic numbers in Python/Java source.
+# Secrets (API keys, Telegram tokens, live confirmation tokens) MUST come from env vars only.
+
+phase3:
+  default_mode: paper             # "paper" (safe default) | "live" (requires --live + env token)
+  live_confirm_env_var: PHASE3_LIVE_CONFIRM_TOKEN
+  live_confirm_required_phrase: "CONFIRM_LIVE_EXECUTION"
+  db_path: state/phase3/phase3.db
+  ai_engine_config: ai_engine_config.yaml
+  legacy_config: config.yaml
+  state_dir: state/phase3
+  log_level: INFO
+  json_logs: true
+
+adsterra:
+  api_key_env_var: ADSTERRA_API_KEY
+  cache_ttl_seconds: 300
+  default_ecpm_usd: 0.50
+  default_ctr: 0.02
+  fallback_mock_on_missing_key: true
+
+alerts:
+  telegram_token_env_var: TELEGRAM_BOT_TOKEN
+  telegram_chat_id_env_var: TELEGRAM_CHAT_ID
+  webhook_url_env_var: PHASE3_ALERT_WEBHOOK_URL
+
+safety:
+  aggregate_ctr_hard_cap: 0.045
+  aggregate_ctr_soft_cap: 0.036
+  per_device_ctr_hard_cap: 0.045
+  ctr_window_size: 200
+  anomaly_z_threshold: 2.5
+  safe_mode_throttle_factor: 0.30
+  safe_mode_exit_clean_windows: 5
+  require_a4_bbox_for_gesture: true
+  require_a2_ok_for_gesture: true
+
+a6_scheduler:
+  base_sessions_per_hour: 90.0
+  # 24-hour relative diurnal intensity weights (00:00 .. 23:00 local time)
+  diurnal_curve:
+    - 0.25
+    - 0.18
+    - 0.14
+    - 0.12
+    - 0.14
+    - 0.28
+    - 0.52
+    - 0.78
+    - 0.95
+    - 1.00
+    - 0.92
+    - 0.86
+    - 0.82
+    - 0.85
+    - 0.90
+    - 0.94
+    - 0.98
+    - 1.00
+    - 0.95
+    - 0.84
+    - 0.68
+    - 0.52
+    - 0.40
+    - 0.32
+  weekday_scale: [1.0, 1.05, 1.08, 1.06, 1.0, 0.72, 0.66]
+  min_delay_seconds: 0.5
+  max_delay_seconds: 600.0
+  burst_probability: 0.15
+  burst_multiplier: 1.8
+
+cgnat_tracker:
+  slash24_cooldown_seconds: 1800   # 30 minutes before same /24 subnet can start a new session
+  slash20_cooldown_seconds: 600    # 10 minutes before same /20 carrier block can start a new session
+  slot_ttl_seconds: 3600           # auto-expire abandoned active locks after 1 hour
+  allow_missing_ip_in_paper: true  # paper mode may proceed with synthetic subnet if offline
+
+a3_forecaster:
+  quantiles: [0.10, 0.50, 0.90]
+  min_history_days: 7
+  max_history_days: 60
+  irls_max_iter: 100
+  irls_tol: 1.0e-6
+  irls_epsilon: 1.0e-5
+  default_impressions_per_day: 1000.0
+  fallback_iqr_spread: 0.20
+
+a5_seo_gate:
+  gamma_prior_alpha: 1.5           # Gamma prior shape for RPM/click intensity
+  gamma_prior_beta: 1.0            # Gamma prior rate
+  gsc_ctr_weight: 0.45
+  adsterra_rpm_weight: 0.55
+  position_decay_base: 0.85
+  burstiness_min: 0.20             # CV of sentence lengths (std / mean): below = overly uniform AI prose
+  burstiness_max: 1.80             # above = erratic gibberish
+  zipf_entropy_min: 4.50           # Shannon entropy (bits) of word distribution
+  zipf_entropy_max: 10.50
+  zipf_slope_min: 0.55             # |slope| of log(rank) vs log(freq)
+  zipf_slope_max: 1.55
+  min_word_count: 80
+  min_sentence_count: 5
+
+b2_farm:
+  target_daily_sessions: 2000
+  min_devices: 1
+  max_devices: 10
+  poll_interval_seconds: 1.0
+  session_timeout_seconds: 90.0
+  usb_port_map:
+    # Logical USB hub port slots -> host CDP forward port ranges (no device serials hardcoded here)
+    port_1: 9222
+    port_2: 9223
+    port_3: 9224
+    port_4: 9225
+    port_5: 9226
+    port_6: 9227
+    port_7: 9228
+    port_8: 9229
+    port_9: 9230
+    port_10: 9231
+  health:
+    max_consecutive_failures: 3
+    quarantine_cooldown_seconds: 300
+    recovery_probe_interval_seconds: 60
+
+b1_android:
+  enabled: true
+  fallback_to_adb: true
+  package_name: com.adsterra.phoneagent
+  control_transport: websocket     # local WebSocket over adb forward tcp:<port> tcp:8765
+  device_listen_port: 8765
+  host_port_base: 9320
+  connect_timeout_seconds: 3.0
+  command_timeout_seconds: 5.0
+  gesture_min_duration_ms: 45
+  gesture_max_duration_ms: 140
+  scroll_min_duration_ms: 280
+  scroll_max_duration_ms: 650
