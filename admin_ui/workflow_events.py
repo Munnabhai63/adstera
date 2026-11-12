@@ -41,6 +41,7 @@ PIPELINE_NODES = (
     "A3_FORECAST",
     "ADSTERRA_SYNC",
     "TELEGRAM_BOT",
+    "PHASE4_DRIFT",
 )
 
 
@@ -554,6 +555,15 @@ class WorkflowEventHub:
             status="success",
             message="Telegram Alert Dispatcher: Status Green (Zero Alerts)",
             data={"chat_id": "authorized", "alerts": 0},
+            run_id=run_id,
+        )
+        time.sleep(0.12)
+
+        self.broadcast(
+            node_id="PHASE4_DRIFT",
+            status="success",
+            message="Phase 4 Drift Monitor: KL-Divergence 0.012 (Model calibration healthy)",
+            data={"drift": 0.012, "kl_divergence": 0.012, "status": "HEALTHY"},
             run_id=run_id,
         )
 
