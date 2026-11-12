@@ -3621,7 +3621,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                         ),
                         "generated_at": snap.get("generated_at", ""),
                     }
-                status_code = 503 if str(health.get("db_status", "")) == "locked" or not health.get("ok") else 200
+                db_stat = str(health.get("db_status", ""))
+                is_unhealthy = db_stat in ("locked", "missing", "error") or not health.get("ok")
+                health["ok"] = not is_unhealthy
+                status_code = 503 if is_unhealthy else 200
                 self._send_json(health, status=status_code)
             except Exception as exc:
                 self._send_json({

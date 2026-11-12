@@ -22,7 +22,9 @@
   }
 
   function toast(msg, type = "info") {
-    if (window.CRM && typeof window.CRM.toast === "function") {
+    if (window.AdsterraShell && typeof window.AdsterraShell.toast === "function") {
+      window.AdsterraShell.toast(msg, type);
+    } else if (window.CRM && typeof window.CRM.toast === "function") {
       window.CRM.toast(msg, type);
     }
   }
@@ -31,6 +33,21 @@
     while (el && el.firstChild) {
       el.removeChild(el.firstChild);
     }
+  }
+
+  function formatCurrency(val, decimals) {
+    if (typeof val === "string" && val.startsWith("$")) {
+      const num = parseFloat(val.replace(/[^0-9.-]+/g, ""));
+      if (!Number.isFinite(num) || num === 0) return "$0.00";
+      if (Math.abs(num) > 0 && Math.abs(num) < 0.01) return "$" + num.toFixed(4);
+      return "$" + num.toFixed(decimals != null ? decimals : 3);
+    }
+    const n = Number(val || 0);
+    if (!Number.isFinite(n) || n === 0) return "$0.00";
+    if (Math.abs(n) > 0 && Math.abs(n) < 0.01) {
+      return "$" + n.toFixed(4);
+    }
+    return "$" + n.toFixed(decimals != null ? decimals : 3);
   }
 
   function safeUrl(raw) {
@@ -199,7 +216,7 @@
     const rateEl = document.getElementById("u4KpiRateBadge");
     const sessEl = document.getElementById("u4KpiSessions");
 
-    if (revEl) revEl.textContent = String(f.api_revenue || "$0.000");
+    if (revEl) revEl.textContent = formatCurrency(f.api_revenue);
     if (apiImpsEl) {
       apiImpsEl.textContent = `${f.api_impressions || 0} Imps / ${f.api_clicks || 0} Clicks Counted`;
     }
@@ -429,7 +446,7 @@
 
       const tdRev = document.createElement("td");
       tdRev.className = "tabular-nums fw-semibold text-success";
-      tdRev.textContent = `$${Number(r.api_revenue || 0).toFixed(3)}`;
+      tdRev.textContent = formatCurrency(r.api_revenue);
       tr.appendChild(tdRev);
 
       const tdLoc = document.createElement("td");

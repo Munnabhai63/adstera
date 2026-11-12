@@ -180,6 +180,11 @@ class Phase3LiveOrchestrator:
             )
         )
         self.adsterra = adsterra_feed if adsterra_feed is not None else AdsterraFeedAdapter(self.cfg)
+        if hasattr(self.ai, "a1") and hasattr(self.ai.a1, "load_weights"):
+            try:
+                self.ai.a1.load_weights()
+            except Exception as exc:
+                logger.debug("Phase3LiveOrchestrator bandit load_weights: %s", exc)
 
         if self.live_refused_reason:
             log_event(

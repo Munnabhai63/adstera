@@ -132,9 +132,9 @@ class Phase4RequestHandler(BaseHTTPRequestHandler):
         if req_path == "/api/phase4/health":
             snap = self.server.reader.get_dashboard_snapshot()
             db_status = str(snap.get("db_status", "error"))
-            is_locked = db_status == "locked"
+            is_unhealthy = db_status in ("locked", "missing", "error") or not snap.get("ok")
             health = {
-                "ok": not is_locked,
+                "ok": not is_unhealthy,
                 "service": "phase4_dashboard",
                 "db_ok": bool(snap.get("ok")),
                 "db_status": db_status,
@@ -145,7 +145,7 @@ class Phase4RequestHandler(BaseHTTPRequestHandler):
                 ),
                 "generated_at": snap.get("generated_at", ""),
             }
-            self._send_json(503 if is_locked else 200, health)
+            self._send_json(503 if is_unhealthy else 200, health)
             return
 
         if req_path.startswith("/crm-assets/"):

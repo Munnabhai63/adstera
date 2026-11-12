@@ -290,3 +290,29 @@ class Phase3Store:
                 (int(limit),),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    def check_ctr_cap_atomic(
+        self,
+        *,
+        device_id: str = "",
+        hard_cap: float = 0.045,
+        window_size: int = 20,
+        candidate_click: bool = True,
+    ) -> bool:
+        """Atomically verify candidate click would not breach CTR hard cap using BEGIN IMMEDIATE."""
+        with self.connect(immediate=True) as conn:
+            query = "SELECT action FROM p3_decisions_rewards "
+            params: List[Any] = []
+            if device_id:
+                query += "WHERE device_id = ? "
+                params.append(device_id)
+            query += "ORDER BY id DESC LIMIT ?"
+            params.append(int(window_size))
+            rows = conn.execute(query, tuple(params)).fetchall()
+            if not rows or len(rows) < 10:
+                return True
+            clicks = sum(1 for r in rows if r["action"] in ("click", "paper_click"))
+            if candidate_click:
+                clicks += 1
+            ctr = clicks / max(1, len(rows) + (1 if candidate_click else 0))
+            return ctr <= hard_cap

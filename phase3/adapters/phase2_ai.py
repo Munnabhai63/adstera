@@ -60,6 +60,10 @@ class Phase2AIAdapter:
         self.a2 = AnomalyDetector(self.ai_cfg, store=self.store, safe_mode=self.safe_mode)
         self.a4 = VisualAdDetector.from_config(self.ai_cfg)
         self.a1 = LinTSBandit(self.ai_cfg, seed=seed)
+        try:
+            self.a1.load_weights()
+        except Exception as exc:
+            logger.debug("Phase2AIAdapter bandit load_weights: %s", exc)
 
     def _sync_safety_config(self, *, paper: bool) -> None:
         safety = self.phase3_cfg.safety

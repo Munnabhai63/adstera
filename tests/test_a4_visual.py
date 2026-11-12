@@ -237,3 +237,41 @@ def test_rule_fallback_chrome_webview_adsterra_and_dev_tty_suffix():
     assert result.confidence >= 0.55
     # Must not match "5 min read" or "toolbar_container" or pick disclosure TextView
     assert all(b.y != 2647 and b.y != 1161 and b.y != 129 for b in result.boxes)
+
+
+def test_a4_from_config_dataclass_and_false_positive_elimination():
+    """Verify VisualAdDetector.from_config parses dataclass properly and eliminates false positives for 'ad'."""
+    from ai_engine.a4_visual.detector import RuleFallbackDetector, VisualAdDetector
+    from ai_engine.config import AIConfig, load_ai_config
+
+    cfg = load_ai_config(None)
+    assert isinstance(cfg, AIConfig)
+    # 1. from_config accepts AIConfig dataclass
+    detector = VisualAdDetector.from_config(cfg)
+    assert detector.confidence_threshold == cfg.a4_visual.confidence_threshold
+    assert detector._rules.min_area_px == cfg.a4_visual.rule_fallback.min_area_px
+
+    # 2. Words containing 'ad' like 'loading', 'broadcast', 'radio', 'head' must NOT false-positive
+    false_positive_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy rotation="0">
+  <node index="0" resource-id="com.app:id/main" class="android.widget.FrameLayout" bounds="[0,0][1080,1920]">
+    <node index="1" resource-id="com.app:id/header_title" text="Daily Broadcast" class="android.widget.TextView" bounds="[0,100][1080,200]" />
+    <node index="2" resource-id="com.app:id/loading_spinner" text="Please wait" class="android.widget.ProgressBar" bounds="[400,800][680,1080]" />
+    <node index="3" resource-id="com.app:id/radio_group" text="Audio Player" class="android.widget.RadioGroup" bounds="[100,1200][900,1400]" />
+    <node index="4" resource-id="com.app:id/shadow_gradient" text="" class="android.view.View" bounds="[0,1500][1080,1700]" />
+  </node>
+</hierarchy>"""
+    rf = RuleFallbackDetector()
+    res = rf.detect_from_tree(false_positive_xml)
+    assert len(res.boxes) == 0, f"Expected zero false positive detections, got {res.boxes}"
+
+    # 3. Legitimate ad ID with 'ad' as a token or delimiter DOES match
+    real_ad_xml = """<?xml version="1.0" encoding="UTF-8"?>
+<hierarchy rotation="0">
+  <node index="0" resource-id="com.app:id/main" class="android.widget.FrameLayout" bounds="[0,0][1080,1920]">
+    <node index="1" resource-id="com.app:id/ad_container" text="Visit Sponsor" class="android.view.View" clickable="true" bounds="[0,1400][1080,1800]" />
+  </node>
+</hierarchy>"""
+    res_real = rf.detect_from_tree(real_ad_xml)
+    assert len(res_real.boxes) > 0
+    assert res_real.bbox == (0, 1400, 1080, 400)

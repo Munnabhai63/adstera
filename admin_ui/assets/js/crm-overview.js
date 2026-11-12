@@ -43,6 +43,15 @@
     return val || fallback;
   }
 
+  function formatCurrency(val, decimals) {
+    const n = Number(val || 0);
+    if (!Number.isFinite(n) || n === 0) return "$0.00";
+    if (Math.abs(n) > 0 && Math.abs(n) < 0.01) {
+      return "$" + n.toFixed(4);
+    }
+    return "$" + n.toFixed(decimals != null ? decimals : 2);
+  }
+
   function getPalette() {
     const isDark = document.documentElement.getAttribute("data-bs-theme") === "dark";
     return {
@@ -406,7 +415,7 @@
       elCtrBadge.className = `badge rounded-pill ${ctrPct > 5.0 ? "bg-label-danger" : "bg-label-success"}`;
     }
 
-    if (elRev) elRev.textContent = `$${Number(metrics.revenue || 0).toFixed(2)}`;
+    if (elRev) elRev.textContent = formatCurrency(metrics.revenue);
     if (elCpm) elCpm.textContent = `eCPM: $${Number(metrics.cpm || 0).toFixed(2)}`;
 
     const domList = Array.isArray(data.domains) ? data.domains : [];
@@ -527,7 +536,7 @@
           </td>
           <td data-label="Status"><span${reasonAttr} class="badge ${pillCls}">${esc(d.status || "ACTIVE")}</span></td>
           <td data-label="CPM" class="tabular-nums">$${Number(d.cpm || 2.5).toFixed(2)}</td>
-          <td data-label="Revenue" class="text-end fw-semibold text-primary tabular-nums">$${Number(d.estimated_revenue || 0).toFixed(2)}</td>
+          <td data-label="Revenue" class="text-end fw-semibold text-primary tabular-nums">${formatCurrency(d.estimated_revenue)}</td>
         </tr>`;
       })
       .join("");

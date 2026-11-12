@@ -729,7 +729,12 @@ class DeviceFarm:
         dev_ai_cfg.ai_engine.state_dir = str(
             Path(self.store.db_path).resolve().parent / "ai_state" / f"dev_{idx}_{serial}"
         )
-        return LinTSBandit(config=dev_ai_cfg, seed=seed)
+        bandit = LinTSBandit(config=dev_ai_cfg, seed=seed)
+        try:
+            bandit.load_weights(device_id=serial)
+        except Exception as exc:
+            logger.debug("Device %s bandit load_weights: %s", serial, exc)
+        return bandit
 
     @staticmethod
     def _default_a4_detector() -> Any:
@@ -1210,6 +1215,24 @@ class DeviceFarm:
                 ctx.ctr_guard.is_deferred()
                 or ctx.ctr_guard.would_breach(self.cfg.safety.per_device_ctr_hard_cap)
             )
+            if not agg_blocked:
+                db_cap_ok = self.store.check_ctr_cap_atomic(
+                    hard_cap=float(self.cfg.safety.aggregate_ctr_hard_cap),
+                    window_size=int(self.cfg.safety.ctr_window_size),
+                    candidate_click=True,
+                )
+                if not db_cap_ok:
+                    agg_blocked = True
+            if not dev_blocked:
+                dev_db_ok = self.store.check_ctr_cap_atomic(
+                    device_id=device_id,
+                    hard_cap=float(self.cfg.safety.per_device_ctr_hard_cap),
+                    window_size=int(self.cfg.safety.ctr_window_size),
+                    candidate_click=True,
+                )
+                if not dev_db_ok:
+                    dev_blocked = True
+
             if agg_blocked and not self.aggregate_ctr_guard.is_deferred():
                 self.aggregate_ctr_guard.set_defer()
             if dev_blocked and not ctx.ctr_guard.is_deferred():
@@ -1268,11 +1291,41 @@ class DeviceFarm:
 
         # Execute touch strictly in live mode when confirmed & safe
         executed_touch = False
+        tap_error: Optional[str] = None
         if not self.paper and decision.action == "click" and decision.bbox is not None:
             if not safe_active and a4_verified and a2_ok and self.cfg.is_live_confirmed():
-                executed_touch = await self._execute_live_touch(
-                    ctx, decision.bbox, a4_verified=a4_verified, a2_ok=a2_ok
-                )
+                try:
+                    executed_touch = await self._execute_live_touch(
+                        ctx, decision.bbox, a4_verified=a4_verified, a2_ok=a2_ok
+                    )
+                except Exception as exc:
+                    executed_touch = False
+                    tap_error = str(exc)
+
+                if not executed_touch:
+                    err_msg = tap_error or f"Hardware tap failed definitively on device {device_id} for bbox {decision.bbox}"
+                    now_fail = self._now()
+                    # Log decision telemetry indicating failed touch before raising
+                    self.store.log_decision_reward(
+                        session_id=session_id,
+                        correlation_id=correlation_id,
+                        device_id=device_id,
+                        domain=domain,
+                        slot_type=decision.slot_type or "banner",
+                        action=decision.action,
+                        executed_touch=False,
+                        bbox=decision.bbox,
+                        a4_source=detection.source,
+                        a4_confidence=float(detection.confidence),
+                        a2_severity=a2_result.severity,
+                        safe_mode=safe_active,
+                        rpm=float(snapshot.rpm),
+                        ctr=float(ctx.ctr_guard.current_ctr()),
+                        reward_value=-0.1,
+                        reason=f"tap_failed: {err_msg}",
+                        ts=now_fail,
+                    )
+                    raise RuntimeError(err_msg)
 
         # Update CTR guards (rolling window)
         clicked_event = decision.action in ("click", "paper_click")

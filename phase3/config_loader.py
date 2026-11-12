@@ -146,6 +146,7 @@ class B1AndroidConfig:
     gesture_max_duration_ms: int = 140
     scroll_min_duration_ms: int = 280
     scroll_max_duration_ms: int = 650
+    auth_token: str = ""
 
 
 @dataclass

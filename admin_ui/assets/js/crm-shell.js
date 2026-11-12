@@ -447,4 +447,7 @@
     getTheme: () => resolveEffectiveTheme(getStoredThemeMode()),
     forceStopAll,
   };
+
+  window.CRM = window.CRM || {};
+  window.CRM.toast = showToast;
 })();

@@ -72,8 +72,17 @@
 
   function formatUsd(val, decimals) {
     const n = Number(val || 0);
-    if (!Number.isFinite(n)) return "$0.00";
-    return "$" + n.toFixed(decimals == null ? 2 : decimals);
+    if (!Number.isFinite(n) || n === 0) return "$0.00";
+    if (decimals != null) {
+      if (Math.abs(n) > 0 && Math.abs(n) < 0.01 && decimals < 4) {
+        return "$" + n.toFixed(4);
+      }
+      return "$" + n.toFixed(decimals);
+    }
+    if (Math.abs(n) > 0 && Math.abs(n) < 0.01) {
+      return "$" + n.toFixed(4);
+    }
+    return "$" + n.toFixed(2);
   }
 
   function statusVariant(status) {

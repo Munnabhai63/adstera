@@ -133,7 +133,16 @@ class RuleFallbackDetector:
         self.class_patterns = [p.lower() for p in (class_patterns or _DEFAULT_CLASS_PATTERNS)]
         self.min_area_px = min_area_px
         self.max_area_ratio = max_area_ratio
-        self.screen_area = screen_w * screen_h
+        self.screen_w = int(screen_w)
+        self.screen_h = int(screen_h)
+        self.screen_area = self.screen_w * self.screen_h
+
+    def set_screen_dimensions(self, screen_w: int, screen_h: int) -> None:
+        """Update screen dimensions dynamically from frame or accessibility tree."""
+        if screen_w > 0 and screen_h > 0:
+            self.screen_w = int(screen_w)
+            self.screen_h = int(screen_h)
+            self.screen_area = self.screen_w * self.screen_h
 
     # ------------------------------------------------------------------
     # Public API
@@ -198,6 +207,12 @@ class RuleFallbackDetector:
         """Core detection logic; may raise on bad input."""
         boxes: List[BoundingBox] = []
 
+        # Dynamic screen dimension override from frame_meta
+        sw = frame_meta.get("screen_w")
+        sh = frame_meta.get("screen_h")
+        if sw and sh:
+            self.set_screen_dimensions(int(sw), int(sh))
+
         # Path 1 – pre-parsed accessibility tree
         tree: List[Dict[str, Any]] = frame_meta.get("accessibility_tree", [])
         for node in tree:
@@ -242,9 +257,11 @@ class RuleFallbackDetector:
         hits = 0
         for p in self.id_patterns:
             if len(p) <= 2:
-                # Require token boundaries for ultra-short patterns like "ad" in prose
-                # so words like "read" or "aadhar" do not false-positive.
-                id_match = p in rid_l or p in cls_l
+                # Require token boundaries for ultra-short patterns like "ad" so words
+                # like "read", "load", "loading", "head", "header", "broadcast", "thread",
+                # "gradient", "radio", "adapter", "download", or "shadow" do NOT false-positive.
+                token_re = re.compile(rf"(?i)(?:^|[^a-z0-9]){re.escape(p)}(?:$|[^a-z0-9])")
+                id_match = bool(token_re.search(rid_l)) or bool(token_re.search(cls_l))
                 txt_match = bool(re.search(rf"\b{re.escape(p)}s?\b", text_desc_haystack))
                 if id_match or txt_match:
                     hits += 1
@@ -334,6 +351,17 @@ class RuleFallbackDetector:
         except ET.ParseError as exc:
             logger.debug("XML parse error in RuleFallbackDetector: %s", exc)
             return boxes
+
+        # Calibrate screen dimensions from root/container bounds in the XML coordinate space
+        for node in root.iter():
+            bounds_str = node.get("bounds", "")
+            parsed = _parse_bounds(bounds_str) if bounds_str else None
+            if parsed is not None:
+                x, y, w, h = parsed
+                if x == 0 and y == 0 and w >= 200 and h >= 200:
+                    if self.screen_area <= 0 or (w * h > self.screen_area):
+                        self.set_screen_dimensions(w, h)
+
         for node in root.iter():
             rid = node.get("resource-id", "") or ""
             text = node.get("text", "") or ""

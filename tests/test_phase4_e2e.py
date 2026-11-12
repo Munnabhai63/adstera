@@ -313,9 +313,9 @@ def test_phase4_e2e_missing_db_graceful_degradation(tmp_path: Path) -> None:
             assert payload["calibration_reports"] == []
 
             health_resp = client.get("/api/phase4/health")
-            assert health_resp.status_code == 200
+            assert health_resp.status_code == 503
             health = health_resp.json()
-            assert health["ok"] is True
+            assert health["ok"] is False
             assert health["db_ok"] is False
             assert health["db_status"] == "missing"
 

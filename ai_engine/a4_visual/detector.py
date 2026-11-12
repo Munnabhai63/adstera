@@ -98,34 +98,54 @@ class VisualAdDetector:
             screen_h=screen_h,
         )
 
+    @staticmethod
+    def _extract_image_dimensions(frame: bytes) -> Optional[Tuple[int, int]]:
+        """Extract width and height from PNG frame bytes without external imaging dependencies."""
+        if not frame or len(frame) < 24:
+            return None
+        if frame.startswith(b"\x89PNG\r\n\x1a\n") and len(frame) >= 24:
+            try:
+                import struct
+                w, h = struct.unpack(">II", frame[16:24])
+                if w >= 200 and h >= 200:
+                    return int(w), int(h)
+            except Exception:
+                pass
+        return None
+
     @classmethod
-    def from_config(cls, cfg) -> "VisualAdDetector":
-        """Construct from an :class:`AIConfig` object (or dict).
-
-        Args:
-            cfg: An object with an ``a4_visual`` attribute/key carrying the
-                 relevant configuration sub-section.
-
-        Returns:
-            Configured :class:`VisualAdDetector` instance.
-        """
+    def from_config(cls, cfg: Any) -> "VisualAdDetector":
+        """Construct from an :class:`AIConfig` object or dict without treating dataclasses as dicts."""
         try:
-            a4 = cfg.a4_visual if hasattr(cfg, "a4_visual") else cfg.get("a4_visual", {})
-            rf = a4.get("rule_fallback", {}) if isinstance(a4, dict) else {}
-
-            def _get(obj, key, default):
+            def _get(obj: Any, key: str, default: Any = None) -> Any:
+                if obj is None:
+                    return default
                 if isinstance(obj, dict):
                     return obj.get(key, default)
                 return getattr(obj, key, default)
 
+            a4 = getattr(cfg, "a4_visual", None)
+            if a4 is None and isinstance(cfg, dict):
+                a4 = cfg.get("a4_visual", {})
+            elif a4 is None:
+                a4 = cfg
+
+            rf = _get(a4, "rule_fallback", {})
+
+            raw_mp = _get(a4, "model_path", _DEFAULT_MODEL_PATH)
+            conf = float(_get(a4, "confidence_threshold", _DEFAULT_CONFIDENCE_THRESHOLD))
+            timeout = int(_get(a4, "inference_timeout_ms", _DEFAULT_INFERENCE_TIMEOUT_MS))
+
             return cls(
-                model_path=Path(_get(a4, "model_path", "state/ai_engine/ad_detector.onnx")),
-                confidence_threshold=_get(a4, "confidence_threshold", _DEFAULT_CONFIDENCE_THRESHOLD),
-                inference_timeout_ms=_get(a4, "inference_timeout_ms", _DEFAULT_INFERENCE_TIMEOUT_MS),
-                id_patterns=rf.get("id_patterns") if isinstance(rf, dict) else None,
-                class_patterns=rf.get("class_patterns") if isinstance(rf, dict) else None,
-                min_area_px=rf.get("min_area_px", 2000) if isinstance(rf, dict) else 2000,
-                max_area_ratio=rf.get("max_area_ratio", 0.6) if isinstance(rf, dict) else 0.6,
+                model_path=Path(raw_mp) if raw_mp else _DEFAULT_MODEL_PATH,
+                confidence_threshold=conf,
+                inference_timeout_ms=timeout,
+                id_patterns=_get(rf, "id_patterns", None),
+                class_patterns=_get(rf, "class_patterns", None),
+                min_area_px=int(_get(rf, "min_area_px", 2000)),
+                max_area_ratio=float(_get(rf, "max_area_ratio", 0.6)),
+                screen_w=int(_get(rf, "screen_w", 1080)),
+                screen_h=int(_get(rf, "screen_h", 1920)),
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("VisualAdDetector.from_config error: %s — using defaults", exc)
@@ -160,6 +180,19 @@ class VisualAdDetector:
             frame_meta = {}
         if ui_tree is not None:
             frame_meta["page_source"] = ui_tree
+
+        # Dynamic screen dimension detection (from frame_meta, frame bytes, or ui_tree)
+        dyn_w = frame_meta.get("screen_w")
+        dyn_h = frame_meta.get("screen_h")
+        if not (dyn_w and dyn_h) and frame is not None:
+            dims = self._extract_image_dimensions(frame)
+            if dims:
+                dyn_w, dyn_h = dims
+                frame_meta["screen_w"] = dyn_w
+                frame_meta["screen_h"] = dyn_h
+
+        if dyn_w and dyn_h:
+            self._rules.set_screen_dimensions(int(dyn_w), int(dyn_h))
 
         t0 = time.perf_counter()
         frame_id = str(uuid.uuid4())

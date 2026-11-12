@@ -3,6 +3,7 @@ __pycache__/
 *$py.class
 *.log
 .env
+accounts.txt
 sessions.db*
 state/
 profiles/

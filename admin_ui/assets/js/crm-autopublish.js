@@ -50,7 +50,9 @@
   }
 
   function toast(msg, type = "info") {
-    if (window.CRM && typeof window.CRM.toast === "function") {
+    if (window.AdsterraShell && typeof window.AdsterraShell.toast === "function") {
+      window.AdsterraShell.toast(msg, type);
+    } else if (window.CRM && typeof window.CRM.toast === "function") {
       window.CRM.toast(msg, type);
     }
   }

@@ -108,14 +108,20 @@ public class LocalControlServer {
 
     private final int port;
     private final CommandHandler handler;
+    private final String authToken;
     private final AtomicBoolean running = new AtomicBoolean(false);
     private volatile ServerSocket serverSocket;
     private Thread acceptThread;
     private ExecutorService clientPool;
 
     public LocalControlServer(int port, CommandHandler handler) {
+        this(port, handler, System.getProperty("phoneagent.token", System.getenv("PHONEAGENT_TOKEN")));
+    }
+
+    public LocalControlServer(int port, CommandHandler handler, String authToken) {
         this.port = port > 0 ? port : DEFAULT_PORT;
         this.handler = handler;
+        this.authToken = (authToken != null && !authToken.trim().isEmpty()) ? authToken.trim() : null;
     }
 
     public int getPort() {
@@ -260,6 +266,37 @@ public class LocalControlServer {
                     .getBytes(StandardCharsets.US_ASCII));
             out.flush();
             return false;
+        }
+
+        if (authToken != null && !authToken.isEmpty()) {
+            String clientToken = headers.get("x-auth-token");
+            if (clientToken == null) {
+                String authHdr = headers.get("authorization");
+                if (authHdr != null && authHdr.toLowerCase(Locale.US).startsWith("bearer ")) {
+                    clientToken = authHdr.substring(7).trim();
+                }
+            }
+            if (clientToken == null && lines.length > 0) {
+                String firstLine = lines[0];
+                int qIdx = firstLine.indexOf('?');
+                int sIdx = firstLine.indexOf(" HTTP/");
+                if (qIdx > 0 && sIdx > qIdx) {
+                    String query = firstLine.substring(qIdx + 1, sIdx);
+                    for (String param : query.split("&")) {
+                        String[] pair = param.split("=", 2);
+                        if (pair.length == 2 && ("token".equalsIgnoreCase(pair[0]) || "auth_token".equalsIgnoreCase(pair[0]))) {
+                            clientToken = pair[1].trim();
+                            break;
+                        }
+                    }
+                }
+            }
+            if (clientToken == null || !clientToken.equals(authToken)) {
+                out.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n"
+                        .getBytes(StandardCharsets.US_ASCII));
+                out.flush();
+                return false;
+            }
         }
 
         String accept;

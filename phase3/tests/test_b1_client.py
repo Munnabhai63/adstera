@@ -24,8 +24,13 @@ _WS_MAGIC = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 class _MockWebSocketServer:
     """Minimal pure-stdlib RFC 6455 server on 127.0.0.1 for host unit tests."""
 
-    def __init__(self, accessibility_connected: bool = True) -> None:
+    def __init__(
+        self,
+        accessibility_connected: bool = True,
+        auth_token: Optional[str] = None,
+    ) -> None:
         self.accessibility_connected = accessibility_connected
+        self.auth_token = auth_token
         self.commands: List[Dict[str, Any]] = []
         self._sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -62,12 +67,23 @@ class _MockWebSocketServer:
                     return
                 buf.extend(chunk)
             header_text = bytes(buf[: buf.index(b"\r\n\r\n")]).decode("latin-1")
-            sec_key = ""
+            headers: Dict[str, str] = {}
             for line in header_text.split("\r\n")[1:]:
                 if ":" in line:
                     k, v = line.split(":", 1)
-                    if k.strip().lower() == "sec-websocket-key":
-                        sec_key = v.strip()
+                    headers[k.strip().lower()] = v.strip()
+
+            sec_key = headers.get("sec-websocket-key", "")
+            if self.auth_token:
+                client_token = headers.get("x-auth-token")
+                if not client_token:
+                    auth_hdr = headers.get("authorization", "")
+                    if auth_hdr.lower().startswith("bearer "):
+                        client_token = auth_hdr[7:].strip()
+                if client_token != self.auth_token:
+                    conn.sendall(b"HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n")
+                    return
+
             accept = base64.b64encode(
                 hashlib.sha1((sec_key + _WS_MAGIC).encode("ascii")).digest()
             ).decode("ascii")
@@ -464,3 +480,32 @@ public class Harness {
     finally:
         proc.terminate()
         proc.wait(timeout=5)
+
+
+def test_android_websocket_authentication_token_security(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ensure unauthorized apps without a matching auth token cannot control the phone."""
+    secret_token = "secure_android_phone_token_xyz123"
+    srv = _MockWebSocketServer(accessibility_connected=True, auth_token=secret_token)
+    try:
+        monkeypatch.setattr(mobile_adb, "run_adb", lambda args, **kw: (0, ""))
+
+        # 1. Unauthorized client with missing or wrong token -> connection refused / fails
+        unauthorized = PhoneAgentClient(serial="DEV_UNAUTH", host_port=srv.port, adb_fallback=False)
+        unauthorized.auth_token = "wrong_token"
+        assert unauthorized.connect() is False
+        assert unauthorized.connected is False
+
+        # 2. Authorized client with correct token -> connects cleanly and executes
+        authorized = PhoneAgentClient(serial="DEV_AUTH", host_port=srv.port, adb_fallback=False)
+        authorized.auth_token = secret_token
+        assert authorized.connect() is True
+        assert authorized.connected is True
+        ping = authorized.ping()
+        assert ping["ok"] is True
+        assert ping["pong"] is True
+
+        tap = authorized.dispatch_gesture("tap", x=100, y=200, duration_ms=60, a4_verified_bbox=True, a2_ok=True)
+        assert tap["ok"] is True
+        assert tap["executed"] is True
+    finally:
+        srv.close()

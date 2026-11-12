@@ -106,6 +106,12 @@ class PhoneAgentClient:
         self._lock = threading.Lock()
         self._forward_active = False
         self._transport = "disconnected"
+        self.auth_token = (
+            str(getattr(self.b1_cfg, "auth_token", "") or "")
+            or os.getenv("B1_AUTH_TOKEN", "")
+            or os.getenv("PHASE3_AUTH_TOKEN", "")
+            or os.getenv("PHONEAGENT_TOKEN", "")
+        ).strip()
 
     @property
     def transport(self) -> str:
@@ -241,13 +247,17 @@ class PhoneAgentClient:
 
     def _ws_handshake(self, sock: socket.socket) -> None:
         sec_key = base64.b64encode(os.urandom(16)).decode("ascii")
+        auth_hdr = ""
+        if self.auth_token:
+            auth_hdr = f"X-Auth-Token: {self.auth_token}\r\nAuthorization: Bearer {self.auth_token}\r\n"
         req = (
             f"GET / HTTP/1.1\r\n"
             f"Host: {_LOOPBACK_HOST}:{self.host_port}\r\n"
             f"Upgrade: websocket\r\n"
             f"Connection: Upgrade\r\n"
             f"Sec-WebSocket-Key: {sec_key}\r\n"
-            f"Sec-WebSocket-Version: 13\r\n\r\n"
+            f"Sec-WebSocket-Version: 13\r\n"
+            f"{auth_hdr}\r\n"
         )
         sock.sendall(req.encode("ascii"))
 
@@ -338,6 +348,8 @@ class PhoneAgentClient:
             sock = self._sock
             if sock is None:
                 raise ConnectionError("WebSocket is not connected")
+            if self.auth_token:
+                payload.setdefault("auth_token", self.auth_token)
             encoded = json.dumps(payload, separators=(",", ":")).encode("utf-8")
             self._send_ws_frame(sock, 0x1, encoded)
             opcode, resp_bytes = self._recv_ws_frame(sock)

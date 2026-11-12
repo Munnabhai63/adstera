@@ -217,6 +217,10 @@ class Orchestrator:
         self.a4 = VisualAdDetector.from_config(self.config)
 
         self.a1 = LinTSBandit(self.config)
+        try:
+            self.a1.load_weights()
+        except Exception as exc:
+            logger.debug("Orchestrator bandit load_weights: %s", exc)
         self.ctr_guard = self.a1.ctr_guard
 
         logger.info(
