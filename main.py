@@ -205,7 +205,9 @@ async def main() -> None:
     slow_mo = cfg["browser"].get("slow_mo_ms", 40)
 
     # MAHI Browser Custom Chromium Core (Gate 2 MD Spec 2)
-    engine_type = cfg.get("browser", {}).get("engine", "mahi")
+    engine_type = str(cfg.get("browser", {}).get("engine", "mahi")).strip().lower()
+    android_cdp_cfg = cfg.get("android_cdp") or {}
+    android_only = engine_type == "android_cdp" and not bool(android_cdp_cfg.get("prefer_for_mobile_only", False))
     executable_path = None
     mahi_conn = MahiConnector()
     if engine_type == "mahi" and mahi_conn.is_available():
@@ -233,12 +235,13 @@ async def main() -> None:
         launch_kwargs["executable_path"] = executable_path
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(**launch_kwargs)
+        browser = None if android_only else await pw.chromium.launch(**launch_kwargs)
         try:
-            logger.info("Browser launched. Starting session loop.")
+            logger.info("B3 Android CDP ready — starting session loop." if android_only else "Browser launched. Starting session loop.")
             await _session_loop(cfg, pool, pw, browser)
         finally:
-            await browser.close()
+            if browser is not None:
+                await browser.close()
 
     logger.info("Shutdown complete. Sessions today: %d", db.today())
     ctr = db.ctr()

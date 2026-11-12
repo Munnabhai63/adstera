@@ -18,6 +18,10 @@ Checks:
  14. Font Enumeration Spoofing.
  15. WebRTC IP Leak Prevention (Enhanced).
  16. Browser Extension Emulation.
+ 17. Window Outer Dimensions Coherence.
+ 18. Webdriver Property Descriptor Scrubbed (falsy, no instance own-prop) [C3].
+ 19. C3 — Function.prototype.toString WeakMap hook; webdriver not in own props.
+ 20. C4/C5 — DPR fractional CSS media query matches (min-resolution: Xdppx).
 """
 from __future__ import annotations
 
@@ -424,13 +428,77 @@ async def _run_browser_checks(cfg: dict) -> None:
                 print(f"  [17] PASS — Window Outer Dimensions Coherence (outer={win_dims['outerWidth']}x{win_dims['outerHeight']})")
 
             # Check 18: Webdriver Property Descriptor Cleanup (FP-5 / LEAK-20)
+            # C3 enhanced: use Function.prototype.toString.call() AND own-property check
             wd_desc = await page.evaluate("""() => {
                 const navVal = navigator.webdriver;
-                return { navVal: navVal === undefined ? 'undefined' : String(navVal) };
+                // C3: own property check — after our patch, navigator instance must NOT
+                // have an own 'webdriver' property (should live only on Navigator.prototype)
+                const ownDesc = Object.getOwnPropertyDescriptor(navigator, 'webdriver');
+                const hasOwnWebdriver = ownDesc !== undefined;
+                return {
+                    navVal: navVal === undefined ? 'undefined' : String(navVal),
+                    hasOwnWebdriver: hasOwnWebdriver,
+                };
             }""")
             assert wd_desc["navVal"] in ('undefined', 'None', 'false'), f"[18] FAIL ({label}) — navigator.webdriver truthy: {wd_desc['navVal']}"
+            assert not wd_desc["hasOwnWebdriver"], (
+                f"[18] FAIL ({label}) — navigator instance has own 'webdriver' property (C3 violation): {wd_desc}"
+            )
             if label == "proxy_a":
-                print("  [18] PASS — Webdriver Property Descriptor Scrubbed (falsy)")
+                print("  [18] PASS — Webdriver Property Descriptor Scrubbed (falsy, no own-prop)")
+
+            # Check 19: C3 — Function.prototype.toString.call() returns [native code]
+            # for all overridden functions (WeakMap-backed hook, not per-function .toString)
+            fn_ts_check = await page.evaluate("""() => {
+                const results = {};
+                // Test _makeNative-registered function via Function.prototype.toString.call()
+                try {
+                    const ts = Function.prototype.toString.call(navigator.permissions.query);
+                    results.permQueryNativeCall = ts.includes('[native code]');
+                } catch(e) { results.permQueryNativeCall = null; results.permQueryErr = String(e); }
+
+                // Test WebGL patchgetParameter via call()
+                try {
+                    const ctx = document.createElement('canvas').getContext('webgl');
+                    if (ctx) {
+                        const ts = Function.prototype.toString.call(ctx.getParameter.bind(ctx).__proto__.constructor);
+                        results.webglGetParamExists = true;
+                    }
+                } catch(e) { results.webglGetParamErr = String(e); }
+
+                // toString hook itself must look native
+                const tsHookStr = Function.prototype.toString.toString();
+                results.toStringHookNative = tsHookStr.includes('[native code]');
+
+                // Object.getOwnPropertyNames(navigator) should not include 'webdriver'
+                const ownNavProps = Object.getOwnPropertyNames(navigator);
+                results.webdriverInOwnProps = ownNavProps.includes('webdriver');
+
+                return results;
+            }""")
+            assert fn_ts_check.get("toStringHookNative"), (
+                f"[19] FAIL ({label}) — Function.prototype.toString.toString() not [native code]: {fn_ts_check}"
+            )
+            assert not fn_ts_check.get("webdriverInOwnProps"), (
+                f"[19] FAIL ({label}) — 'webdriver' found in Object.getOwnPropertyNames(navigator): {fn_ts_check}"
+            )
+            if label == "proxy_a":
+                print(f"  [19] PASS — C3 Function.prototype.toString hook native; webdriver not in own props")
+
+            # Check 20: C4/C5 — DPR fractional value check (via CSS media query)
+            dpr_check = await page.evaluate("""() => {
+                const dpr = window.devicePixelRatio;
+                // Build a CSS media query testing the exact DPR value as min-resolution
+                // e.g. for dpr=2.875: (min-resolution: 2.875dppx)
+                const q1 = window.matchMedia(`(min-resolution: ${dpr}dppx)`);
+                const q2 = window.matchMedia(`(max-resolution: ${dpr}dppx)`);
+                return { dpr, matchMin: q1.matches, matchMax: q2.matches };
+            }""")
+            assert dpr_check["matchMin"] and dpr_check["matchMax"], (
+                f"[20] FAIL ({label}) — DPR fractional media query mismatch: {dpr_check}"
+            )
+            if label == "proxy_a":
+                print(f"  [20] PASS — DPR {dpr_check['dpr']} fractional CSS media query matches")
 
             # Check 16: Browser Extension Emulation (Step 3.3)
             ext_res = await page.evaluate("""async () => {

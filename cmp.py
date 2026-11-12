@@ -53,6 +53,8 @@ async def handle(
     accept_prob: float = 0.88,
     rng: random.Random | None = None,
     timeout_ms: float = 3000,
+    cdp_session: Any = None,
+    is_mobile: bool = False,
 ) -> bool:
     """
     Detect and interact with a CMP banner on the current page.
@@ -80,7 +82,7 @@ async def handle(
             should_accept = rng.random() < accept_prob
 
             if should_accept:
-                ok = await human.click_element(page, sel, rng)
+                ok = await human.click_element(page, sel, rng, cdp_session=cdp_session, is_mobile=is_mobile)
                 if ok:
                     logger.debug("CMP: accepted banner")
                     await asyncio.sleep(rng.uniform(0.5, 1.2))
@@ -90,7 +92,7 @@ async def handle(
                 for rsel in _REJECT_SELECTORS:
                     relem = await page.query_selector(rsel)
                     if relem and await relem.is_visible():
-                        await human.click_element(page, rsel, rng)
+                        await human.click_element(page, rsel, rng, cdp_session=cdp_session, is_mobile=is_mobile)
                         logger.debug("CMP: rejected banner")
                         await asyncio.sleep(rng.uniform(0.5, 1.2))
                         return True
@@ -101,7 +103,7 @@ async def handle(
                 for csel in close_selectors:
                     celem = await page.query_selector(csel)
                     if celem and await celem.is_visible():
-                        await human.click_element(page, csel, rng)
+                        await human.click_element(page, csel, rng, cdp_session=cdp_session, is_mobile=is_mobile)
                         logger.debug("CMP: dismissed banner via close button %s", csel)
                         await asyncio.sleep(rng.uniform(0.5, 1.2))
                         dismissed = True

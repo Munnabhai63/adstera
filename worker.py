@@ -244,12 +244,33 @@ def should_suppress_click_for_ctr(current_ctr: float, click_prob: float, rng: ra
     return rng.random() > click_prob
 
 
+async def _get_effective_viewport(page: Page) -> dict[str, float]:
+    """Return page viewport bounds; probes CDP layout metrics when `page.viewport_size` is None (Android CDP)."""
+    vp = page.viewport_size
+    if vp and vp.get("width") and vp.get("height"):
+        return {"width": float(vp["width"]), "height": float(vp["height"])}
+    try:
+        pc = await page.context.new_cdp_session(page)
+        try:
+            metrics = await pc.send("Page.getLayoutMetrics")
+            vv = metrics.get("cssVisualViewport") or metrics.get("cssLayoutViewport") or {}
+            w = float(vv.get("clientWidth") or 0)
+            h = float(vv.get("clientHeight") or 0)
+            if w > 0 and h > 0:
+                return {"width": w, "height": h}
+        finally:
+            await pc.detach()
+    except Exception:
+        pass
+    return {"width": 1280.0, "height": 800.0}
+
+
 async def get_in_view_ad_candidates(page: Page) -> list[dict]:
     """
     Find ad elements currently intersecting the active viewport with >= 50% visibility ratio.
     Rejects elements scrolled off-screen or above/below the visible fold.
     """
-    vp = page.viewport_size or {"width": 1280, "height": 800}
+    vp = await _get_effective_viewport(page)
     candidates = []
 
     for sel in _AD_SELECTORS:
@@ -295,13 +316,18 @@ async def _handle_extra_popunder_pages(
     proxy_country: str,
     cfg: dict | None = None,
     use_fixture: bool = False,
+    spawned_pages: list[Page] | None = None,
+    main_page: Page | None = None,
 ) -> None:
-    """Dwell naturally on any popunder/advertiser tabs and close them cleanly."""
-    extra_pages = list(context.pages[1:])
+    """Dwell naturally on any popunder/advertiser tabs opened during this session and close them cleanly."""
+    if spawned_pages is not None:
+        extra_pages = [p for p in spawned_pages if p is not main_page and not p.is_closed()]
+    else:
+        extra_pages = [p for p in context.pages[1:] if p is not main_page]
     if not extra_pages:
         return
     await asyncio.sleep(rng.uniform(0.8, 1.8) if not use_fixture else 0.2)
-    for extra_page in context.pages[1:]:
+    for extra_page in list(extra_pages):
         try:
             try:
                 await extra_page.wait_for_load_state("domcontentloaded", timeout=8000)
@@ -363,10 +389,13 @@ async def _attempt_ad_click(
     domain: str = "loanraaj.com",
     proxy_country: str = "",
     cfg: dict | None = None,
+    spawned_pages: list[Page] | None = None,
+    cdp_session: Any = None,
+    is_mobile: bool = False,
 ) -> int:
     """
     Attempt a single smart ad click with Viewport Intersection scoring,
-    proxy slot deduplication, Bézier mouse approach, and popunder tab dwell.
+    proxy slot deduplication, Bézier/CDP touch approach, and popunder tab dwell.
     """
     if ad_clicks_done >= ad_clicks_max:
         return 0
@@ -397,13 +426,19 @@ async def _attempt_ad_click(
     ty = box["y"] + box["height"] * rng.uniform(0.25, 0.75)
 
     try:
-        await human.click_point(page, tx, ty, rng)
+        await human.click_point(page, tx, ty, rng, cdp_session=cdp_session, is_mobile=is_mobile)
         record_clicked_ad_slot(proxy_id, candidate["selector"])
         logger.debug("Smart clicked ad slot %s on proxy %s at (%.0f, %.0f)", candidate["selector"], proxy_id, tx, ty)
 
         # Handle popunder / new advertiser tab with human dwell and scroll
         await _handle_extra_popunder_pages(
-            page.context, rng, domain=domain, proxy_country=proxy_country or "IN", cfg=cfg
+            page.context,
+            rng,
+            domain=domain,
+            proxy_country=proxy_country or "IN",
+            cfg=cfg,
+            spawned_pages=spawned_pages,
+            main_page=page,
         )
 
         return 1
@@ -470,6 +505,21 @@ async def _handle_push_async(
         logger.debug("Push async handler error: %s", exc)
 
 
+def _should_use_android_cdp(cfg: dict, fp, use_fixture: bool) -> bool:
+    """Route eligible mobile/android sessions through real Android Chrome via ADB CDP (B3)."""
+    android_cfg = cfg.get("android_cdp") or {}
+    engine = str((cfg.get("browser") or {}).get("engine", "mahi")).strip().lower()
+    if use_fixture and not bool(android_cfg.get("allow_fixture", False)):
+        return False
+    if engine == "android_cdp":
+        return True
+    if not bool(android_cfg.get("enabled", False)):
+        return False
+    if bool(android_cfg.get("prefer_for_mobile_only", True)) and not getattr(fp, "is_mobile", False):
+        return False
+    return True
+
+
 async def run_session(
     *args,
     use_fixture: bool = False,
@@ -481,6 +531,7 @@ async def run_session(
       run_session(playwright, browser, proxy, cfg, rng, use_fixture=...)
       run_session(browser, proxy, cfg, rng, use_fixture=...)
     """
+    _pw = kwargs.get("playwright")
     if len(args) >= 5:
         _pw = args[0]
         browser = args[1]
@@ -637,68 +688,136 @@ async def run_session(
         "content_aware": is_content_aware,
     }
 
+    using_android_cdp = _should_use_android_cdp(cfg, fp, use_fixture)
+    cdp_bridge = None
+    cdp_session = None
+    page_cdp: Any = None
+    is_mobile_session: bool = bool(fp.is_mobile or using_android_cdp)
+    owned_pw_cm = None
+    tracer = None
+    spawned_pages: list[Page] = []
+    _page_listener = None
+
     context: BrowserContext | None = None
     push_task: asyncio.Task | None = None
     t0 = time.time()
     _session_logged = False  # SCHED-4: guard to ensure exactly-once DB write
 
     try:
-        # Build context options with 4-Dimension Client-Hint headers locked to UA
-        extra_headers = {"Accept-Language": ",".join(fp.languages)}
-        extra_headers.update(fp_mod.build_client_hint_headers(fp))
-        context_kwargs: dict = {
-            "user_agent": fp.user_agent,
-            "viewport": {"width": fp.viewport_width, "height": fp.viewport_height},
-            "locale": fp.locale,
-            "timezone_id": fp.timezone,
-            "extra_http_headers": extra_headers,
-        }
-        if proxy.playwright_proxy:
-            context_kwargs["proxy"] = proxy.playwright_proxy
-
-        if fp.is_mobile:
-            context_kwargs["is_mobile"] = True
-            context_kwargs["has_touch"] = True
-
-        context = await browser.new_context(**context_kwargs)
-
-        # Step 5.1: Start session trace recording (only saves on degraded status)
-        tracer = tracer_mod.build_from_config(cfg, proxy.proxy_id)
-        await tracer.start(context)
-
-        # Restore cookies for return visits (ADV-7)
         is_return = rng.random() < cfg["session"]["return_visit_prob"]
         is_return_visitor = False
-        if is_return and persist.has_state(proxy.proxy_id):
-            await persist.restore(context, proxy.proxy_id)
-            is_return_visitor = True
-            profile = persist.get_visitor_profile(proxy.proxy_id)
-            visited = profile.get("visited_urls", [])
-            if visited and not use_fixture and rng.random() < 0.65:
-                start_url = rng.choice(visited)
-            logger.debug("Return visit: restored cookies for %s (visits=%s)", proxy.proxy_id, profile.get("visit_count", 1))
 
-        # Inject coherent seeded fingerprint patches (avoid runtime clobbering from unseeded patches)
-        init_js = fp_mod.init_script(fp)
-        await context.add_init_script(script=init_js)
+        if using_android_cdp:
+            from playwright.async_api import async_playwright as _async_pw
+            from android_cdp_bridge import AndroidCdpBridge
 
-        # Block specified resource types
-        block_types = set(cfg["browser"].get("block_resources", []))
-        if block_types:
-            async def route_handler(route, request):
-                if request.resource_type in block_types:
-                    await route.abort()
-                else:
-                    await route.continue_()
-            await context.route("**/*", route_handler)
+            if _pw is None:
+                owned_pw_cm = _async_pw()
+                _pw = await owned_pw_cm.__aenter__()
 
-        page = await context.new_page()
+            cdp_bridge = AndroidCdpBridge(cfg)
+            fail_closed = bool((cfg.get("android_cdp") or {}).get("fail_closed", True))
+            try:
+                cdp_session = await cdp_bridge.connect(_pw)
+            except Exception as cdp_exc:
+                if fail_closed or browser is None:
+                    result["error_reason"] = f"AndroidCdpUnavailable: {cdp_exc}"
+                    raise RuntimeError(f"Android CDP fail-closed abort: {cdp_exc}") from cdp_exc
+                logger.warning("Android CDP unavailable (%s); falling back to local browser.", cdp_exc)
+                using_android_cdp = False
+
+        if using_android_cdp and cdp_session is not None:
+            context = cdp_session.context
+            if cdp_session.user_agent:
+                fp.user_agent = cdp_session.user_agent
+                result["ua"] = cdp_session.user_agent
+                _record_active_ua(proxy.proxy_id, fp, active=True, target_url=start_url)
+            if is_return and persist.has_state(proxy.proxy_id):
+                is_return_visitor = True
+            page, _owned_tid = await cdp_bridge.open_owned_tab(cdp_session)
+            try:
+                telem = await cdp_bridge.read_isolated_telemetry(cdp_session, page)
+                if telem.get("userAgent"):
+                    fp.user_agent = str(telem["userAgent"])
+                    result["ua"] = fp.user_agent
+                if telem.get("platform"):
+                    fp.platform = str(telem["platform"])
+            except Exception as telem_exc:
+                logger.debug("Android CDP telemetry probe notice: %s", telem_exc)
+        else:
+            # Build context options with 4-Dimension Client-Hint headers locked to UA
+            extra_headers = {"Accept-Language": ",".join(fp.languages)}
+            extra_headers.update(fp_mod.build_client_hint_headers(fp))
+            context_kwargs: dict = {
+                "user_agent": fp.user_agent,
+                "viewport": {"width": fp.viewport_width, "height": fp.viewport_height},
+                "locale": fp.locale,
+                "timezone_id": fp.timezone,
+                "extra_http_headers": extra_headers,
+            }
+            if proxy.playwright_proxy:
+                context_kwargs["proxy"] = proxy.playwright_proxy
+
+            if fp.is_mobile:
+                context_kwargs["is_mobile"] = True
+                context_kwargs["has_touch"] = True
+
+            context = await browser.new_context(**context_kwargs)
+
+            # Step 5.1: Start session trace recording (only saves on degraded status)
+            tracer = tracer_mod.build_from_config(cfg, proxy.proxy_id)
+            await tracer.start(context)
+
+            # Restore cookies for return visits (ADV-7)
+            if is_return and persist.has_state(proxy.proxy_id):
+                await persist.restore(context, proxy.proxy_id)
+                is_return_visitor = True
+                profile = persist.get_visitor_profile(proxy.proxy_id)
+                visited = profile.get("visited_urls", [])
+                if visited and not use_fixture and rng.random() < 0.65:
+                    start_url = rng.choice(visited)
+                logger.debug("Return visit: restored cookies for %s (visits=%s)", proxy.proxy_id, profile.get("visit_count", 1))
+
+            # Inject coherent seeded fingerprint patches (avoid runtime clobbering from unseeded patches)
+            init_js = fp_mod.init_script(fp)
+            await context.add_init_script(script=init_js)
+
+            # Block specified resource types
+            block_types = set(cfg["browser"].get("block_resources", []))
+            if block_types:
+                async def route_handler(route, request):
+                    if request.resource_type in block_types:
+                        await route.abort()
+                    else:
+                        await route.continue_()
+                await context.route("**/*", route_handler)
+
+            page = await context.new_page()
+
+        # Track pages spawned during THIS session only (safe on shared Android Chrome)
+        def _on_new_page(new_p: Page) -> None:
+            spawned_pages.append(new_p)
+            if using_android_cdp and cdp_bridge and cdp_session:
+                asyncio.ensure_future(cdp_bridge.track_page_if_new(cdp_session, new_p))
+            try:
+                import adsterra_funnel
+                adsterra_funnel.attach_adsterra_listener(new_p, domain=target_domain, proxy_id=proxy.proxy_id)
+            except Exception:
+                pass
+
+        _page_listener = _on_new_page
+        context.on("page", _on_new_page)
+
+        # B4: Page-level CDP session for authentic biometric touch/mouse dispatch
+        try:
+            page_cdp = await context.new_cdp_session(page)
+        except Exception as cdp_init_err:
+            logger.debug("Page-level CDP session creation notice: %s", cdp_init_err)
 
         # Real-time Adsterra network handshake tracking
         try:
             import adsterra_funnel
             adsterra_funnel.attach_adsterra_listener(page, domain=target_domain, proxy_id=proxy.proxy_id)
-            context.on("page", lambda p: adsterra_funnel.attach_adsterra_listener(p, domain=target_domain, proxy_id=proxy.proxy_id))
         except Exception as e_af:
             logger.debug("Adsterra tracker attach notice: %s", e_af)
 
@@ -770,10 +889,10 @@ async def run_session(
         is_eu = proxy.geo.country in _EU_UK_COUNTRIES
         cmp_accepted = False
         if cmp_enabled and is_eu:
-            cmp_accepted = await cmp.handle(page, cfg["cmp"]["accept_prob"], rng)
+            cmp_accepted = await cmp.handle(page, cfg["cmp"]["accept_prob"], rng, cdp_session=page_cdp, is_mobile=is_mobile_session)
         elif cmp_enabled:
             # Still handle banners even for non-EU if present
-            cmp_accepted = await cmp.handle(page, cfg["cmp"]["accept_prob"], rng)
+            cmp_accepted = await cmp.handle(page, cfg["cmp"]["accept_prob"], rng, cdp_session=page_cdp, is_mobile=is_mobile_session)
 
         # Step 4.4: Push Notification Subscription Farming
         push_result = None
@@ -858,12 +977,17 @@ async def run_session(
         async def on_page_loaded(pg: Page, url: str, page_num: int) -> None:
             nonlocal result, scroll_done, ad_clicks_done, last_idle, last_ad_attempt
 
+            if using_android_cdp and cdp_bridge and cdp_session:
+                org = cdp_bridge._origin_from_url(url)
+                if org:
+                    cdp_session.visited_origins.add(org)
+
             # Stage 2 Zero-Waste Viewability: ensure all Adsterra slots enter viewport & fire beacons
             await _ensure_ad_slots_rendered_and_viewed(pg, rng, use_fixture=use_fixture)
 
             # ADV-3 & ADV-5: Human Reading Speed Scroll and Text Reading Heatmap Mouse
             if rng.random() < cfg["target"]["scroll_prob"]:
-                await human.reading_speed_scroll(pg, rng)
+                await human.reading_speed_scroll(pg, rng, cdp_session=page_cdp, is_mobile=is_mobile_session)
                 scroll_done = True
             if rng.random() < 0.65:
                 await human.text_reading_mouse(pg, rng)
@@ -878,7 +1002,9 @@ async def run_session(
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
                 clicks = await _attempt_ad_click(
-                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN", cfg=cfg
+                    pg, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done,
+                    proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN",
+                    cfg=cfg, spawned_pages=spawned_pages, cdp_session=page_cdp, is_mobile=is_mobile_session,
                 )
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks
@@ -892,7 +1018,14 @@ async def run_session(
 
         # Handle any popunder tabs opened during page interactions or internal navigation
         await _handle_extra_popunder_pages(
-            context, rng, domain=target_domain, proxy_country=proxy_country or "IN", cfg=cfg, use_fixture=use_fixture
+            context,
+            rng,
+            domain=target_domain,
+            proxy_country=proxy_country or "IN",
+            cfg=cfg,
+            use_fixture=use_fixture,
+            spawned_pages=spawned_pages,
+            main_page=page,
         )
 
         # Remaining dwell after navigation
@@ -914,7 +1047,9 @@ async def run_session(
                 and ad_clicks_done < cfg["target"]["ad_clicks_max"]
             ):
                 clicks = await _attempt_ad_click(
-                    page, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done, proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN", cfg=cfg
+                    page, rng, ad_clicks_done, cfg["target"]["ad_clicks_max"], scroll_done,
+                    proxy_id=proxy.proxy_id, domain=target_domain, proxy_country=proxy_country or "IN",
+                    cfg=cfg, spawned_pages=spawned_pages, cdp_session=page_cdp, is_mobile=is_mobile_session,
                 )
                 ad_clicks_done += clicks
                 result["ad_clicks"] += clicks
@@ -938,14 +1073,15 @@ async def run_session(
 
         result["dwell"] = time.time() - t_on_page
 
-        # Save cookies & ADV-6 visitor profiling
+        # Save cookies & ADV-6 visitor profiling (skip shared Chrome state export in Android CDP mode)
         if cfg["session"]["cookie_persist"]:
-            await persist.save(context, proxy.proxy_id)
+            if not using_android_cdp:
+                await persist.save(context, proxy.proxy_id)
             try:
                 persist.record_visit(proxy.proxy_id, start_url)
             except Exception:
                 pass
-            if mahi_conn and mahi_profile:
+            if mahi_conn and mahi_profile and not using_android_cdp:
                 try:
                     await mahi_conn.save_profile_state(context, mahi_profile["id"])
                 except Exception:
@@ -958,6 +1094,11 @@ async def run_session(
             result["error_reason"] = f"{type(exc).__name__}: {str(exc)[:120]}"
         result["dwell"] = max(result["dwell"], time.time() - t0)
     finally:
+        if page_cdp is not None:
+            try:
+                await page_cdp.detach()
+            except Exception:
+                pass
         _record_active_ua(proxy.proxy_id, fp, active=False)
         if push_task and not push_task.done():
             push_task.cancel()
@@ -965,16 +1106,36 @@ async def run_session(
                 await push_task
             except (asyncio.CancelledError, Exception):
                 pass
-        # Step 5.1: Stop trace — saves file only if session was degraded
-        if context:
+        if context is not None and _page_listener is not None:
             try:
-                saved_trace = await tracer.stop(context, status=result.get("status", "ok"))
-                if saved_trace:
-                    logger.warning("Degraded session trace saved → %s", saved_trace.name)
+                context.remove_listener("page", _page_listener)
+            except Exception:
+                pass
+        # Clean up session browser state (owned tabs only for B3 Android CDP; full context close otherwise)
+        if using_android_cdp and cdp_bridge is not None:
+            try:
+                await cdp_bridge.disconnect(
+                    cdp_session,
+                    remove_forward=True,
+                    keep_cookies=bool(cfg.get("session", {}).get("cookie_persist", True)),
+                )
+            except Exception:
+                pass
+        elif context:
+            try:
+                if tracer is not None:
+                    saved_trace = await tracer.stop(context, status=result.get("status", "ok"))
+                    if saved_trace:
+                        logger.warning("Degraded session trace saved → %s", saved_trace.name)
             except Exception:
                 pass
             try:
                 await context.close()
+            except Exception:
+                pass
+        if owned_pw_cm is not None:
+            try:
+                await owned_pw_cm.__aexit__(None, None, None)
             except Exception:
                 pass
         # SCHED-4: Fallback DB write on CancelledError/SIGTERM — always log final status

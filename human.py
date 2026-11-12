@@ -1,6 +1,12 @@
 """
 human.py — Bezier mouse paths, eased scrolling, click selection, human typing.
 All timing uses asyncio.sleep, never time.sleep.
+
+Biometric routing (B4):
+  Pass ``cdp_session`` and/or ``is_mobile=True`` to any public function to
+  route through biometric_motion.py (desktop DesktopCDPMouseDispatcher or
+  mobile MobileCDPTouchDispatcher) instead of Playwright high-level APIs.
+  Existing callers that omit these args continue to work unchanged.
 """
 from __future__ import annotations
 
@@ -11,6 +17,18 @@ import random
 from typing import Optional, Any
 
 from playwright.async_api import Page
+
+# Lazy import — avoids circular dep; imported only when biometric path is used
+_biometric_motion: Any = None
+
+
+def _bm() -> Any:
+    """Lazy-load biometric_motion module."""
+    global _biometric_motion
+    if _biometric_motion is None:
+        import biometric_motion as _bm_mod
+        _biometric_motion = _bm_mod
+    return _biometric_motion
 
 logger = logging.getLogger(__name__)
 
@@ -82,15 +100,34 @@ async def move_mouse(
     rng: Optional[random.Random] = None,
     start_x: Optional[float] = None,
     start_y: Optional[float] = None,
+    cdp_session: Optional[Any] = None,
+    is_mobile: bool = False,
 ) -> None:
     """
     Move the mouse from (start_x, start_y) to (x1, y1) along a cubic Bezier path.
     Preserves continuous cursor tracking across movements without unnatural teleportation.
     Steps: 18–38. Delay per step: 8–30 ms. 4% chance of a mid-path micro-pause.
+
+    B4 routing: when ``cdp_session`` is supplied the Desktop CDP dispatcher is
+    used (Unix-epoch timestamps).  When ``is_mobile=True`` and a cdp_session is
+    present the call is intentionally a no-op for cursor tracking (mobile uses
+    touch events, not mouse moves).
     """
     if rng is None:
         rng = random.Random()
 
+    # Mobile: cursor-tracking concept doesn't apply; skip mouse-move entirely
+    if is_mobile and cdp_session is not None:
+        return
+
+    # Biometric path (desktop CDP)
+    if cdp_session is not None:
+        await _bm().desktop_biometric_move(
+            page, x1, y1, rng=rng, cdp_session=cdp_session
+        )
+        return
+
+    # ── Default Playwright path ───────────────────────────────────────────────
     # Retrieve current mouse position without teleporting
     if start_x is None or start_y is None:
         start_x, start_y = get_current_cursor(page, rng)
@@ -147,19 +184,51 @@ async def click_point(
     x: float,
     y: float,
     rng: Optional[random.Random] = None,
+    cdp_session: Optional[Any] = None,
+    is_mobile: bool = False,
 ) -> None:
     """
     Execute a human-grade ergonomic click at (x, y):
-    1. Continuous Bézier trajectory from current cursor position.
+    1. Continuous Bézier/biometric trajectory from current cursor position.
     2. Pre-click hover dwell (120ms–240ms) with hand micro-tremors.
-    3. Mouse down.
+    3. Mouse down (or CDP touch tap for mobile).
     4. Human finger depress hold duration (60ms–130ms).
-    5. Mouse up.
+    5. Mouse up (or CDP touch end).
     6. Post-click micro settlement dwell (40ms–90ms).
+
+    B4 routing:
+    - ``cdp_session`` + ``is_mobile=True``: routes to MobileCDPTouchDispatcher.tap()
+    - ``cdp_session`` only: routes to DesktopCDPMouseDispatcher down/up.
+    - Neither: standard Playwright page.mouse.down/up.
     """
     if rng is None:
         rng = random.Random()
 
+    # Mobile CDP touch tap path (B4)
+    if is_mobile and cdp_session is not None:
+        bm = _bm()
+        dispatcher = bm.MobileCDPTouchDispatcher(cdp_session)
+        # Pre-tap settling dwell
+        await asyncio.sleep(rng.uniform(0.04, 0.10))
+        await dispatcher.tap(x, y, rng=rng, hold_ms=rng.uniform(65.0, 130.0))
+        await asyncio.sleep(rng.uniform(0.04, 0.09))
+        return
+
+    # Desktop CDP path (B4): biometric move + CDP down/up
+    if cdp_session is not None:
+        await move_mouse(page, x, y, rng, cdp_session=cdp_session)
+        bm = _bm()
+        dispatcher = bm.DesktopCDPMouseDispatcher(cdp_session)
+        tremor_steps = rng.randint(2, 4)
+        await micro_tremor(page, x, y, count=tremor_steps, rng=rng)
+        await asyncio.sleep(rng.uniform(0.04, 0.10))
+        await dispatcher.down(x, y)
+        await asyncio.sleep(rng.uniform(0.06, 0.13))
+        await dispatcher.up(x, y)
+        await asyncio.sleep(rng.uniform(0.04, 0.09))
+        return
+
+    # ── Default Playwright path ───────────────────────────────────────────────
     # 1. Smooth Bézier glide to target
     await move_mouse(page, x, y, rng)
 
@@ -185,10 +254,13 @@ async def click_element(
     page: Page,
     selector: str,
     rng: Optional[random.Random] = None,
+    cdp_session: Optional[Any] = None,
+    is_mobile: bool = False,
 ) -> bool:
     """
     Click an element at a biological point inside its bounding box (20–80% x, 25–75% y)
     with pre-click settlement and micro-tremors.
+    Routes to MobileCDPTouchDispatcher or DesktopCDPMouseDispatcher when cdp_session provided.
     Returns True on success.
     """
     if rng is None:
@@ -206,7 +278,7 @@ async def click_element(
         tx = box["x"] + box["width"] * rng.uniform(0.20, 0.80)
         ty = box["y"] + box["height"] * rng.uniform(0.25, 0.75)
 
-        await click_point(page, tx, ty, rng)
+        await click_point(page, tx, ty, rng, cdp_session=cdp_session, is_mobile=is_mobile)
         return True
     except Exception as exc:
         logger.debug("click_element(%s) failed: %s", selector, exc)
@@ -610,6 +682,8 @@ async def reading_speed_scroll(
     page: Page,
     rng: Optional[random.Random] = None,
     wpm: Optional[float] = None,
+    cdp_session: Optional[Any] = None,
+    is_mobile: bool = False,
 ) -> float:
     """
     ADV-3: Human Reading Pace Scroll.
@@ -617,6 +691,10 @@ async def reading_speed_scroll(
     and scrolls through content chunks with natural pauses.
     Includes 12% probability of scrolling back up to re-read key points.
     Returns total seconds spent reading.
+
+    B4 routing: when ``is_mobile=True`` and ``cdp_session`` provided, dispatches
+    HermiteThumbArc fling scrolls via MobileCDPTouchDispatcher instead of
+    page.mouse.wheel (which is unsupported on Android Chrome CDP).
     """
     if rng is None:
         rng = random.Random()
@@ -634,11 +712,24 @@ async def reading_speed_scroll(
 
     for c in range(chunks):
         scroll_px = rng.randint(220, 480)
-        await page.mouse.wheel(0, scroll_px)
+        if is_mobile and cdp_session is not None:
+            await _bm().mobile_fling_scroll(
+                page, direction="down", distance_px=float(scroll_px),
+                rng=rng, cdp_session=cdp_session
+            )
+        else:
+            await page.mouse.wheel(0, scroll_px)
         await asyncio.sleep(rng.uniform(time_per_chunk * 0.4, time_per_chunk * 0.9))
 
         if rng.random() < 0.12:
-            await page.mouse.wheel(0, -rng.randint(80, 180))
+            back_px = rng.randint(80, 180)
+            if is_mobile and cdp_session is not None:
+                await _bm().mobile_fling_scroll(
+                    page, direction="up", distance_px=float(back_px),
+                    rng=rng, cdp_session=cdp_session
+                )
+            else:
+                await page.mouse.wheel(0, -back_px)
             await asyncio.sleep(rng.uniform(0.8, 1.8))
 
     return estimated_seconds

@@ -218,6 +218,15 @@ browser:
   engine: mahi
   use_mahi_profiles: false
   block_resources: []
+android_cdp:
+  enabled: true
+  device_id: ""             # Auto-detect attached USB ADB serial (e.g. RZCX21WTS9E)
+  preferred_socket: chrome_devtools_remote
+  port_min: 9222
+  port_max: 9299
+  fail_closed: true         # Never spoof Android UA on Windows Chromium if phone disconnects
+  dedicated_device: false   # Preserve personal Chrome tabs & logins; clean only owned tabs & visited origins
+  prefer_for_mobile_only: true
 network:
   mode: mobile_tether
   airplane_mode_wait: 4

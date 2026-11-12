@@ -461,33 +461,87 @@ def init_script(fp: Fingerprint) -> str:
 
     return f"""
 (function() {{
-  // ── webdriver (FP-5) ────────────────────────────────────────────────────────
+  // ── C3: Global WeakMap + Function.prototype.toString hook ───────────────────
+  // Maps overridden functions → their native name strings.
+  // Function.prototype.toString.call(fn) → 'function name() {{ [native code] }}'
+  // The hook is a non-constructable arrow captured before anyone else can patch it.
+  const _nativeMap = new WeakMap();
+  const _origFnToString = Function.prototype.toString;
+  const _nativeToString = (() => {{
+    const hook = function() {{
+      const fn = this;
+      if (_nativeMap.has(fn)) return 'function ' + _nativeMap.get(fn) + '() {{ [native code] }}';
+      return _origFnToString.call(fn);
+    }};
+    // Built-in functions do not have a .prototype property
+    try {{ delete hook.prototype; }} catch(e) {{}}
+    // The hook itself must look native
+    _nativeMap.set(hook, 'toString');
+    return hook;
+  }})();
   try {{
-    delete navigator.webdriver;
-  }} catch (e) {{}}
+    Object.defineProperty(Function.prototype, 'toString', {{
+      value: _nativeToString,
+      writable: true,
+      configurable: true,
+    }});
+  }} catch(e) {{}}
+
+  // _makeNative registers in WeakMap (no own .toString property needed)
+  const _makeNative = (fn, name) => {{
+    _nativeMap.set(fn, name);
+    try {{ Object.defineProperty(fn, 'name', {{ value: name, configurable: true }}); }} catch(e) {{}}
+    return fn;
+  }};
+
+  // Helper: strict getter that throws Illegal invocation when this is not the
+  // expected prototype instance (mirrors real native getter behaviour).
+  const _makeStrictGetter = (getValue, protoCheck) => _makeNative(function() {{
+    if (protoCheck && !protoCheck(this)) {{
+      throw new TypeError("Illegal invocation");
+    }}
+    return getValue(this);
+  }}, 'get');
+
+  // ── webdriver (FP-5 / C3) ───────────────────────────────────────────────────
+  // Remove own property from navigator instance so Object.getOwnPropertyNames(navigator) stays []
+  try {{ delete navigator.webdriver; }} catch(e) {{}}
+  // Define ONLY on Navigator.prototype (not on instance)
   const _protoNav = Object.getPrototypeOf(navigator);
   if (_protoNav) {{
     try {{
-      Object.defineProperty(_protoNav, 'webdriver', {{
-        get: () => undefined,
-        set: undefined,
-        configurable: true,
-        enumerable: false,
-      }});
-    }} catch (e) {{}}
+      const _navDesc = Object.getOwnPropertyDescriptor(_protoNav, 'webdriver');
+      if (!_navDesc || _navDesc.configurable) {{
+        Object.defineProperty(_protoNav, 'webdriver', {{
+          get: _makeNative(() => undefined, 'get webdriver'),
+          set: undefined,
+          configurable: true,
+          enumerable: false,
+        }});
+      }}
+    }} catch(e) {{}}
   }}
-  try {{
-    Object.defineProperty(navigator, 'webdriver', {{
-      get: () => undefined,
-      set: undefined,
-      configurable: true,
-      enumerable: false,
-    }});
-  }} catch (e) {{}}
+  // Do NOT redefine as own property on navigator instance (C3 fix: keeps own-props clean)
 
-  // ── platform / vendor ──────────────────────────────────────────────────────
-  Object.defineProperty(navigator, 'platform',   {{ get: () => {json.dumps(fp.platform)}, configurable: true }});
-  Object.defineProperty(navigator, 'vendor',     {{ get: () => 'Google Inc.', configurable: true }});
+  // ── platform / vendor / hardware / languages / plugins (C3: prototype target)
+  // Define on Navigator.prototype and scrub own-properties from navigator instance
+  // so Object.getOwnPropertyNames(navigator) is clean.
+  const _navProto = _protoNav || navigator;
+  const _defNav = (prop, val) => {{
+    try {{ delete navigator[prop]; }} catch(e) {{}}
+    try {{
+      Object.defineProperty(_navProto, prop, {{
+        get: _makeNative(() => val, 'get ' + prop),
+        configurable: true,
+        enumerable: true
+      }});
+    }} catch(e) {{
+      try {{ Object.defineProperty(navigator, prop, {{ get: _makeNative(() => val, 'get ' + prop), configurable: true, enumerable: true }}); }} catch(e2) {{}}
+    }}
+  }};
+
+  _defNav('platform', {json.dumps(fp.platform)});
+  _defNav('vendor', 'Google Inc.');
 
   // ── Client Hints (navigator.userAgentData) ─────────────────────────────────
   const _chBrands = {json.dumps(ch["brands"])};
@@ -499,21 +553,12 @@ def init_script(fp: Fingerprint) -> str:
   const _chModel = {json.dumps(ch["model"])};
   const _chFullVer = {json.dumps(ch["full_ver"])};
 
+  // ── navigator.userAgentData (_uad object) ──────────────────────────────────
   const _UAP = (typeof window !== 'undefined' && window.NavigatorUAData) ? window.NavigatorUAData.prototype : Object.prototype;
   const _uad = Object.create(_UAP);
-
   Object.defineProperty(_uad, 'brands',   {{ get: () => _chBrands,   enumerable: true, configurable: true }});
   Object.defineProperty(_uad, 'mobile',   {{ get: () => _chMobile,   enumerable: true, configurable: true }});
   Object.defineProperty(_uad, 'platform', {{ get: () => _chPlatform, enumerable: true, configurable: true }});
-
-  const _makeNative = (fn, name) => {{
-    Object.defineProperty(fn, 'name', {{ value: name, configurable: true }});
-    Object.defineProperty(fn, 'toString', {{
-      value: function() {{ return 'function ' + name + '() {{ [native code] }}'; }},
-      configurable: true
-    }});
-    return fn;
-  }};
 
   _uad.getHighEntropyValues = _makeNative(function(hints) {{
     return Promise.resolve({{
@@ -543,20 +588,16 @@ def init_script(fp: Fingerprint) -> str:
     }};
   }}, 'toJSON');
 
-  Object.defineProperty(navigator, 'userAgentData', {{
-    get: () => _uad,
-    configurable: true,
-    enumerable: true
-  }});
+  _defNav('userAgentData', _uad);
 
   // ── hardware ───────────────────────────────────────────────────────────────
-  Object.defineProperty(navigator, 'hardwareConcurrency', {{ get: () => {fp.hardware_concurrency}, configurable: true }});
-  Object.defineProperty(navigator, 'deviceMemory',        {{ get: () => {fp.device_memory},         configurable: true }});
-  Object.defineProperty(navigator, 'maxTouchPoints',      {{ get: () => {fp.max_touch_points},      configurable: true }});
+  _defNav('hardwareConcurrency', {fp.hardware_concurrency});
+  _defNav('deviceMemory',        {fp.device_memory});
+  _defNav('maxTouchPoints',      {fp.max_touch_points});
 
   // ── languages ──────────────────────────────────────────────────────────────
-  Object.defineProperty(navigator, 'languages', {{ get: () => {langs_json}, configurable: true }});
-  Object.defineProperty(navigator, 'language',  {{ get: () => {json.dumps(fp.languages[0])}, configurable: true }});
+  _defNav('languages', {langs_json});
+  _defNav('language',  {json.dumps(fp.languages[0])});
 
   // ── plugins / mimeTypes ───────────────────────────────────────────────────
   const fakePlugin = (name, filename, desc) => {{
@@ -575,19 +616,13 @@ def init_script(fp: Fingerprint) -> str:
     fakePlugin('Microsoft Edge PDF Viewer', 'internal-pdf-viewer', 'Portable Document Format'),
     fakePlugin('WebKit built-in PDF',    'internal-pdf-viewer',  'Portable Document Format'),
   ];
-  Object.defineProperty(navigator, 'plugins', {{
-    get: () => plugins,
-    configurable: true,
-  }});
-  Object.defineProperty(navigator, 'mimeTypes', {{
-    get: () => ({{
-      length: 2,
-      0: {{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
-      1: {{ type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
-      'application/pdf': {{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
-      'text/pdf': {{ type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
-    }}),
-    configurable: true,
+  _defNav('plugins', plugins);
+  _defNav('mimeTypes', {{
+    length: 2,
+    0: {{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
+    1: {{ type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
+    'application/pdf': {{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
+    'text/pdf': {{ type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
   }});
 
   // ── chrome object & Step 3.3: Extension Emulation ──────────────────────────
@@ -740,11 +775,21 @@ def init_script(fp: Fingerprint) -> str:
   Object.defineProperty(window, 'screenLeft',  {{ get: () => {100 if not fp.is_mobile else 0}, configurable: true }});
   Object.defineProperty(window, 'screenTop',   {{ get: () => {100 if not fp.is_mobile else 0}, configurable: true }});
 
-  // ── connection ────────────────────────────────────────────────────────────
+  // ── connection (C3: use NetworkInformation.prototype when available) ─────────
   if (navigator.connection) {{
-    Object.defineProperty(navigator.connection, 'effectiveType', {{ get: () => '4g', configurable: true }});
-    Object.defineProperty(navigator.connection, 'downlink',      {{ get: () => {fp.downlink}, configurable: true }});
-    Object.defineProperty(navigator.connection, 'rtt',           {{ get: () => {fp.rtt}, configurable: true }});
+    const _connProto = (typeof NetworkInformation !== 'undefined' && NetworkInformation.prototype)
+      ? NetworkInformation.prototype
+      : navigator.connection;
+    try {{
+      Object.defineProperty(_connProto, 'effectiveType', {{ get: _makeNative(() => '4g', 'get effectiveType'), configurable: true }});
+      Object.defineProperty(_connProto, 'downlink',      {{ get: _makeNative(() => {fp.downlink}, 'get downlink'), configurable: true }});
+      Object.defineProperty(_connProto, 'rtt',           {{ get: _makeNative(() => {fp.rtt}, 'get rtt'), configurable: true }});
+    }} catch(e) {{
+      // Fall back to instance property if prototype is sealed
+      Object.defineProperty(navigator.connection, 'effectiveType', {{ get: () => '4g', configurable: true }});
+      Object.defineProperty(navigator.connection, 'downlink',      {{ get: () => {fp.downlink}, configurable: true }});
+      Object.defineProperty(navigator.connection, 'rtt',           {{ get: () => {fp.rtt}, configurable: true }});
+    }}
   }}
 
   // ── mediaDevices (enumerateDevices) ───────────────────────────────────────
@@ -1159,6 +1204,51 @@ def init_script(fp: Fingerprint) -> str:
       window.webkitRTCPeerConnection = window.RTCPeerConnection;
     }}
   }}
+
+  // ── C3: HTMLIFrameElement.prototype.contentWindow hook ───────────────────────
+  // When script reads iframe.contentWindow, inject our Function.prototype.toString
+  // hook into the child frame's context so bot detectors calling
+  // iframe.contentWindow.Function.prototype.toString.toString() see native code.
+  try {{
+    if (typeof HTMLIFrameElement !== 'undefined') {{
+      const _origCWDesc = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'contentWindow');
+      if (_origCWDesc && _origCWDesc.get) {{
+        const _origCWGet = _origCWDesc.get;
+        const _childFrameMaps = new WeakMap();
+        Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {{
+          get: _makeNative(function() {{
+            const childWin = _origCWGet.call(this);
+            if (childWin && childWin !== window) {{
+              try {{
+                let _childNativeMap = _childFrameMaps.get(childWin);
+                if (!_childNativeMap) {{
+                  _childNativeMap = new (childWin.WeakMap || WeakMap)();
+                  _childFrameMaps.set(childWin, _childNativeMap);
+                }}
+                const _childOrigFnTS = childWin.Function.prototype.toString;
+                const _childHook = function() {{
+                  const fn = this;
+                  if (_childNativeMap.has(fn)) return 'function ' + _childNativeMap.get(fn) + '() {{ [native code] }}';
+                  if (_nativeMap.has(fn)) return 'function ' + _nativeMap.get(fn) + '() {{ [native code] }}';
+                  return _childOrigFnTS.call(fn);
+                }};
+                try {{ delete _childHook.prototype; }} catch(e) {{}}
+                _childNativeMap.set(_childHook, 'toString');
+                _nativeMap.set(_childHook, 'toString');
+                Object.defineProperty(childWin.Function.prototype, 'toString', {{
+                  value: _childHook, writable: true, configurable: true
+                }});
+              }} catch(e) {{}}
+            }}
+            return childWin;
+          }}, 'get contentWindow'),
+          configurable: true,
+          enumerable: true,
+        }});
+      }}
+    }}
+  }} catch(e) {{}}
+
 }})();
 """
 
