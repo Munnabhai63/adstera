@@ -1,57 +1,150 @@
 /**
- * AdsterraFleet Vuexy CRM — Live Workflow Controller
+ * AdsterraFleet Vuexy CRM — Complete A-to-Z Multi-Agent Architectural Wiring Controller
  * Connects to /api/phase4/live-workflow-stream via Server-Sent Events (SSE).
- * Renders n8n / Make.com style visual pipeline animations across:
- * CAPTURE -> A4_VISION -> A2_ANOMALY -> A1_DECISION -> ADB_TAP -> DB_SAVE.
+ * Handles pan/zoom, dynamic SVG wire routing, and stage telemetry for all 4 layers:
+ * Content -> Hardware Farm -> AI Vision & Decision Core -> HQ & Telemetry.
  */
 (function () {
   "use strict";
 
-  const PIPELINE_NODES = [
-    "CAPTURE",
-    "A4_VISION",
-    "A2_ANOMALY",
-    "A1_DECISION",
-    "ADB_TAP",
-    "DB_SAVE",
+  const WIRE_CONNECTIONS = [
+    // Layer 1 Content
+    { from: "TRENDS_HARVESTER", to: "FREELMM_GATEWAY", id: "w-trends-llm" },
+    { from: "FREELMM_GATEWAY", to: "A5_SEO_GATE", id: "w-llm-gate" },
+    { from: "A5_SEO_GATE", to: "CF_PAGES", id: "w-gate-cf" },
+    { from: "CF_PAGES", to: "GSC_INDEX", id: "w-cf-gsc" },
+    { from: "CF_PAGES", to: "PUSH_NOTIF", id: "w-cf-push" },
+
+    // Layer 2 Hardware
+    { from: "A6_SCHEDULER", to: "CGNAT_TRACKER", id: "w-sched-cgnat" },
+    { from: "CGNAT_TRACKER", to: "AIRPLANE_ROTATOR", id: "w-cgnat-air" },
+    { from: "AIRPLANE_ROTATOR", to: "PHONE_FARM", id: "w-air-farm" },
+
+    // Cross-layer: Phone Farm to Capture
+    { from: "PHONE_FARM", to: "CAPTURE", id: "w-farm-capture" },
+
+    // Layer 3 AI Decision & Safety
+    { from: "CAPTURE", to: "A4_VISION", id: "w-cap-a4" },
+    { from: "A4_VISION", to: "A2_ANOMALY", id: "w-a4-a2" },
+    { from: "A2_ANOMALY", to: "SAFE_MODE_GATE", id: "w-a2-safe" },
+    { from: "SAFE_MODE_GATE", to: "SKIP_ACTION", id: "w-safe-skip" },
+    { from: "SAFE_MODE_GATE", to: "CTR_GUARD_GATE", id: "w-safe-ctr" },
+    { from: "CTR_GUARD_GATE", to: "DEFER_ACTION", id: "w-ctr-defer" },
+    { from: "CTR_GUARD_GATE", to: "A1_DECISION", id: "w-ctr-bandit" },
+    { from: "A1_DECISION", to: "ADB_TAP", id: "w-bandit-tap" },
+
+    // Layer 3 to Layer 4 HQ & Telemetry
+    { from: "ADB_TAP", to: "DB_SAVE", id: "w-tap-db" },
+    { from: "DB_SAVE", to: "CENTRAL_HQ", id: "w-db-hq" },
+    { from: "DB_SAVE", to: "A3_FORECAST", id: "w-db-a3" },
+    { from: "DB_SAVE", to: "ADSTERRA_SYNC", id: "w-db-adsterra" },
+    { from: "DB_SAVE", to: "TELEGRAM_BOT", id: "w-db-tg" },
   ];
 
   let eventSource = null;
   let logCount = 0;
   let activeRunId = null;
 
+  // Pan & Zoom state
+  let scale = 0.9;
+  let panX = 10;
+  let panY = 10;
+  let isPanning = false;
+  let startX = 0;
+  let startY = 0;
+
   function initWorkflow() {
     const viewEl = document.getElementById("view-workflow-live");
     if (!viewEl) return;
 
+    setupPanZoom();
     setupControls();
     connectSSE();
-    drawConnectors();
 
-    window.addEventListener("resize", debounce(drawConnectors, 150));
+    // Initial draw and redraw on layout settle
+    setTimeout(() => {
+      drawAllWires();
+      updateTransform();
+    }, 200);
+
+    window.addEventListener("resize", debounce(drawAllWires, 200));
     window.addEventListener("crm:view-activated", function (e) {
       if (e.detail && e.detail.view === "workflow-live") {
-        setTimeout(drawConnectors, 100);
+        setTimeout(drawAllWires, 150);
       }
     });
+  }
+
+  function setupPanZoom() {
+    const viewport = document.getElementById("wfCanvasViewport");
+    const transformEl = document.getElementById("wfCanvasTransform");
+    if (!viewport || !transformEl) return;
+
+    viewport.addEventListener("mousedown", (e) => {
+      if (e.target.closest(".wf-box-node, .wf-diamond-node, button, select, input")) return;
+      isPanning = true;
+      startX = e.clientX - panX;
+      startY = e.clientY - panY;
+      viewport.classList.add("grabbing");
+    });
+
+    window.addEventListener("mousemove", (e) => {
+      if (!isPanning) return;
+      panX = e.clientX - startX;
+      panY = e.clientY - startY;
+      updateTransform();
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (isPanning) {
+        isPanning = false;
+        viewport.classList.remove("grabbing");
+      }
+    });
+
+    viewport.addEventListener("wheel", (e) => {
+      e.preventDefault();
+      const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
+      const newScale = Math.min(Math.max(scale * zoomFactor, 0.4), 1.8);
+
+      const rect = viewport.getBoundingClientRect();
+      const mouseX = e.clientX - rect.left;
+      const mouseY = e.clientY - rect.top;
+
+      panX = mouseX - (mouseX - panX) * (newScale / scale);
+      panY = mouseY - (mouseY - panY) * (newScale / scale);
+      scale = newScale;
+
+      updateTransform();
+    }, { passive: false });
+
+    // Toolbar Zoom Buttons
+    const inBtn = document.getElementById("wfZoomInBtn");
+    const outBtn = document.getElementById("wfZoomOutBtn");
+    const resetBtn = document.getElementById("wfZoomResetBtn");
+
+    if (inBtn) inBtn.addEventListener("click", () => { scale = Math.min(scale + 0.15, 1.8); updateTransform(); });
+    if (outBtn) outBtn.addEventListener("click", () => { scale = Math.max(scale - 0.15, 0.4); updateTransform(); });
+    if (resetBtn) resetBtn.addEventListener("click", () => { scale = 0.9; panX = 10; panY = 10; updateTransform(); });
+  }
+
+  function updateTransform() {
+    const transformEl = document.getElementById("wfCanvasTransform");
+    if (transformEl) {
+      transformEl.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    }
   }
 
   function setupControls() {
     const triggerBtn = document.getElementById("wfTriggerRunBtn");
     const resetBtn = document.getElementById("wfResetBtn");
     const clearLogBtn = document.getElementById("wfClearLogBtn");
-    const modeRadios = document.querySelectorAll('input[name="wfExecMode"]');
 
-    if (triggerBtn) {
-      triggerBtn.addEventListener("click", triggerRun);
-    }
-
-    if (resetBtn) {
-      resetBtn.addEventListener("click", resetAllNodes);
-    }
+    if (triggerBtn) triggerBtn.addEventListener("click", triggerRun);
+    if (resetBtn) resetBtn.addEventListener("click", resetAllNodes);
 
     if (clearLogBtn) {
-      clearLogBtn.addEventListener("click", function () {
+      clearLogBtn.addEventListener("click", () => {
         const box = document.getElementById("wfTerminalBox");
         if (box) {
           box.innerHTML = '<div class="text-secondary">[SYSTEM] Terminal log cleared.</div>';
@@ -60,17 +153,6 @@
         }
       });
     }
-
-    modeRadios.forEach((radio) => {
-      radio.addEventListener("change", function () {
-        const badge = document.getElementById("wfRunModeBadge");
-        if (badge) {
-          const val = this.value.toUpperCase();
-          badge.textContent = val + " MODE";
-          badge.className = val === "LIVE" ? "badge bg-label-warning tabular-nums" : "badge bg-label-primary tabular-nums";
-        }
-      });
-    });
   }
 
   function connectSSE() {
@@ -90,7 +172,7 @@
         if (badge) badge.className = "badge bg-label-success d-inline-flex align-items-center gap-1";
         if (text) text.textContent = "SSE STREAMING";
         if (pulse) pulse.className = "spinner-grow spinner-grow-sm text-success";
-        logToTerminal("SYSTEM", "Connected to Live Workflow SSE stream.", "info");
+        logToTerminal("SYSTEM", "Connected to Live Architecture SSE Stream.", "info");
       };
 
       eventSource.addEventListener("connected", function (e) {
@@ -100,18 +182,14 @@
           if (Array.isArray(payload.history) && payload.history.length > 0) {
             payload.history.forEach((ev) => handlePipelineEvent(ev, true));
           }
-        } catch (err) {
-          console.warn("[WorkflowSSE] JSON parse error on connected:", err);
-        }
+        } catch (_) {}
       });
 
       eventSource.addEventListener("pipeline", function (e) {
         try {
           const ev = JSON.parse(e.data);
           handlePipelineEvent(ev);
-        } catch (err) {
-          console.warn("[WorkflowSSE] JSON parse error on pipeline:", err);
-        }
+        } catch (_) {}
       });
 
       eventSource.onmessage = function (e) {
@@ -127,7 +205,7 @@
         if (pulse) pulse.className = "spinner-grow spinner-grow-sm text-danger";
       };
     } catch (err) {
-      console.error("[WorkflowSSE] Failed to initialize EventSource:", err);
+      console.error("[WorkflowSSE] Error initializing EventSource:", err);
     }
   }
 
@@ -142,25 +220,16 @@
 
     if (runId && runId !== activeRunId) {
       activeRunId = runId;
-      const runDisplay = document.getElementById("wfRunIdDisplay");
-      if (runDisplay) runDisplay.textContent = "Run: " + runId;
     }
 
     if (!isHistory) {
       logToTerminal(nodeId, message, status, data);
     }
 
-    // Top status pill update
-    const activeBadge = document.getElementById("wfActiveNodeBadge");
-    if (activeBadge) {
-      activeBadge.textContent = nodeId + ": " + status.toUpperCase();
-      activeBadge.className = status === "processing"
-        ? "badge bg-label-warning rounded-pill ms-2"
-        : status === "success"
-        ? "badge bg-label-success rounded-pill ms-2"
-        : status === "failed"
-        ? "badge bg-label-danger rounded-pill ms-2"
-        : "badge bg-label-info rounded-pill ms-2";
+    const readout = document.getElementById("wfActiveStageReadout");
+    if (readout) {
+      readout.textContent = nodeId.replace(/_/g, " ") + " [" + status.toUpperCase() + "]";
+      readout.className = status === "processing" ? "badge bg-label-warning tabular-nums" : "badge bg-label-info tabular-nums";
     }
 
     if (nodeId === "WORKFLOW_START") {
@@ -174,169 +243,119 @@
       return;
     }
 
-    // Pipeline Stage Node Update
-    if (PIPELINE_NODES.includes(nodeId)) {
-      updateNodeState(nodeId, status, message, data);
-      updateConnectorState(nodeId, status);
-    }
+    updateNodeState(nodeId, status, message, data);
+    updateWireState(nodeId, status);
   }
 
   function updateNodeState(nodeId, status, message, data) {
-    const nodeEl = document.getElementById("wfNode-" + nodeId);
-    const statusPill = document.getElementById("wfStatus-" + nodeId);
-    const dataBox = document.getElementById("wfData-" + nodeId);
-    const checkIcon = document.getElementById("wfCheck-" + nodeId);
+    const nodeEl = document.getElementById("node-" + nodeId);
+    const metricEl = document.getElementById("metric-" + nodeId);
 
-    if (!nodeEl) return;
+    if (nodeEl) {
+      nodeEl.classList.remove("processing", "success", "failed");
+      if (status === "processing") nodeEl.classList.add("processing");
+      else if (status === "success") nodeEl.classList.add("success");
+      else if (status === "failed") nodeEl.classList.add("failed");
+    }
 
-    nodeEl.classList.remove("processing", "success", "failed");
-
-    if (status === "processing") {
-      nodeEl.classList.add("processing");
-      if (statusPill) {
-        statusPill.className = "badge bg-label-warning wf-status-pill";
-        statusPill.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width: 10px; height: 10px;"></span>RUNNING';
-      }
-      if (checkIcon) {
-        checkIcon.className = "icon-base ti tabler-loader text-warning animate-spin wf-node-check";
-      }
-      if (dataBox) {
-        dataBox.innerHTML = '<div class="text-warning">' + escapeHtml(message) + '</div>';
-      }
-    } else if (status === "success") {
-      nodeEl.classList.add("success");
-      if (statusPill) {
-        statusPill.className = "badge bg-label-success wf-status-pill";
-        statusPill.textContent = "SUCCESS";
-      }
-      if (checkIcon) {
-        checkIcon.className = "icon-base ti tabler-circle-check-filled text-success wf-node-check";
-      }
-      if (dataBox) {
-        dataBox.innerHTML = renderPayloadPreview(data, message);
-      }
-    } else if (status === "failed") {
-      nodeEl.classList.add("failed");
-      if (statusPill) {
-        statusPill.className = "badge bg-label-danger wf-status-pill";
-        statusPill.textContent = "FAILED";
-      }
-      if (checkIcon) {
-        checkIcon.className = "icon-base ti tabler-alert-circle-filled text-danger wf-node-check";
-      }
-      if (dataBox) {
-        dataBox.innerHTML = '<div class="text-danger fw-bold">' + escapeHtml(message) + '</div>';
+    if (metricEl) {
+      if (status === "processing") {
+        metricEl.textContent = "... processing ...";
+      } else if (message) {
+        metricEl.textContent = formatMetricText(nodeId, message, data);
       }
     }
   }
 
-  function renderPayloadPreview(data, fallbackMsg) {
-    if (!data || Object.keys(data).length === 0) {
-      return '<div class="text-success text-truncate">' + escapeHtml(fallbackMsg) + '</div>';
-    }
-    const parts = [];
-    if (data.bbox) parts.push('bbox: [' + data.bbox.join(', ') + ']');
-    if (data.confidence !== undefined) parts.push('conf: ' + Number(data.confidence).toFixed(2));
-    if (data.action) parts.push('action: <b class="text-primary">' + data.action.toUpperCase() + '</b>');
-    if (data.reward !== undefined) parts.push('reward: ' + Number(data.reward).toFixed(5));
-    if (data.current_ctr !== undefined) parts.push('ctr: ' + (Number(data.current_ctr) * 100).toFixed(2) + '%');
-    if (data.executed !== undefined) parts.push('tap: ' + (data.executed ? 'YES' : 'SIMULATED'));
-    if (data.session_id) parts.push('sid: ' + data.session_id.substring(0, 14) + '...');
-
-    if (parts.length > 0) {
-      return '<div class="text-body-secondary">' + parts.join(' &bull; ') + '</div>';
-    }
-    return '<div class="text-truncate text-body-secondary">' + escapeHtml(JSON.stringify(data)) + '</div>';
+  function formatMetricText(nodeId, msg, data) {
+    if (data.bbox) return `bbox: [${data.bbox.join(", ")}]`;
+    if (data.action) return `Action: ${data.action.toUpperCase()} (${Number(data.reward || 0).toFixed(4)})`;
+    if (data.intensity) return `Intensity: ${data.intensity} (${data.sessions_today} today)`;
+    if (data.subnet_24) return `Subnet: ${data.subnet_24}`;
+    if (data.perplexity) return `Perplexity: ${data.perplexity} (Approved)`;
+    if (data.p50) return `P50: $${Number(data.p50).toFixed(2)}`;
+    if (data.session_id) return `Committed: ${data.session_id.substring(0, 12)}...`;
+    return msg.length > 36 ? msg.substring(0, 34) + "..." : msg;
   }
 
-  function updateConnectorState(nodeId, status) {
-    const idx = PIPELINE_NODES.indexOf(nodeId);
-    if (idx < 0) return;
-
-    const path = document.getElementById("wfPath-" + idx);
-    if (!path) return;
-
-    path.classList.remove("active", "success", "failed");
-    if (status === "processing") {
-      path.classList.add("active");
-    } else if (status === "success") {
-      path.classList.add("success");
-    } else if (status === "failed") {
-      path.classList.add("failed");
-    }
+  function updateWireState(nodeId, status) {
+    WIRE_CONNECTIONS.forEach((w) => {
+      if (w.from === nodeId) {
+        const path = document.getElementById(w.id);
+        if (path) {
+          path.classList.remove("active", "success", "failed");
+          if (status === "processing") {
+            path.classList.add("active");
+            path.setAttribute("marker-end", "url(#wfArrowActive)");
+          } else if (status === "success") {
+            path.classList.add("success");
+            path.setAttribute("marker-end", "url(#wfArrowSuccess)");
+          } else if (status === "failed") {
+            path.classList.add("failed");
+          }
+        }
+      }
+    });
   }
 
-  function drawConnectors() {
-    const group = document.getElementById("wfSvgPathGroup");
-    const container = document.getElementById("wfCanvasContainer");
-    if (!group || !container) return;
+  function drawAllWires() {
+    const group = document.getElementById("wfWirePathGroup");
+    const transformEl = document.getElementById("wfCanvasTransform");
+    if (!group || !transformEl) return;
 
     group.innerHTML = "";
-    const containerRect = container.getBoundingClientRect();
+    const parentRect = transformEl.getBoundingClientRect();
 
-    for (let i = 0; i < PIPELINE_NODES.length - 1; i++) {
-      const fromEl = document.getElementById("wfNode-" + PIPELINE_NODES[i]);
-      const toEl = document.getElementById("wfNode-" + PIPELINE_NODES[i + 1]);
-      if (!fromEl || !toEl) continue;
+    WIRE_CONNECTIONS.forEach((conn) => {
+      const fromEl = document.getElementById("node-" + conn.from);
+      const toEl = document.getElementById("node-" + conn.to);
+      if (!fromEl || !toEl) return;
 
       const r1 = fromEl.getBoundingClientRect();
       const r2 = toEl.getBoundingClientRect();
 
-      // Start: right middle of fromEl
-      const x1 = r1.right - containerRect.left;
-      const y1 = r1.top + r1.height / 2 - containerRect.top;
+      // Normalize coordinates within unscaled coordinate space
+      const x1 = (r1.right - parentRect.left) / scale;
+      const y1 = (r1.top + r1.height / 2 - parentRect.top) / scale;
 
-      // End: left middle of toEl
-      const x2 = r2.left - containerRect.left;
-      const y2 = r2.top + r2.height / 2 - containerRect.top;
+      const x2 = (r2.left - parentRect.left) / scale;
+      const y2 = (r2.top + r2.height / 2 - parentRect.top) / scale;
 
       let d;
-      if (Math.abs(y1 - y2) < 40 && x2 > x1) {
-        // Same row: smooth horizontal cubic bezier
-        const dx = (x2 - x1) * 0.5;
-        d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+      // If target is to the right
+      if (x2 > x1 + 15) {
+        const dx = Math.max((x2 - x1) * 0.45, 30);
+        d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2 - 4} ${y2}`;
       } else {
-        // Wrap to next row: S-curve path
-        const mx = (x1 + x2) / 2;
-        d = `M ${x1} ${y1} C ${x1 + 60} ${y1}, ${mx} ${y1}, ${mx} ${(y1 + y2) / 2} S ${x2 - 60} ${y2}, ${x2} ${y2}`;
+        // Vertical or looped connection (same column or flowing backwards)
+        const cy1 = (r1.bottom - parentRect.top) / scale;
+        const cx1 = (r1.left + r1.width / 2 - parentRect.top) / scale;
+        const cy2 = (r2.top - parentRect.top) / scale;
+        const cx2 = (r2.left + r2.width / 2 - parentRect.top) / scale;
+        d = `M ${cx1} ${cy1} C ${cx1} ${cy1 + 25}, ${cx2} ${cy2 - 25}, ${cx2} ${cy2 - 4}`;
       }
 
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-      path.setAttribute("id", "wfPath-" + i);
-      path.setAttribute("class", "wf-svg-path");
+      path.setAttribute("id", conn.id);
+      path.setAttribute("class", "wf-svg-wire");
       path.setAttribute("d", d);
+      path.setAttribute("marker-end", "url(#wfArrow)");
       group.appendChild(path);
-    }
+    });
   }
 
   function resetAllNodes() {
-    PIPELINE_NODES.forEach((nodeId) => {
-      const nodeEl = document.getElementById("wfNode-" + nodeId);
-      const statusPill = document.getElementById("wfStatus-" + nodeId);
-      const dataBox = document.getElementById("wfData-" + nodeId);
-      const checkIcon = document.getElementById("wfCheck-" + nodeId);
-
-      if (nodeEl) nodeEl.classList.remove("processing", "success", "failed");
-      if (statusPill) {
-        statusPill.className = "badge bg-label-secondary wf-status-pill";
-        statusPill.textContent = "IDLE";
-      }
-      if (checkIcon) {
-        checkIcon.className = "icon-base ti tabler-circle-check text-body-tertiary wf-node-check";
-      }
-      if (dataBox) {
-        dataBox.innerHTML = '<div class="text-body-secondary fst-italic">Waiting for pipeline trigger...</div>';
-      }
+    document.querySelectorAll(".wf-box-node, .wf-diamond-node").forEach((el) => {
+      el.classList.remove("processing", "success", "failed");
     });
-
-    document.querySelectorAll(".wf-svg-path").forEach((p) => {
+    document.querySelectorAll(".wf-svg-wire").forEach((p) => {
       p.classList.remove("active", "success", "failed");
+      p.setAttribute("marker-end", "url(#wfArrow)");
     });
-
-    const activeBadge = document.getElementById("wfActiveNodeBadge");
-    if (activeBadge) {
-      activeBadge.textContent = "PIPELINE IDLE";
-      activeBadge.className = "badge bg-label-info rounded-pill ms-2";
+    const readout = document.getElementById("wfActiveStageReadout");
+    if (readout) {
+      readout.textContent = "IDLE";
+      readout.className = "badge bg-label-info tabular-nums";
     }
   }
 
@@ -355,20 +374,16 @@
         mode: mode,
         steps: steps,
         domain: "rechargekar.com",
-        device_id: "dev-01",
+        device_id: "RZCX21WT59E",
       }),
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.ok) {
-          showNotification(`Triggered ${mode.toUpperCase()} run (${steps} steps)`, "success");
-        } else {
-          showNotification(`Run trigger failed: ${data.error || "Unknown error"}`, "error");
+        if (!data.ok) {
           setTriggerLoading(false);
         }
       })
-      .catch((err) => {
-        showNotification(`API Error: ${err.message}`, "error");
+      .catch(() => {
         setTriggerLoading(false);
       });
   }
@@ -386,7 +401,7 @@
     } else {
       btn.disabled = false;
       if (icon) icon.className = "icon-base ti tabler-player-play icon-16px";
-      if (text) text.textContent = "Start Live Run";
+      if (text) text.textContent = "Start Pipeline Run";
     }
   }
 
@@ -399,13 +414,13 @@
 
     const timeStr = new Date().toLocaleTimeString();
     let colorClass = "text-light";
-    if (status === "processing") colorClass = "text-warning";
+    if (status === "processing") colorClass = "text-info";
     if (status === "success") colorClass = "text-success";
     if (status === "failed") colorClass = "text-danger";
 
     const div = document.createElement("div");
     div.className = "mb-1 text-break";
-    div.innerHTML = `<span class="text-secondary">[${timeStr}]</span> <span class="badge bg-label-primary px-1">${escapeHtml(tag)}</span> <span class="${colorClass}">${escapeHtml(message)}</span>`;
+    div.innerHTML = `<span class="text-secondary">[${timeStr}]</span> <span class="badge bg-label-secondary px-1">${escapeHtml(tag)}</span> <span class="${colorClass}">${escapeHtml(message)}</span>`;
 
     box.appendChild(div);
 
@@ -420,21 +435,9 @@
     if (badge) badge.textContent = `${logCount} Events`;
   }
 
-  function showNotification(msg, type) {
-    if (window.AdsterraShell && typeof window.AdsterraShell.toast === "function") {
-      window.AdsterraShell.toast(msg, type);
-    } else {
-      console.log(`[WorkflowToast:${type}]`, msg);
-    }
-  }
-
   function escapeHtml(str) {
     if (!str) return "";
-    return String(str)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
+    return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
   function debounce(fn, delay) {
@@ -445,7 +448,6 @@
     };
   }
 
-  // Auto-init on DOMContentLoaded or immediate if DOM already loaded
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", initWorkflow);
   } else {
@@ -455,6 +457,6 @@
   window.CRMWorkflow = {
     trigger: triggerRun,
     reset: resetAllNodes,
-    redraw: drawConnectors,
+    redraw: drawAllWires,
   };
 })();
