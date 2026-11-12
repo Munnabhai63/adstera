@@ -5,6 +5,7 @@ import argparse
 import json
 import logging
 import mimetypes
+import queue
 import signal
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -18,6 +19,7 @@ from admin_ui.phase4_data import (
     load_phase4_config,
 )
 from admin_ui.views.phase4_farm import render_phase4_dashboard_page
+from admin_ui.workflow_events import get_event_hub
 
 logger = logging.getLogger("admin_ui.phase4_server")
 
@@ -123,6 +125,12 @@ class Phase4RequestHandler(BaseHTTPRequestHandler):
             self._send_bytes(200, "text/html; charset=utf-8", html.encode("utf-8"))
             return
 
+        if req_path in ("/workflow", "/workflow.html"):
+            from admin_ui.views import render_workflow_dashboard_page
+            html = render_workflow_dashboard_page()
+            self._send_bytes(200, "text/html; charset=utf-8", html.encode("utf-8"))
+            return
+
         if req_path == "/api/phase4/dashboard":
             payload = self.server.reader.get_dashboard_snapshot()
             status_code = 200 if payload.get("ok") else 503
@@ -148,6 +156,15 @@ class Phase4RequestHandler(BaseHTTPRequestHandler):
             self._send_json(503 if is_unhealthy else 200, health)
             return
 
+        if req_path == "/api/phase4/live-workflow-stream":
+            self._handle_live_workflow_sse()
+            return
+
+        if req_path == "/api/phase4/workflow/history":
+            hub = get_event_hub()
+            self._send_json(200, {"ok": True, "history": hub.get_history()})
+            return
+
         if req_path.startswith("/crm-assets/"):
             asset_path = resolve_safe_asset_path(req_path, self.server.assets_root)
             if asset_path is None:
@@ -161,6 +178,48 @@ class Phase4RequestHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"ok": False, "error": f"Route not found: {req_path}"})
 
+    def _handle_live_workflow_sse(self) -> None:
+        """Stream real-time pipeline events using Server-Sent Events (SSE)."""
+        hub = get_event_hub()
+        q = hub.subscribe()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-transform")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        # Send initial hello & recent history
+        try:
+            init_data = {
+                "type": "init",
+                "message": "Connected to AdsterraFleet Live Workflow Stream",
+                "history": hub.get_history(limit=20),
+            }
+            self.wfile.write(hub.format_sse(init_data, event_name="connected").encode("utf-8"))
+            self.wfile.flush()
+        except Exception:
+            hub.unsubscribe(q)
+            return
+
+        # Stream loop with keep-alive
+        try:
+            while True:
+                try:
+                    ev = q.get(timeout=2.0)
+                    chunk = hub.format_sse(ev, event_name="pipeline").encode("utf-8")
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                except queue.Empty:
+                    # Heartbeat comment to keep connection alive
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, Exception) as exc:
+            logger.debug("SSE client disconnected: %s", exc)
+        finally:
+            hub.unsubscribe(q)
+
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         req_path = parsed.path
@@ -169,8 +228,32 @@ class Phase4RequestHandler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", 0) or 0)
         except ValueError:
             length = 0
+        body_bytes = b""
         if length > 0:
-            self.rfile.read(length)
+            body_bytes = self.rfile.read(length)
+
+        if req_path == "/api/phase4/workflow/trigger":
+            try:
+                data = json.loads(body_bytes.decode("utf-8")) if body_bytes else {}
+            except Exception:
+                data = {}
+            mode = str(data.get("mode", "paper")).lower()
+            steps = max(1, min(int(data.get("steps", 1)), 20))
+            domain = str(data.get("domain", "rechargekar.com"))
+            device_id = str(data.get("device_id", "live-device-01"))
+
+            hub = get_event_hub()
+            run_id = hub.trigger_run_async(mode=mode, steps=steps, domain=domain, device_id=device_id)
+            self._send_json(200, {
+                "ok": True,
+                "run_id": run_id,
+                "mode": mode,
+                "steps": steps,
+                "domain": domain,
+                "device_id": device_id,
+                "message": f"Triggered {mode.upper()} run {run_id} ({steps} steps)",
+            })
+            return
 
         if req_path == "/api/phase4/calibration/run":
             try:

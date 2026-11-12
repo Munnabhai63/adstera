@@ -2,6 +2,10 @@
 
 from admin_ui.views.autopublish import render_autopublish_view
 from admin_ui.views.growth import render_growth_view
+from admin_ui.views.live_workflow import (
+    render_live_workflow_view,
+    render_workflow_dashboard_page,
+)
 from admin_ui.views.login import render_login_view
 from admin_ui.views.monetization import render_monetization_view
 from admin_ui.views.network import render_network_view
@@ -13,6 +17,8 @@ from admin_ui.views.settings import render_settings_view
 __all__ = [
     "render_autopublish_view",
     "render_growth_view",
+    "render_live_workflow_view",
+    "render_workflow_dashboard_page",
     "render_login_view",
     "render_monetization_view",
     "render_network_view",

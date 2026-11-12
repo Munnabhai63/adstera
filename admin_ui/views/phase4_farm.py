@@ -339,6 +339,9 @@ def render_phase4_farm_view(
         <small class="text-body-secondary tabular-nums" id="p4LastUpdatedText">Syncing live SQLite telemetry...</small>
       </div>
       <div class="d-flex flex-wrap align-items-center gap-2">
+        <a href="/workflow" class="btn btn-sm btn-label-warning" id="p4BtnOpenWorkflow" title="Open Real-time Pipeline Visualizer">
+          <i class="icon-base ti tabler-git-branch icon-16px me-1"></i>Live Workflow
+        </a>
         <button type="button" class="btn btn-sm btn-label-primary" id="p4BtnRunCalibration">
           <i class="icon-base ti tabler-activity-heartbeat icon-16px me-1"></i>Run Calibration Check
         </button>

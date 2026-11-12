@@ -5,6 +5,7 @@ from __future__ import annotations
 from admin_ui.views import (
     render_autopublish_view,
     render_growth_view,
+    render_live_workflow_view,
     render_monetization_view,
     render_network_view,
     render_overview_view,
@@ -55,6 +56,13 @@ def _render_sidebar() -> str:
         <i class="menu-icon icon-base ti tabler-cpu"></i>
         <div>Phase 4 Farm &amp; AI Ops</div>
         <span class="badge text-bg-secondary rounded-pill ms-auto" id="sidebarPhase4Badge">P4</span>
+      </a>
+    </li>
+    <li class="menu-item">
+      <a href="#workflow-live" class="menu-link" data-crm-view="workflow-live">
+        <i class="menu-icon icon-base ti tabler-git-branch"></i>
+        <div>Live Workflow</div>
+        <span class="badge text-bg-warning rounded-pill ms-auto" id="sidebarWorkflowBadge">LIVE</span>
       </a>
     </li>
     <li class="menu-item">
@@ -328,6 +336,7 @@ def render_crm_shell() -> str:
     navbar = _render_navbar()
     overview = render_overview_view()
     phase4_view = render_phase4_farm_view(active=False)
+    live_workflow_view = render_live_workflow_view(active=False)
     autopublish_view = render_autopublish_view()
     monetization_view = render_monetization_view()
     network_view = render_network_view()
@@ -413,6 +422,7 @@ def render_crm_shell() -> str:
 
               {overview}
               {phase4_view}
+              {live_workflow_view}
               {autopublish_view}
               {monetization_view}
               {network_view}
@@ -460,6 +470,7 @@ def render_crm_shell() -> str:
     <script src="/crm-assets/js/crm-shell.js"></script>
     <script src="/crm-assets/js/crm-overview.js"></script>
     <script src="/crm-assets/js/crm-phase4.js"></script>
+    <script src="/crm-assets/js/crm-workflow.js"></script>
     <script src="/crm-assets/js/crm-autopublish.js"></script>
     <script src="/crm-assets/js/crm-monetization.js"></script>
     <script src="/crm-assets/js/crm-network-growth.js"></script>

@@ -98,6 +98,28 @@ def _sample_click_point(
     return px, py
 
 
+def _safe_broadcast_event(
+    node_id: str,
+    status: str,
+    message: str = "",
+    data: Optional[Dict[str, Any]] = None,
+    run_id: Optional[str] = None,
+) -> None:
+    """Safely broadcast pipeline step events to the Live Workflow SSE hub if available."""
+    try:
+        from admin_ui.workflow_events import get_event_hub
+
+        get_event_hub().broadcast(
+            node_id=node_id,
+            status=status,
+            message=message,
+            data=data or {},
+            run_id=run_id,
+        )
+    except Exception:
+        pass
+
+
 def build_device_bridge(
     cfg: Phase3Config,
     device_id: str,
@@ -317,6 +339,13 @@ class Phase3LiveOrchestrator:
             )
 
             # 1. Capture screen + UI tree (prefer real DeviceTouchCaptureBridge when attached)
+            _safe_broadcast_event(
+                "CAPTURE",
+                "processing",
+                f"Capturing screen & UI tree from {device_id} ({self.mode})...",
+                {"device_id": device_id, "mode": self.mode},
+                run_id=cid,
+            )
             if capture is None:
                 auto_bridge = self._resolve_device_bridge(device_id)
                 if auto_bridge is not None:
@@ -352,17 +381,46 @@ class Phase3LiveOrchestrator:
             if capture_source != "simulated" and frame == _SIMULATED_1X1_PNG:
                 capture_source = "simulated_fallback"
 
+            _safe_broadcast_event(
+                "CAPTURE",
+                "success",
+                f"Captured {len(frame)} bytes ({capture_source})",
+                {"source": capture_source, "bytes": len(frame), "device_id": device_id},
+                run_id=cid,
+            )
+
             frame_meta: Dict[str, Any] = {"ui_tree": ui_tree, "page_source": ui_tree} if ui_tree else {}
 
             # 2. A4 visual / rule detection
+            _safe_broadcast_event(
+                "A4_VISION",
+                "processing",
+                "Analyzing ad slots and bounding boxes...",
+                {"source": capture_source},
+                run_id=cid,
+            )
             det_info = self.ai.detect_ads(frame, frame_meta, ui_tree=ui_tree or None)
             a4_verified = bool(det_info.get("verified", False))
             a4_bbox = det_info.get("bbox")
             a4_conf = float(det_info.get("confidence", 0.0))
             a4_source = str(det_info.get("source", "none"))
             slot_type = str(det_info.get("label", "none"))
+            _safe_broadcast_event(
+                "A4_VISION",
+                "success" if a4_verified else "info",
+                f"Ad bbox: {a4_bbox} conf: {round(a4_conf, 3)} ({slot_type})",
+                {"bbox": a4_bbox, "confidence": a4_conf, "verified": a4_verified, "slot_type": slot_type},
+                run_id=cid,
+            )
 
             # 3. A2 anomaly check
+            _safe_broadcast_event(
+                "A2_ANOMALY",
+                "processing",
+                "Evaluating metrics against EWMA & Isolation Forest...",
+                {"domain": domain},
+                run_id=cid,
+            )
             if metrics_override is not None:
                 if isinstance(metrics_override, dict):
                     snapshot = MetricsSnapshot(
@@ -382,6 +440,13 @@ class Phase3LiveOrchestrator:
 
             anomaly = self.ai.check_anomaly(snapshot)
             a2_ok = bool(anomaly.ok) and (anomaly.severity != "CRITICAL") and (not self.ai.is_safe_mode())
+            _safe_broadcast_event(
+                "A2_ANOMALY",
+                "success" if a2_ok else "failed",
+                f"Severity: {anomaly.severity}, SafeMode: {self.ai.is_safe_mode()}",
+                {"severity": anomaly.severity, "safe_mode": self.ai.is_safe_mode(), "rpm": snapshot.rpm, "ctr": snapshot.ctr},
+                run_id=cid,
+            )
 
             # 4. Assemble AgentState
             dom_hash = int(hashlib.sha256(domain.encode("utf-8")).hexdigest()[:8], 16) & 0xFFFF
@@ -398,6 +463,13 @@ class Phase3LiveOrchestrator:
             )
 
             # 5. A1 decision (strictly gated by A4 bbox, A2 OK, SafeMode, and paper/live mode)
+            _safe_broadcast_event(
+                "A1_DECISION",
+                "processing",
+                "Sampling LinTS Bandit with upper confidence bound...",
+                {"slot_type": slot_type},
+                run_id=cid,
+            )
             decision = self.ai.decide_action(
                 state,
                 det_info,
@@ -405,8 +477,22 @@ class Phase3LiveOrchestrator:
                 device_id=device_id,
                 a2_ok=a2_ok,
             )
+            _safe_broadcast_event(
+                "A1_DECISION",
+                "success",
+                f"Decision: {decision.action.upper()} ({decision.reason})",
+                {"action": decision.action, "reason": decision.reason, "slot_type": slot_type},
+                run_id=cid,
+            )
 
             # 6. Execute action (ONLY in live mode when confirmed + A4 bbox verified + A2 OK + SafeMode off)
+            _safe_broadcast_event(
+                "ADB_TAP",
+                "processing",
+                f"Evaluating gesture execution (mode: {self.mode})...",
+                {"mode": self.mode, "action": decision.action},
+                run_id=cid,
+            )
             executed_touch = False
             tap_coords: Optional[Tuple[int, int]] = None
 
@@ -435,6 +521,14 @@ class Phase3LiveOrchestrator:
             if not executed_touch and decision.action in ("click", "paper_click", "skip"):
                 self.ai.record_impression()
 
+            _safe_broadcast_event(
+                "ADB_TAP",
+                "success",
+                f"Touch executed={executed_touch}, coords={tap_coords} (mode: {self.mode})",
+                {"executed": executed_touch, "tap_coords": tap_coords, "mode": self.mode},
+                run_id=cid,
+            )
+
             # 7. Reward update
             rpm_scale = float(getattr(self.ai.ai_cfg.a1_linTS, "reward_rpm_scale", 1000.0) or 1000.0)
             skip_penalty = 0.1 if decision.action == "skip" else 0.0
@@ -443,6 +537,13 @@ class Phase3LiveOrchestrator:
             self.ai.update_reward(arm_id, reward, state=state, device_id=device_id)
 
             # 8. Log to Phase3Store SQLite + JSON lines with correlation ID
+            _safe_broadcast_event(
+                "DB_SAVE",
+                "processing",
+                f"Persisting session {sid} to SQLite WAL...",
+                {"session_id": sid},
+                run_id=cid,
+            )
             safe_mode_active = self.ai.is_safe_mode()
             self.store.log_decision_reward(
                 session_id=sid,
@@ -466,6 +567,13 @@ class Phase3LiveOrchestrator:
                 sid,
                 status="completed",
                 dwell_seconds=max(0.0, time.time() - step_start),
+            )
+            _safe_broadcast_event(
+                "DB_SAVE",
+                "success",
+                f"Committed session {sid} (dwell: {max(0.0, time.time() - step_start):.1f}s)",
+                {"session_id": sid, "status": "completed", "reward": reward},
+                run_id=cid,
             )
 
             self._step_count += 1

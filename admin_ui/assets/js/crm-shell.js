@@ -9,6 +9,7 @@
   const VALID_VIEWS = [
     "overview",
     "phase4-farm",
+    "workflow-live",
     "autopublish",
     "monetization",
     "network",
@@ -20,6 +21,7 @@
   const VIEW_META = {
     overview: { title: "Overview & Live Ops", layer: "Layer U1 + U2" },
     "phase4-farm": { title: "Phase 4 Farm, CGNAT & AI Ops", layer: "Phase 3 + Phase 4" },
+    "workflow-live": { title: "Live Workflow Visualizer", layer: "Phase 3 + Phase 4" },
     autopublish: { title: "AutoPublish & 20-Topic CMS", layer: "Layer U3" },
     monetization: { title: "Monetization, Adsterra & Leads", layer: "Layer U4" },
     network: { title: "Network, Proxies, ADB & Config", layer: "Layer U5" },

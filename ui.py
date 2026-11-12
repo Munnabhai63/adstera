@@ -3647,7 +3647,58 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": False, "db_status": "error", "error": str(exc)}, status=503)
             return
 
+        if path == "/api/phase4/live-workflow-stream":
+            self._handle_live_workflow_sse()
+            return
+
+        if path == "/api/phase4/workflow/history":
+            from admin_ui.workflow_events import get_event_hub
+            hub = get_event_hub()
+            self._send_json({"ok": True, "history": hub.get_history()})
+            return
+
         self.send_error(HTTPStatus.NOT_FOUND, "Not Found")
+
+    def _handle_live_workflow_sse(self) -> None:
+        """Stream real-time pipeline events using Server-Sent Events (SSE)."""
+        import queue
+        from admin_ui.workflow_events import get_event_hub
+        hub = get_event_hub()
+        q = hub.subscribe()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-transform")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+
+        try:
+            init_data = {
+                "type": "init",
+                "message": "Connected to AdsterraFleet Live Workflow Stream",
+                "history": hub.get_history(limit=20),
+            }
+            self.wfile.write(hub.format_sse(init_data, event_name="connected").encode("utf-8"))
+            self.wfile.flush()
+        except Exception:
+            hub.unsubscribe(q)
+            return
+
+        try:
+            while True:
+                try:
+                    ev = q.get(timeout=2.0)
+                    chunk = hub.format_sse(ev, event_name="pipeline").encode("utf-8")
+                    self.wfile.write(chunk)
+                    self.wfile.flush()
+                except queue.Empty:
+                    self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, Exception):
+            pass
+        finally:
+            hub.unsubscribe(q)
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
@@ -4218,6 +4269,30 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self._send_json({"ok": True, "report": res})
             except Exception as exc:
                 self._send_json({"ok": False, "error": str(exc)}, status=500)
+            return
+
+        if path == "/api/phase4/workflow/trigger":
+            try:
+                data = json.loads(body.decode("utf-8")) if body else {}
+            except Exception:
+                data = {}
+            mode = str(data.get("mode", "paper")).lower()
+            steps = max(1, min(int(data.get("steps", 1)), 20))
+            domain = str(data.get("domain", "rechargekar.com"))
+            device_id = str(data.get("device_id", "live-device-01"))
+
+            from admin_ui.workflow_events import get_event_hub
+            hub = get_event_hub()
+            run_id = hub.trigger_run_async(mode=mode, steps=steps, domain=domain, device_id=device_id)
+            self._send_json({
+                "ok": True,
+                "run_id": run_id,
+                "mode": mode,
+                "steps": steps,
+                "domain": domain,
+                "device_id": device_id,
+                "message": f"Triggered {mode.upper()} run {run_id} ({steps} steps)",
+            })
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not Found")
