@@ -139,7 +139,7 @@ class FreeLLMClient:
 
     def _resolve_credentials(self) -> tuple[str, str]:
         url = os.environ.get("FREELLMAPI_URL", "").strip()
-        key = os.environ.get("FREELLMAPI_KEY", "").strip()
+        key = os.environ.get("FREELLMAPI_TOKEN", "").strip() or os.environ.get("FREELLMAPI_KEY", "").strip()
 
         if not url or not key:
             env_file = Path(".env")
@@ -151,12 +151,12 @@ class FreeLLMClient:
                             url = line.split("=", 1)[1].strip().strip('"').strip("'")
                         elif line.startswith("FREELLMAPI_KEY=") and not key:
                             key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        elif line.startswith("FREELLMAPI_TOKEN=") and not key:
+                            key = line.split("=", 1)[1].strip().strip('"').strip("'")
                 except Exception:
                     pass
 
         url = (url or DEFAULT_API_URL).rstrip("/")
-        if not key:
-            key = os.environ.get("FREELLMAPI_TOKEN") or os.environ.get("FREELLMAPI_KEY")
         if not key:
             raise ValueError("FREELLMAPI_TOKEN environment variable is not set")
         return url, key
