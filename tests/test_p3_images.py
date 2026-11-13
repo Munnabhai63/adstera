@@ -59,3 +59,4 @@ def test_all_content_images_self_hosted_and_exist():
                 missing_images.append((str(p), img_rel))
 
     assert len(missing_images) == 0, f"Missing local image files on disk: {missing_images[:5]}"
+

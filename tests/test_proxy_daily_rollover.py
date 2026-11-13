@@ -26,3 +26,4 @@ def test_proxy_daily_rollover_on_record_use():
     p.record_use()
     assert p.uses_today == 1
     assert p.uses_date == datetime.date.today().isoformat()
+

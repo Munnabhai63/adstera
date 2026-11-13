@@ -55,3 +55,4 @@ def test_topic_queue_composite_and_cross_domain_guard(tmp_path: Path):
     )
     assert inserted3 == 0, "Cross-domain guard must reject topic already published on another domain"
     conn.close()
+

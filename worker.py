@@ -746,8 +746,13 @@ async def run_session(
                 logger.debug("Android CDP telemetry probe notice: %s", telem_exc)
         else:
             # Build context options with 4-Dimension Client-Hint headers locked to UA
+            stealth_cfg = (cfg.get("browser", {}).get("stealth", {}) or cfg.get("stealth", {}) or {})
+            stealth_mode = str(stealth_cfg.get("mode", "builtin")).lower()
+
             extra_headers = {"Accept-Language": ",".join(fp.languages)}
-            extra_headers.update(fp_mod.build_client_hint_headers(fp))
+            if stealth_mode != "external":
+                extra_headers.update(fp_mod.build_client_hint_headers(fp))
+
             context_kwargs: dict = {
                 "user_agent": fp.user_agent,
                 "viewport": {"width": fp.viewport_width, "height": fp.viewport_height},
@@ -755,6 +760,11 @@ async def run_session(
                 "timezone_id": fp.timezone,
                 "extra_http_headers": extra_headers,
             }
+            if hasattr(fp, "screen_width") and hasattr(fp, "screen_height") and fp.screen_width and fp.screen_height:
+                context_kwargs["screen"] = {"width": fp.screen_width, "height": fp.screen_height}
+            if hasattr(fp, "dpr") and fp.dpr:
+                context_kwargs["device_scale_factor"] = fp.dpr
+
             if proxy.playwright_proxy:
                 context_kwargs["proxy"] = proxy.playwright_proxy
 
@@ -778,9 +788,10 @@ async def run_session(
                     start_url = rng.choice(visited)
                 logger.debug("Return visit: restored cookies for %s (visits=%s)", proxy.proxy_id, profile.get("visit_count", 1))
 
-            # Inject coherent seeded fingerprint patches (avoid runtime clobbering from unseeded patches)
-            init_js = fp_mod.init_script(fp)
-            await context.add_init_script(script=init_js)
+            # Inject coherent seeded fingerprint patches (skip if external stealth browser handles it)
+            if stealth_mode != "external":
+                init_js = fp_mod.init_script(fp)
+                await context.add_init_script(script=init_js)
 
             # Block specified resource types
             block_types = set(cfg["browser"].get("block_resources", []))

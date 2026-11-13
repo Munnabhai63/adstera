@@ -218,6 +218,8 @@ browser:
   engine: mahi
   use_mahi_profiles: false
   block_resources: []
+  stealth:
+    mode: builtin
 android_cdp:
   enabled: true
   device_id: ''

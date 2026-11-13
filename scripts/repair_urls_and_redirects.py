@@ -86,3 +86,4 @@ if __name__ == "__main__":
     print("Repair URLs and Redirects finished:")
     for k, v in results.items():
         print(f"  {k}: {v}")
+

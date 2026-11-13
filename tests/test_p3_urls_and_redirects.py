@@ -32,3 +32,4 @@ def test_all_redirects_have_slug_html_rule():
             assert redirects_file.exists(), f"Missing _redirects in {site_dir}"
             content = redirects_file.read_text(encoding="utf-8")
             assert "/:slug.html /:slug 301" in content, f"Missing 301 rule in {redirects_file}"
+

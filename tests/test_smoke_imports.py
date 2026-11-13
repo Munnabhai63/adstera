@@ -21,3 +21,4 @@ def test_core_modules_import():
     for m in modules:
         mod = importlib.import_module(m)
         assert mod is not None, f"Module {m} could not be imported"
+

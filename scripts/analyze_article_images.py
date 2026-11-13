@@ -29,3 +29,4 @@ for p in article_pages:
 print(f"Zero-image articles: {len(zero_image)}")
 print(f"1-4 images articles: {len(lt5_image)}")
 print(f"5+ images articles: {len(gte5_image)}")
+

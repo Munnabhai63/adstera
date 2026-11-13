@@ -104,6 +104,11 @@ class Fingerprint:
     audio_seed: float
     fonts: list[str] = field(default_factory=list)
     extensions: list[dict] = field(default_factory=list)
+    screen_width: int = 1920
+    screen_height: int = 1080
+    avail_width: int = 1920
+    avail_height: int = 1040
+    dpr: float = 1.0
 
     @property
     def digest(self) -> str:
@@ -241,7 +246,7 @@ def _select_webgl_for_ua(ua: str, rng: _SeededRng) -> tuple[str, str]:
 def sync_fingerprint_to_ua(fp: Fingerprint, ua: str, rng: Optional[_SeededRng] = None) -> Fingerprint:
     """
     Lock all 4 dimensions (DEVICE FORMAT, OPERATING SYSTEM, BROWSER, WebGL GPU, Fonts,
-    Viewport, TouchPoints) directly to the selected User-Agent string so 0% mismatch ever occurs.
+    Viewport, TouchPoints, Screen, Hardware Cores & Memory) directly to the selected User-Agent string.
     """
     if rng is None:
         seed_bytes = hashlib.sha256(f"{fp.proxy_id}:{ua}".encode("utf-8")).digest()
@@ -256,10 +261,32 @@ def sync_fingerprint_to_ua(fp: Fingerprint, ua: str, rng: Optional[_SeededRng] =
     fp.fonts = _generate_fonts(fp.platform, fp.is_mobile, rng)
     fp.extensions = _generate_extensions(fp.is_mobile, rng)
 
-    if fp.is_mobile and fp.viewport_width > 900:
-        fp.viewport_width, fp.viewport_height = rng.choice(_MOBILE_VIEWPORTS)
-    elif not fp.is_mobile and fp.viewport_width < 900:
-        fp.viewport_width, fp.viewport_height = rng.choice(_DESKTOP_VIEWPORTS)
+    if fp.is_mobile:
+        fp.hardware_concurrency = rng.choice([4, 8])
+        fp.device_memory = rng.choice([4, 6, 8])
+        if fp.viewport_width > 900:
+            fp.viewport_width, fp.viewport_height = rng.choice(_MOBILE_VIEWPORTS)
+        fp.screen_width = fp.viewport_width
+        fp.screen_height = fp.viewport_height
+        fp.avail_width = fp.viewport_width
+        fp.avail_height = fp.viewport_height
+        fp.dpr = 3.0 if ("iPhone" in ua or "SM-" in ua) else 2.625
+        fp.screen_avail_offset = 0
+    else:
+        if rng.chance(0.5):
+            fp.hardware_concurrency = rng.choice([4, 8])
+            fp.device_memory = rng.choice([4, 8])
+        else:
+            fp.hardware_concurrency = rng.choice([8, 12, 16])
+            fp.device_memory = rng.choice([8, 16])
+        if fp.viewport_width < 900:
+            fp.viewport_width, fp.viewport_height = rng.choice(_DESKTOP_VIEWPORTS)
+        offset = fp.screen_avail_offset or rng.randint(40, 100)
+        fp.screen_width = max(fp.viewport_width, 1920 if fp.viewport_width > 1500 else fp.viewport_width)
+        fp.screen_height = max(fp.viewport_height, 1080 if fp.viewport_height > 800 else fp.viewport_height)
+        fp.avail_width = fp.screen_width
+        fp.avail_height = max(fp.viewport_height, fp.screen_height - offset)
+        fp.dpr = 1.25 if fp.screen_width in (1536, 2560) else (2.0 if "Mac" in fp.platform else 1.0)
 
     return fp
 
@@ -284,19 +311,34 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
         ua = ua_provider.get_matching_ua("130", True, seed_key=proxy.proxy_id)
         vw, vh = rng.choice(_MOBILE_VIEWPORTS)
         platform = ua_provider.infer_platform(ua)
-        hc = rng.choice([4, 6, 8])
-        dm = rng.choice([2, 4])
+        hc = rng.choice([4, 8])
+        dm = rng.choice([4, 6, 8])
         mtp = 5
+        screen_w = vw
+        screen_h = vh
+        avail_w = vw
+        avail_h = vh
+        dpr = 3.0 if ("iPhone" in ua or "SM-" in ua) else 2.625
+        screen_avail_offset = 0
     else:
         ua = ua_provider.get_matching_ua("130", False, seed_key=proxy.proxy_id)
         vw, vh = rng.choice(_DESKTOP_VIEWPORTS)
         platform = ua_provider.infer_platform(ua)
-        hc = rng.choice([4, 6, 8, 12, 16])
-        dm = rng.choice([4, 8, 16])
+        if rng.chance(0.5):
+            hc = rng.choice([4, 8])
+            dm = rng.choice([4, 8])
+        else:
+            hc = rng.choice([8, 12, 16])
+            dm = rng.choice([8, 16])
         mtp = 0
+        screen_avail_offset = rng.randint(40, 100)
+        screen_w = max(vw, 1920 if vw > 1500 else vw)
+        screen_h = max(vh, 1080 if vh > 800 else vh)
+        avail_w = screen_w
+        avail_h = max(vh, screen_h - screen_avail_offset)
+        dpr = 1.25 if screen_w in (1536, 2560) else (2.0 if "Mac" in platform else 1.0)
 
     webgl_vendor, webgl_renderer = _select_webgl_for_ua(ua, rng)
-    screen_avail_offset = rng.randint(60, 140)
 
     # Connection
     downlink = round(rng.uniform(4.0, 12.0), 1)
@@ -338,6 +380,11 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
         audio_seed=audio_seed,
         fonts=fonts,
         extensions=extensions,
+        screen_width=screen_w,
+        screen_height=screen_h,
+        avail_width=avail_w,
+        avail_height=avail_h,
+        dpr=dpr,
     )
 
 
@@ -346,6 +393,20 @@ def _extract_client_hints(fp: Fingerprint) -> dict:
     major_ver = prof["major_ver"]
     full_ver = prof["full_ver"]
     is_mob = fp.is_mobile
+    is_ios = "iphone" in fp.user_agent.lower() or "ipad" in fp.user_agent.lower() or "ios" in fp.user_agent.lower()
+
+    platform_name = prof["os_name"]
+    platform_version = prof["os_version"]
+    if "windows" in fp.user_agent.lower():
+        platform_name = "Windows"
+        platform_version = "10.0.0"
+    elif "mac os x" in fp.user_agent.lower() and not is_ios:
+        platform_name = "macOS"
+    elif "android" in fp.user_agent.lower():
+        platform_name = "Android"
+        is_mob = True
+    elif "linux" in fp.user_agent.lower():
+        platform_name = "Linux"
 
     brands = [
         {"brand": "Chromium", "version": major_ver},
@@ -358,17 +419,20 @@ def _extract_client_hints(fp: Fingerprint) -> dict:
         "full_ver": full_ver,
         "brands": brands,
         "mobile": is_mob,
-        "platform": prof["os_name"],
-        "platform_version": prof["os_version"],
+        "platform": platform_name,
+        "platform_version": platform_version,
         "architecture": prof["architecture"],
         "bitness": "64",
         "model": prof["model"],
+        "is_ios": is_ios,
     }
 
 
 def build_client_hint_headers(fp: Fingerprint) -> dict[str, str]:
     """Build HTTP Client-Hint headers (Sec-CH-UA-*) locked 100% to fp.user_agent."""
     ch = _extract_client_hints(fp)
+    if ch.get("is_ios"):
+        return {}  # Safari / iOS does not send Sec-CH-UA headers
     sec_ch_ua = ", ".join(f'"{b["brand"]}";v="{b["version"]}"' for b in ch["brands"])
     headers = {
         "Sec-CH-UA": sec_ch_ua,
@@ -454,6 +518,12 @@ def init_script(fp: Fingerprint) -> str:
     """
     langs_json = json.dumps(fp.languages)
     screen_avail_height = fp.viewport_height - fp.screen_avail_offset
+    is_ios = (
+        "iphone" in fp.user_agent.lower()
+        or "ipad" in fp.user_agent.lower()
+        or "ipod" in fp.user_agent.lower()
+        or (fp.platform in ("iPhone", "iPad", "iOS"))
+    )
     ch = _extract_client_hints(fp)
     media_devs = _generate_media_devices(fp)
     bat_info = _generate_battery(fp)
@@ -541,54 +611,69 @@ def init_script(fp: Fingerprint) -> str:
   }};
 
   _defNav('platform', {json.dumps(fp.platform)});
-  _defNav('vendor', 'Google Inc.');
 
-  // ── Client Hints (navigator.userAgentData) ─────────────────────────────────
-  const _chBrands = {json.dumps(ch["brands"])};
-  const _chMobile = {str(ch["mobile"]).lower()};
-  const _chPlatform = {json.dumps(ch["platform"])};
-  const _chPlatformVersion = {json.dumps(ch["platform_version"])};
-  const _chArch = {json.dumps(ch["architecture"])};
-  const _chBitness = {json.dumps(ch["bitness"])};
-  const _chModel = {json.dumps(ch["model"])};
-  const _chFullVer = {json.dumps(ch["full_ver"])};
+  // ── Vendor & Client Hints (P4-3: iOS Safari Coherence) ──────────────────────
+  if ({json.dumps(is_ios)}) {{
+    _defNav('vendor', 'Apple Computer, Inc.');
+    try {{
+      delete navigator.userAgentData;
+      if (_navProto) delete _navProto.userAgentData;
+      Object.defineProperty(navigator, 'userAgentData', {{ get: () => undefined, configurable: true }});
+      if (_navProto) Object.defineProperty(_navProto, 'userAgentData', {{ get: () => undefined, configurable: true }});
+    }} catch(e) {{}}
+    try {{
+      window.chrome = undefined;
+      delete window.chrome;
+    }} catch(e) {{}}
+  }} else {{
+    _defNav('vendor', 'Google Inc.');
 
-  // ── navigator.userAgentData (_uad object) ──────────────────────────────────
-  const _UAP = (typeof window !== 'undefined' && window.NavigatorUAData) ? window.NavigatorUAData.prototype : Object.prototype;
-  const _uad = Object.create(_UAP);
-  Object.defineProperty(_uad, 'brands',   {{ get: () => _chBrands,   enumerable: true, configurable: true }});
-  Object.defineProperty(_uad, 'mobile',   {{ get: () => _chMobile,   enumerable: true, configurable: true }});
-  Object.defineProperty(_uad, 'platform', {{ get: () => _chPlatform, enumerable: true, configurable: true }});
+    // ── Client Hints (navigator.userAgentData) ───────────────────────────────
+    const _chBrands = {json.dumps(ch["brands"])};
+    const _chMobile = {str(ch["mobile"]).lower()};
+    const _chPlatform = {json.dumps(ch["platform"])};
+    const _chPlatformVersion = {json.dumps(ch["platform_version"])};
+    const _chArch = {json.dumps(ch["architecture"])};
+    const _chBitness = {json.dumps(ch["bitness"])};
+    const _chModel = {json.dumps(ch["model"])};
+    const _chFullVer = {json.dumps(ch["full_ver"])};
 
-  _uad.getHighEntropyValues = _makeNative(function(hints) {{
-    return Promise.resolve({{
-      architecture: _chArch,
-      bitness: _chBitness,
-      brands: _chBrands,
-      formFactor: _chMobile ? ['mobile'] : ['desktop'],
-      fullVersionList: [
-        {{ brand: _chBrands[0].brand, version: _chFullVer }},
-        {{ brand: _chBrands[1].brand, version: _chFullVer }},
-        {{ brand: 'Not?A_Brand', version: '99.0.0.0' }}
-      ],
-      mobile: _chMobile,
-      model: _chModel,
-      platform: _chPlatform,
-      platformVersion: _chPlatformVersion,
-      uaFullVersion: _chFullVer,
-      wow64: false
-    }});
-  }}, 'getHighEntropyValues');
+    const _UAP = (typeof window !== 'undefined' && window.NavigatorUAData) ? window.NavigatorUAData.prototype : Object.prototype;
+    const _uad = Object.create(_UAP);
+    Object.defineProperty(_uad, 'brands',   {{ get: () => _chBrands,   enumerable: true, configurable: true }});
+    Object.defineProperty(_uad, 'mobile',   {{ get: () => _chMobile,   enumerable: true, configurable: true }});
+    Object.defineProperty(_uad, 'platform', {{ get: () => _chPlatform, enumerable: true, configurable: true }});
 
-  _uad.toJSON = _makeNative(function() {{
-    return {{
-      brands: _chBrands,
-      mobile: _chMobile,
-      platform: _chPlatform
-    }};
-  }}, 'toJSON');
+    _uad.getHighEntropyValues = _makeNative(function(hints) {{
+      return Promise.resolve({{
+        architecture: _chArch,
+        bitness: _chBitness,
+        brands: _chBrands,
+        formFactor: _chMobile ? ['mobile'] : ['desktop'],
+        fullVersionList: [
+          {{ brand: _chBrands[0].brand, version: _chFullVer }},
+          {{ brand: _chBrands[1].brand, version: _chFullVer }},
+          {{ brand: 'Not?A_Brand', version: '99.0.0.0' }}
+        ],
+        mobile: _chMobile,
+        model: _chModel,
+        platform: _chPlatform,
+        platformVersion: _chPlatformVersion,
+        uaFullVersion: _chFullVer,
+        wow64: false
+      }});
+    }}, 'getHighEntropyValues');
 
-  _defNav('userAgentData', _uad);
+    _uad.toJSON = _makeNative(function() {{
+      return {{
+        brands: _chBrands,
+        mobile: _chMobile,
+        platform: _chPlatform
+      }};
+    }}, 'toJSON');
+
+    _defNav('userAgentData', _uad);
+  }}
 
   // ── hardware ───────────────────────────────────────────────────────────────
   _defNav('hardwareConcurrency', {fp.hardware_concurrency});
@@ -599,137 +684,183 @@ def init_script(fp: Fingerprint) -> str:
   _defNav('languages', {langs_json});
   _defNav('language',  {json.dumps(fp.languages[0])});
 
-  // ── plugins / mimeTypes ───────────────────────────────────────────────────
-  const fakePlugin = (name, filename, desc) => {{
-    const p = Object.create(Plugin.prototype);
-    Object.defineProperty(p, 'name',     {{ get: () => name }});
-    Object.defineProperty(p, 'filename', {{ get: () => filename }});
-    Object.defineProperty(p, 'description', {{ get: () => desc }});
-    Object.defineProperty(p, 'length',   {{ get: () => 0 }});
+  // ── plugins / mimeTypes (P4-4: PluginArray & MimeTypeArray Prototype Chain) ─
+  const _pProto = (typeof Plugin !== 'undefined' && Plugin.prototype) ? Plugin.prototype : Object.prototype;
+  const _mProto = (typeof MimeType !== 'undefined' && MimeType.prototype) ? MimeType.prototype : Object.prototype;
+  const _plProto = (typeof PluginArray !== 'undefined' && PluginArray.prototype) ? PluginArray.prototype : Object.prototype;
+  const _mtProto = (typeof MimeTypeArray !== 'undefined' && MimeTypeArray.prototype) ? MimeTypeArray.prototype : Object.prototype;
+
+  const _makePlugin = (name, filename, desc) => {{
+    const p = Object.create(_pProto);
+    Object.defineProperty(p, 'name',        {{ get: _makeNative(() => name, 'get name'), enumerable: true, configurable: true }});
+    Object.defineProperty(p, 'filename',    {{ get: _makeNative(() => filename, 'get filename'), enumerable: true, configurable: true }});
+    Object.defineProperty(p, 'description', {{ get: _makeNative(() => desc, 'get description'), enumerable: true, configurable: true }});
+    Object.defineProperty(p, 'length',      {{ get: _makeNative(() => 0, 'get length'), enumerable: true, configurable: true }});
+    p.item = _makeNative(function(i) {{ return p[i] || null; }}, 'item');
+    p.namedItem = _makeNative(function(n) {{ return p[n] || null; }}, 'namedItem');
     return p;
   }};
-  // FP-4: Modern Chrome 120+ Plugin list (internal-pdf-viewer, no deprecated NaCl)
-  const plugins = [
-    fakePlugin('PDF Viewer',             'internal-pdf-viewer',  'Portable Document Format'),
-    fakePlugin('Chrome PDF Viewer',      'internal-pdf-viewer',  'Portable Document Format'),
-    fakePlugin('Chromium PDF Viewer',    'internal-pdf-viewer',  'Portable Document Format'),
-    fakePlugin('Microsoft Edge PDF Viewer', 'internal-pdf-viewer', 'Portable Document Format'),
-    fakePlugin('WebKit built-in PDF',    'internal-pdf-viewer',  'Portable Document Format'),
+
+  const _rawPlugins = [
+    _makePlugin('PDF Viewer',             'internal-pdf-viewer',  'Portable Document Format'),
+    _makePlugin('Chrome PDF Viewer',      'internal-pdf-viewer',  'Portable Document Format'),
+    _makePlugin('Chromium PDF Viewer',    'internal-pdf-viewer',  'Portable Document Format'),
+    _makePlugin('Microsoft Edge PDF Viewer', 'internal-pdf-viewer', 'Portable Document Format'),
+    _makePlugin('WebKit built-in PDF',    'internal-pdf-viewer',  'Portable Document Format'),
   ];
-  _defNav('plugins', plugins);
-  _defNav('mimeTypes', {{
-    length: 2,
-    0: {{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
-    1: {{ type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
-    'application/pdf': {{ type: 'application/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
-    'text/pdf': {{ type: 'text/pdf', suffixes: 'pdf', description: 'Portable Document Format', enabledPlugin: plugins[0] }},
+
+  const plugins = Object.create(_plProto);
+  _rawPlugins.forEach((p, idx) => {{
+    plugins[idx] = p;
+    plugins[p.name] = p;
   }});
+  Object.defineProperty(plugins, 'length', {{ get: _makeNative(() => _rawPlugins.length, 'get length'), enumerable: true, configurable: true }});
+  plugins.item = _makeNative(function(idx) {{ return _rawPlugins[idx] || null; }}, 'item');
+  plugins.namedItem = _makeNative(function(name) {{ return plugins[name] || null; }}, 'namedItem');
+  plugins.refresh = _makeNative(function() {{}}, 'refresh');
+
+  const _makeMimeType = (type, suffixes, desc, enabledPlugin) => {{
+    const m = Object.create(_mProto);
+    Object.defineProperty(m, 'type',          {{ get: () => type, enumerable: true }});
+    Object.defineProperty(m, 'suffixes',      {{ get: () => suffixes, enumerable: true }});
+    Object.defineProperty(m, 'description',   {{ get: () => desc, enumerable: true }});
+    Object.defineProperty(m, 'enabledPlugin', {{ get: () => enabledPlugin, enumerable: true }});
+    return m;
+  }};
+
+  const _rawMimes = [
+    _makeMimeType('application/pdf', 'pdf', 'Portable Document Format', _rawPlugins[0]),
+    _makeMimeType('text/pdf', 'pdf', 'Portable Document Format', _rawPlugins[0]),
+  ];
+
+  const mimeTypes = Object.create(_mtProto);
+  _rawMimes.forEach((m, idx) => {{
+    mimeTypes[idx] = m;
+    mimeTypes[m.type] = m;
+  }});
+  Object.defineProperty(mimeTypes, 'length', {{ get: _makeNative(() => _rawMimes.length, 'get length'), enumerable: true, configurable: true }});
+  mimeTypes.item = _makeNative(function(idx) {{ return _rawMimes[idx] || null; }}, 'item');
+  mimeTypes.namedItem = _makeNative(function(name) {{ return mimeTypes[name] || null; }}, 'namedItem');
+
+  _defNav('plugins', plugins);
+  _defNav('mimeTypes', mimeTypes);
 
   // ── chrome object & Step 3.3: Extension Emulation ──────────────────────────
-  if (!window.chrome) {{ window.chrome = {{}}; }}
-  const _installedExtensions = {json.dumps(fp.extensions)};
-  const _installedExtIds = new Set(_installedExtensions.map(e => e.id));
+  if (!{json.dumps(is_ios)}) {{
+    if (!window.chrome) {{ window.chrome = {{}}; }}
+    const _installedExtensions = {json.dumps(fp.extensions)};
+    const _installedExtIds = new Set(_installedExtensions.map(e => e.id));
 
-  if (!{json.dumps(fp.is_mobile)}) {{
-    window.chrome.runtime = {{
-      id: undefined,
-      OnInstalledReason: {{ CHROME_UPDATE: 'chrome_update', INSTALL: 'install', SHARED_MODULE_UPDATE: 'shared_module_update', UPDATE: 'update' }},
-      OnRestartRequiredReason: {{ APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' }},
-      PlatformArch: {{ ARM: 'arm', ARM64: 'arm64', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' }},
-      PlatformNaclArch: {{ ARM: 'arm', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' }},
-      PlatformOs: {{ ANDROID: 'android', CROS: 'cros', LINUX: 'linux', MAC: 'mac', OPENBSD: 'openbsd', WIN: 'win' }},
-      RequestUpdateCheckStatus: {{ NO_UPDATE: 'no_update', THROTTLED: 'throttled', UPDATE_AVAILABLE: 'update_available' }},
-      getURL: _makeNative(function(path) {{
-        return 'chrome-extension://' + (_installedExtensions[0] ? _installedExtensions[0].id : 'ghbmnnjldmmeejimcflloakocagkodme') + '/' + (path || '').replace(/^\\//, '');
-      }}, 'getURL'),
-      getManifest: _makeNative(function() {{
-        return {{
-          manifest_version: 3,
-          name: _installedExtensions[0] ? _installedExtensions[0].name : 'Google Docs Offline',
-          version: _installedExtensions[0] ? _installedExtensions[0].version : '1.61.4'
-        }};
-      }}, 'getManifest'),
-      sendMessage: _makeNative(function(targetId, message, options, responseCallback) {{
-        let cb = typeof options === 'function' ? options : responseCallback;
-        const extId = typeof targetId === 'string' ? targetId : '';
-        const isInstalled = _installedExtIds.has(extId);
+    if (!{json.dumps(fp.is_mobile)}) {{
+      window.chrome.runtime = {{
+        id: undefined,
+        OnInstalledReason: {{ CHROME_UPDATE: 'chrome_update', INSTALL: 'install', SHARED_MODULE_UPDATE: 'shared_module_update', UPDATE: 'update' }},
+        OnRestartRequiredReason: {{ APP_UPDATE: 'app_update', OS_UPDATE: 'os_update', PERIODIC: 'periodic' }},
+        PlatformArch: {{ ARM: 'arm', ARM64: 'arm64', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' }},
+        PlatformNaclArch: {{ ARM: 'arm', MIPS: 'mips', MIPS64: 'mips64', X86_32: 'x86-32', X86_64: 'x86-64' }},
+        PlatformOs: {{ ANDROID: 'android', CROS: 'cros', LINUX: 'linux', MAC: 'mac', OPENBSD: 'openbsd', WIN: 'win' }},
+        RequestUpdateCheckStatus: {{ NO_UPDATE: 'no_update', THROTTLED: 'throttled', UPDATE_AVAILABLE: 'update_available' }},
+        getURL: _makeNative(function(path) {{
+          return 'chrome-extension://' + (_installedExtensions[0] ? _installedExtensions[0].id : 'ghbmnnjldmmeejimcflloakocagkodme') + '/' + (path || '').replace(/^\\//, '');
+        }}, 'getURL'),
+        getManifest: _makeNative(function() {{
+          return {{
+            manifest_version: 3,
+            name: _installedExtensions[0] ? _installedExtensions[0].name : 'Google Docs Offline',
+            version: _installedExtensions[0] ? _installedExtensions[0].version : '1.61.4'
+          }};
+        }}, 'getManifest'),
+        sendMessage: _makeNative(function(targetId, message, options, responseCallback) {{
+          let cb = typeof options === 'function' ? options : responseCallback;
+          const extId = typeof targetId === 'string' ? targetId : '';
+          const isInstalled = _installedExtIds.has(extId);
 
-        if (isInstalled) {{
-          if (typeof cb === 'function') {{
-            setTimeout(() => {{
-              window.chrome.runtime.lastError = undefined;
-              cb({{ status: 'ok', version: '3.0.0' }});
-            }}, 5);
+          if (isInstalled) {{
+            if (typeof cb === 'function') {{
+              setTimeout(() => {{
+                window.chrome.runtime.lastError = undefined;
+                cb({{ status: 'ok', version: '3.0.0' }});
+              }}, 5);
+            }}
+            return Promise.resolve({{ status: 'ok', version: '3.0.0' }});
+          }} else {{
+            if (typeof cb === 'function') {{
+              setTimeout(() => {{
+                window.chrome.runtime.lastError = {{ message: 'Could not establish connection. Receiving end does not exist.' }};
+                cb(undefined);
+              }}, 5);
+            }}
+            return Promise.reject(new Error('Could not establish connection. Receiving end does not exist.'));
           }}
-          return Promise.resolve({{ status: 'ok', version: '3.0.0' }});
-        }} else {{
-          if (typeof cb === 'function') {{
-            setTimeout(() => {{
-              window.chrome.runtime.lastError = {{ message: 'Could not establish connection. Receiving end does not exist.' }};
-              cb(undefined);
-            }}, 5);
-          }}
-          return Promise.reject(new Error('Could not establish connection. Receiving end does not exist.'));
-        }}
-      }}, 'sendMessage'),
-      connect: _makeNative(function(targetId, connectInfo) {{
-        const extId = typeof targetId === 'string' ? targetId : '';
-        const isInstalled = _installedExtIds.has(extId);
-        return {{
-          name: connectInfo ? connectInfo.name || '' : '',
-          sender: {{ id: extId }},
-          onDisconnect: {{
-            addListener: _makeNative(function(fn) {{
-              if (!isInstalled && typeof fn === 'function') {{
-                setTimeout(() => fn({{ error: {{ message: 'Could not establish connection.' }} }}), 5);
-              }}
-            }}, 'addListener'),
-            removeListener: _makeNative(function() {{}}, 'removeListener'),
-            hasListener: _makeNative(function() {{ return false; }}, 'hasListener'),
-          }},
-          onMessage: {{
-            addListener: _makeNative(function() {{}}, 'addListener'),
-            removeListener: _makeNative(function() {{}}, 'removeListener'),
-            hasListener: _makeNative(function() {{ return false; }}, 'hasListener'),
-          }},
-          postMessage: _makeNative(function() {{}}, 'postMessage'),
-          disconnect: _makeNative(function() {{}}, 'disconnect'),
-        }};
-      }}, 'connect'),
+        }}, 'sendMessage'),
+        connect: _makeNative(function(targetId, connectInfo) {{
+          const extId = typeof targetId === 'string' ? targetId : '';
+          const isInstalled = _installedExtIds.has(extId);
+          return {{
+            name: connectInfo ? connectInfo.name || '' : '',
+            sender: {{ id: extId }},
+            onDisconnect: {{
+              addListener: _makeNative(function(fn) {{
+                if (!isInstalled && typeof fn === 'function') {{
+                  setTimeout(() => fn({{ error: {{ message: 'Could not establish connection.' }} }}), 5);
+                }}
+              }}, 'addListener'),
+              removeListener: _makeNative(function() {{}}, 'removeListener'),
+              hasListener: _makeNative(function() {{ return false; }}, 'hasListener'),
+            }},
+            onMessage: {{
+              addListener: _makeNative(function() {{}}, 'addListener'),
+              removeListener: _makeNative(function() {{}}, 'removeListener'),
+              hasListener: _makeNative(function() {{ return false; }}, 'hasListener'),
+            }},
+            postMessage: _makeNative(function() {{}}, 'postMessage'),
+            disconnect: _makeNative(function() {{}}, 'disconnect'),
+          }};
+        }}, 'connect'),
+      }};
+    }} else {{
+      window.chrome.runtime = {{
+        id: undefined,
+        connect: _makeNative(function() {{
+          return {{
+            onDisconnect: {{ addListener: _makeNative(function() {{}}, 'addListener') }},
+            postMessage: _makeNative(function() {{}}, 'postMessage'),
+          }};
+        }}, 'connect'),
+        sendMessage: _makeNative(function() {{}}, 'sendMessage'),
+      }};
+    }}
+    window.chrome.app = {{
+      isInstalled: false,
+      InstallState: {{ DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' }},
+      RunningState: {{ CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' }},
     }};
+    window.chrome.csi = _makeNative(function() {{ return {{ startE: Date.now(), onloadT: Date.now(), pageT: 1000, tran: 15 }}; }}, 'csi');
+    window.chrome.loadTimes = () => ({{
+      requestTime: Date.now() / 1000,
+      startLoadTime: Date.now() / 1000,
+      commitLoadTime: Date.now() / 1000,
+      finishDocumentLoadTime: Date.now() / 1000,
+      finishLoadTime: Date.now() / 1000,
+      firstPaintTime: 0,
+      firstPaintAfterLoadTime: 0,
+      navigationType: 'Other',
+      wasFetchedViaSpdy: false,
+      wasNpnNegotiated: false,
+      npnNegotiatedProtocol: 'unknown',
+      wasAlternateProtocolAvailable: false,
+      connectionInfo: 'unknown',
+    }});
+
+    if (typeof window.chrome !== 'undefined' && typeof window.chrome.loadTimes === 'function') {{
+      window.chrome.loadTimes = _makeNative(window.chrome.loadTimes, 'loadTimes');
+    }}
   }} else {{
-    window.chrome.runtime = {{
-      id: undefined,
-      connect: _makeNative(function() {{
-        return {{
-          onDisconnect: {{ addListener: _makeNative(function() {{}}, 'addListener') }},
-          postMessage: _makeNative(function() {{}}, 'postMessage'),
-        }};
-      }}, 'connect'),
-      sendMessage: _makeNative(function() {{}}, 'sendMessage'),
-    }};
+    try {{
+      window.chrome = undefined;
+      delete window.chrome;
+    }} catch(e) {{}}
   }}
-  window.chrome.app = {{
-    isInstalled: false,
-    InstallState: {{ DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' }},
-    RunningState: {{ CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' }},
-  }};
-  window.chrome.csi = _makeNative(function() {{ return {{ startE: Date.now(), onloadT: Date.now(), pageT: 1000, tran: 15 }}; }}, 'csi');
-  window.chrome.loadTimes = () => ({{
-    requestTime: Date.now() / 1000,
-    startLoadTime: Date.now() / 1000,
-    commitLoadTime: Date.now() / 1000,
-    finishDocumentLoadTime: Date.now() / 1000,
-    finishLoadTime: Date.now() / 1000,
-    firstPaintTime: 0,
-    firstPaintAfterLoadTime: 0,
-    navigationType: 'Other',
-    wasFetchedViaSpdy: false,
-    wasNpnNegotiated: false,
-    npnNegotiatedProtocol: 'unknown',
-    wasAlternateProtocolAvailable: false,
-    connectionInfo: 'unknown',
-  }});
 
   // ── permissions ───────────────────────────────────────────────────────────
   const origPermQuery = navigator.permissions && navigator.permissions.query.bind(navigator.permissions);
@@ -754,20 +885,29 @@ def init_script(fp: Fingerprint) -> str:
   patchWebGL(WebGLRenderingContext);
   if (typeof WebGL2RenderingContext !== 'undefined') patchWebGL(WebGL2RenderingContext);
 
-  if (typeof window.chrome !== 'undefined' && typeof window.chrome.loadTimes === 'function') {{
-    window.chrome.loadTimes = _makeNative(window.chrome.loadTimes, 'loadTimes');
-  }}
-
-  // ── screen & window outer dimensions (FP-3 / LEAK-07) ─────────────────────
+  // ── screen & window outer dimensions (P4-1 / FP-3 / LEAK-07) ──────────────
   const _screenTarget = (typeof Screen !== 'undefined' && Screen.prototype) ? Screen.prototype : screen;
-  Object.defineProperty(_screenTarget, 'colorDepth',  {{ get: _makeNative(function() {{ return 24; }}, 'get colorDepth'), enumerable: true, configurable: true }});
-  Object.defineProperty(_screenTarget, 'pixelDepth',  {{ get: _makeNative(function() {{ return 24; }}, 'get pixelDepth'), enumerable: true, configurable: true }});
-  Object.defineProperty(_screenTarget, 'availHeight', {{ get: _makeNative(function() {{ return {screen_avail_height}; }}, 'get availHeight'), enumerable: true, configurable: true }});
-  Object.defineProperty(_screenTarget, 'availWidth',  {{ get: _makeNative(function() {{ return {fp.viewport_width}; }}, 'get availWidth'), enumerable: true, configurable: true }});
+  try {{
+    delete screen.width;
+    delete screen.height;
+    delete screen.availWidth;
+    delete screen.availHeight;
+  }} catch(e) {{}}
+  try {{
+    Object.defineProperty(_screenTarget, 'width',       {{ get: _makeNative(function() {{ return {fp.screen_width}; }}, 'get width'), enumerable: true, configurable: true }});
+    Object.defineProperty(_screenTarget, 'height',      {{ get: _makeNative(function() {{ return {fp.screen_height}; }}, 'get height'), enumerable: true, configurable: true }});
+    Object.defineProperty(_screenTarget, 'availWidth',  {{ get: _makeNative(function() {{ return {fp.avail_width}; }}, 'get availWidth'), enumerable: true, configurable: true }});
+    Object.defineProperty(_screenTarget, 'availHeight', {{ get: _makeNative(function() {{ return {fp.avail_height}; }}, 'get availHeight'), enumerable: true, configurable: true }});
+    Object.defineProperty(_screenTarget, 'colorDepth',  {{ get: _makeNative(function() {{ return 24; }}, 'get colorDepth'), enumerable: true, configurable: true }});
+    Object.defineProperty(_screenTarget, 'pixelDepth',  {{ get: _makeNative(function() {{ return 24; }}, 'get pixelDepth'), enumerable: true, configurable: true }});
+  }} catch(e) {{}}
+  try {{
+    Object.defineProperty(window, 'devicePixelRatio', {{ get: _makeNative(function() {{ return {fp.dpr}; }}, 'get devicePixelRatio'), enumerable: true, configurable: true }});
+  }} catch(e) {{}}
 
   // window outer dimensions and screen offset spoof
-  const _outerW = {fp.viewport_width} + {16 if not fp.is_mobile else 0};
-  const _outerH = {fp.viewport_height} + {85 if not fp.is_mobile else 0};
+  const _outerW = Math.max({fp.viewport_width}, {fp.screen_width if fp.is_mobile else fp.viewport_width + 16});
+  const _outerH = Math.max({fp.viewport_height}, {fp.screen_height if fp.is_mobile else fp.viewport_height + 85});
   Object.defineProperty(window, 'outerWidth',  {{ get: () => _outerW, configurable: true }});
   Object.defineProperty(window, 'outerHeight', {{ get: () => _outerH, configurable: true }});
   Object.defineProperty(window, 'screenX',     {{ get: () => {100 if not fp.is_mobile else 0}, configurable: true }});
@@ -1005,26 +1145,8 @@ def init_script(fp: Fingerprint) -> str:
     }}
   }}
 
-  // ── Step 3.1: Font Enumeration Spoofing (document.fonts.check & queryLocalFonts) ──
+  // ── Step 3.1: Font Enumeration Spoofing (queryLocalFonts) ──
   const _spoofedFonts = {json.dumps(fp.fonts)};
-  const _fontSet = new Set(_spoofedFonts.map(f => f.toLowerCase()));
-
-  if (typeof document !== 'undefined' && document.fonts && document.fonts.check) {{
-    const origCheck = document.fonts.check.bind(document.fonts);
-    document.fonts.check = _makeNative(function(font, text) {{
-      if (typeof font === 'string') {{
-        const parts = font.split(/[,]+/);
-        for (let p of parts) {{
-          const clean = p.replace(/['"]/g, '').trim().toLowerCase();
-          const family = clean.replace(/^(?:\\d+(?:\\.\\d+)?(?:px|pt|em|rem|%)\\s+|italic\\s+|bold\\s+|small-caps\\s+)+/i, '').trim();
-          if (family && _fontSet.has(family)) {{
-            return true;
-          }}
-        }}
-      }}
-      return origCheck(font, text);
-    }}, 'check');
-  }}
 
   if (typeof window !== 'undefined') {{
     window.queryLocalFonts = _makeNative(function() {{

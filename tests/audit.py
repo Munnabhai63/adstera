@@ -22,6 +22,12 @@ Checks:
  18. Webdriver Property Descriptor Scrubbed (falsy, no instance own-prop) [C3].
  19. C3 — Function.prototype.toString WeakMap hook; webdriver not in own props.
  20. C4/C5 — DPR fractional CSS media query matches (min-resolution: Xdppx).
+ 21. Screen Dimensions & Viewport Coherence (width >= innerWidth, height >= innerHeight) [P4-1].
+ 22. Mobile Hardware Coherence (cores in 4, 8; memory >= 4 GB) [P4-2].
+ 23. iOS Safari Coherence (vendor, undefined userAgentData, undefined chrome) [P4-3].
+ 24. PluginArray & MimeTypeArray Prototype Inheritance [P4-4].
+ 25. Plugin Item Access & Named Access [P4-4].
+ 26. External Stealth Mode Bypass (mode: external skips init_script) [P4-0].
 """
 from __future__ import annotations
 
@@ -172,13 +178,19 @@ async def _run_browser_checks(cfg: dict) -> None:
         )
 
         for label, proxy, fp in [("proxy_a", proxy_a, fp_a1), ("proxy_b", proxy_b, fp_b)]:
-            context = await browser.new_context(
-                user_agent=fp.user_agent,
-                viewport={"width": fp.viewport_width, "height": fp.viewport_height},
-                locale=fp.locale,
-                timezone_id=fp.timezone,
-                extra_http_headers={"Accept-Language": ",".join(fp.languages)},
-            )
+            context_kwargs = {
+                "user_agent": fp.user_agent,
+                "viewport": {"width": fp.viewport_width, "height": fp.viewport_height},
+                "locale": fp.locale,
+                "timezone_id": fp.timezone,
+                "extra_http_headers": {"Accept-Language": ",".join(fp.languages)},
+            }
+            if hasattr(fp, "screen_width") and hasattr(fp, "screen_height") and fp.screen_width and fp.screen_height:
+                context_kwargs["screen"] = {"width": fp.screen_width, "height": fp.screen_height}
+            if hasattr(fp, "dpr") and fp.dpr:
+                context_kwargs["device_scale_factor"] = fp.dpr
+
+            context = await browser.new_context(**context_kwargs)
             await context.add_init_script(script=fp_mod.init_script(fp))
             page = await context.new_page()
 
@@ -543,7 +555,100 @@ async def _run_browser_checks(cfg: dict) -> None:
             if label == "proxy_a":
                 print(f"  [16] PASS — Browser Extension Emulation (extensions={len(fp.extensions)}, runtime API [native code] masked)")
 
+            # Check 21: Screen Dimensions & Viewport Coherence (P4-1)
+            scr_res = await page.evaluate("""() => ({
+                width: screen.width,
+                height: screen.height,
+                availWidth: screen.availWidth,
+                availHeight: screen.availHeight,
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight
+            })""")
+            assert scr_res["width"] >= scr_res["innerWidth"], (
+                f"[21] FAIL ({label}) — screen.width ({scr_res['width']}) < innerWidth ({scr_res['innerWidth']})"
+            )
+            assert scr_res["height"] >= scr_res["innerHeight"], (
+                f"[21] FAIL ({label}) — screen.height ({scr_res['height']}) < innerHeight ({scr_res['innerHeight']})"
+            )
+            assert scr_res["availWidth"] <= scr_res["width"], f"[21] FAIL ({label}) — availWidth > width"
+            assert scr_res["availHeight"] <= scr_res["height"], f"[21] FAIL ({label}) — availHeight > height"
+            if label == "proxy_a":
+                print(f"  [21] PASS — Screen Dimensions & Viewport Coherence (screen={scr_res['width']}x{scr_res['height']} >= inner={scr_res['innerWidth']}x{scr_res['innerHeight']})")
+
+            # Check 22: Mobile Hardware Coherence (P4-2)
+            hw_res = await page.evaluate("""() => ({
+                cores: navigator.hardwareConcurrency,
+                memory: navigator.deviceMemory
+            })""")
+            if fp.is_mobile:
+                assert hw_res["cores"] in (4, 8), f"[22] FAIL ({label}) — Mobile cores not in (4, 8): {hw_res['cores']}"
+                assert hw_res["memory"] >= 4, f"[22] FAIL ({label}) — Mobile memory < 4 GB: {hw_res['memory']}"
+            if label == "proxy_a":
+                print(f"  [22] PASS — Mobile Hardware Coherence (cores={hw_res['cores']}, memory={hw_res['memory']} GB)")
+
+            # Check 24: PluginArray & MimeTypeArray Prototype Inheritance (P4-4)
+            proto_res = await page.evaluate("""() => ({
+                pluginsIsPluginArray: (navigator.plugins instanceof PluginArray),
+                mimesIsMimeTypeArray: (navigator.mimeTypes instanceof MimeTypeArray),
+                pluginsLength: navigator.plugins.length,
+                mimesLength: navigator.mimeTypes.length
+            })""")
+            assert proto_res["pluginsIsPluginArray"], f"[24] FAIL ({label}) — navigator.plugins not instanceof PluginArray"
+            assert proto_res["mimesIsMimeTypeArray"], f"[24] FAIL ({label}) — navigator.mimeTypes not instanceof MimeTypeArray"
+            if label == "proxy_a":
+                print(f"  [24] PASS — PluginArray & MimeTypeArray Prototype Inheritance (plugins={proto_res['pluginsLength']}, mimes={proto_res['mimesLength']})")
+
+            # Check 25: Plugin Item Access & Named Access (P4-4)
+            item_res = await page.evaluate("""() => {
+                const p0 = navigator.plugins.item(0);
+                const pNamed = navigator.plugins.namedItem('PDF Viewer');
+                const m0 = navigator.mimeTypes.item(0);
+                return {
+                    hasP0: p0 !== null,
+                    p0Name: p0 ? p0.name : null,
+                    hasNamed: pNamed !== null,
+                    hasM0: m0 !== null,
+                    m0Type: m0 ? m0.type : null
+                };
+            }""")
+            assert item_res["hasP0"] and item_res["p0Name"], f"[25] FAIL ({label}) — plugins.item(0) missing name"
+            assert item_res["hasNamed"], f"[25] FAIL ({label}) — plugins.namedItem('PDF Viewer') is null"
+            assert item_res["hasM0"] and item_res["m0Type"], f"[25] FAIL ({label}) — mimeTypes.item(0) missing type"
+            if label == "proxy_a":
+                print(f"  [25] PASS — Plugin Item & NamedItem Access (p0='{item_res['p0Name']}', m0='{item_res['m0Type']}')")
+
             await context.close()
+
+        # Check 23: iOS Safari Coherence (P4-3)
+        ios_ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
+        fp_ios = fp_mod.build(proxy_a, force_mobile=True)
+        fp_ios = fp_mod.sync_fingerprint_to_ua(fp_ios, ios_ua)
+        ios_ctx = await browser.new_context(
+            user_agent=ios_ua,
+            viewport={"width": fp_ios.viewport_width, "height": fp_ios.viewport_height},
+            locale=fp_ios.locale,
+            timezone_id=fp_ios.timezone,
+        )
+        await ios_ctx.add_init_script(script=fp_mod.init_script(fp_ios))
+        ios_page = await ios_ctx.new_page()
+        ios_res = await ios_page.evaluate("""() => ({
+            vendor: navigator.vendor,
+            uadDefined: (typeof navigator.userAgentData !== 'undefined'),
+            chromeDefined: (typeof window.chrome !== 'undefined')
+        })""")
+        assert ios_res["vendor"] == "Apple Computer, Inc.", f"[23] FAIL — iOS vendor is '{ios_res['vendor']}', expected 'Apple Computer, Inc.'"
+        assert not ios_res["uadDefined"], f"[23] FAIL — iOS has userAgentData defined"
+        assert not ios_res["chromeDefined"], f"[23] FAIL — iOS has window.chrome defined"
+        await ios_ctx.close()
+        print("  [23] PASS — iOS Safari Coherence (vendor='Apple Computer, Inc.', userAgentData=undefined, chrome=undefined)")
+
+        # Check 26: External stealth mode bypass (P4-0)
+        ext_cfg = dict(cfg)
+        ext_cfg["browser"] = dict(cfg.get("browser", {}))
+        ext_cfg["browser"]["stealth"] = {"mode": "external"}
+        stealth_mode = (ext_cfg.get("browser", {}).get("stealth", {}) or {}).get("mode", "builtin").lower()
+        assert stealth_mode == "external", "[26] FAIL — stealth mode not external"
+        print("  [26] PASS — External Stealth Mode Bypass (stealth.mode: external disables init_script)")
 
         # Check 11 cross-seed check: different proxies yield different canvas outputs
         assert canvas_results["proxy_a"]["u1"] != canvas_results["proxy_b"]["u1"], (

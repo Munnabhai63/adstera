@@ -31,3 +31,4 @@ def test_valid_description_helper():
     assert not valid_description("This description contains {placeholder} which is invalid.")
     assert not valid_description("This description contains page-link which is invalid.")
     assert not valid_description(None)
+

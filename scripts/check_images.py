@@ -17,3 +17,4 @@ for u in urls:
 
 for d, count in sorted(domains.items(), key=lambda x: -x[1]):
     print(f"  {d}: {count} images")
+
