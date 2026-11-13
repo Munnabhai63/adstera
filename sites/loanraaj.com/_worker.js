@@ -1,5 +1,5 @@
 // Cloudflare Pages 24x7 Serverless FreeLLMAPI Edge Gateway + Static Asset Router
-
+const GATEWAY_TOKEN = env.GATEWAY_TOKEN || "__GATEWAY_TOKEN__";
 
 const UPSTREAM_ROUTES = [
   { provider: "ovh", model: "Qwen2.5-VL-72B-Instruct", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
@@ -10,7 +10,7 @@ const UPSTREAM_ROUTES = [
 ];
 
 function checkAuth(request, gatewayToken) {
-  if (!gatewayToken) return false;
+  if (!gatewayToken || gatewayToken === "__GATEWAY_TOKEN__") return false;
   const auth = (request.headers.get("Authorization") || "").trim();
   return auth === `Bearer ${gatewayToken}` || auth === gatewayToken;
 }` || auth === GATEWAY_TOKEN;
