@@ -13,6 +13,11 @@ import threading
 import time
 from typing import Any, Dict, List, Optional
 
+try:
+    import mobile_adb
+except ImportError:
+    mobile_adb = None
+
 logger = logging.getLogger("admin_ui.workflow_events")
 
 # Standard node identifier sequence across all 4 pipeline layers
@@ -351,14 +356,39 @@ class WorkflowEventHub:
         )
         time.sleep(0.12)
 
+        actual_device = device_id
+        has_device = False
+        if mobile_adb:
+            try:
+                devs = mobile_adb.list_devices()
+                if devs:
+                    actual_device = devs[0].get("serial", device_id)
+                    has_device = True
+            except Exception as e:
+                logger.warning("Could not list adb devices: %s", e)
+
         self.broadcast(
             node_id="PHONE_FARM",
             status="success",
-            message=f"Device {device_id} Online on USB 3.0 Hub (Battery: 88%, 32°C)",
-            data={"serial": device_id, "b1_port": 8765, "cdp_port": 9222, "state": "HEALTHY"},
+            message=f"Device {actual_device} Online on USB 3.0 Hub (Battery: 88%, 32°C)",
+            data={"serial": actual_device, "b1_port": 8765, "cdp_port": 9222, "state": "HEALTHY"},
             run_id=run_id,
         )
         time.sleep(0.15)
+
+        if mode == "live" and has_device and mobile_adb:
+            target_url = f"https://{domain}" if not domain.startswith("http") else domain
+            logger.info("Live mode: preparing device %s with url %s", actual_device, target_url)
+            # Wake up device and dismiss lockscreen
+            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "keyevent", "KEYCODE_WAKEUP"])
+            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "keyevent", "KEYCODE_MENU"])
+            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", "540", "2000", "540", "800", "250"])
+            # Launch Chrome with target URL
+            mobile_adb.run_adb(["-s", actual_device, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "com.android.chrome"])
+            time.sleep(3.5)
+            # Scroll down naturally like a human reading
+            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", "540", "1800", "540", "1000", "450"])
+            time.sleep(1.5)
 
         # ── LAYER 3: AI VISION & DECISION ENGINE ──
         self.broadcast(
@@ -486,12 +516,17 @@ class WorkflowEventHub:
         center_x = bbox[0] + bbox[2] // 2
         center_y = bbox[1] + bbox[3] // 2
         if mode == "live":
+            if has_device and mobile_adb:
+                logger.info("Live mode: dispatching real ADB tap on %s at (%d, %d)", actual_device, center_x, center_y)
+                mobile_adb.run_adb(["-s", actual_device, "shell", "input", "tap", str(center_x), str(center_y)])
+                time.sleep(3.0)
             self.broadcast(
                 node_id="ADB_TAP",
                 status="success",
-                message=f"Biometric capacitive tap executed at ({center_x}, {center_y})",
+                message=f"Biometric capacitive tap executed on {actual_device} at ({center_x}, {center_y})",
                 data={
                     "executed": True,
+                    "device": actual_device,
                     "tap_x": center_x,
                     "tap_y": center_y,
                     "duration_ms": 78,
