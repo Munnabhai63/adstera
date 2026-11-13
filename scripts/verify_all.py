@@ -213,12 +213,21 @@ with tempfile.TemporaryDirectory() as tmpdir:
     c9 = mobile_ok
     results.append(("9. Mobile Hardware & Invariants", c9, "cores in (4,8), mem>=4GB, dpr in valid set, taskbar plausible" if c9 else "Violated invariants"))
 
-    # Check 10: Pytest test suite >= baseline 411
+    # Check 10: Pytest Integrity Gate (zero failures, collected >= 448, skipped <= 12)
     rc, out = run([py, "-m", "pytest", "-q"])
-    passed_m = re.search(r"(\d+) passed", out)
+    collected_m = re.search(r"collected\s+(\d+)\s+items", out)
+    passed_m = re.search(r"(\d+)\s+passed", out)
+    failed_m = re.search(r"(\d+)\s+failed", out)
+    skipped_m = re.search(r"(\d+)\s+skipped", out)
+
     passed_cnt = int(passed_m.group(1)) if passed_m else 0
-    c10 = (passed_cnt >= 411)
-    results.append(("10. Pytest Suite Regressions", c10, f"{passed_cnt} passed (>= baseline 411)" if c10 else f"Failed: {passed_cnt} passed (below 411 baseline)"))
+    failed_cnt = int(failed_m.group(1)) if failed_m else 0
+    skipped_cnt = int(skipped_m.group(1)) if skipped_m else 0
+    collected_cnt = int(collected_m.group(1)) if collected_m else (passed_cnt + failed_cnt + skipped_cnt)
+
+    c10 = (failed_cnt == 0 and collected_cnt >= 448 and skipped_cnt <= 12)
+    detail_msg = f"collected={collected_cnt} passed={passed_cnt} failed={failed_cnt} skipped={skipped_cnt}"
+    results.append(("10. Pytest Suite Integrity", c10, detail_msg if c10 else f"Failed integrity: {detail_msg}"))
 
     print("\n" + "-" * 70)
     all_passed = True
