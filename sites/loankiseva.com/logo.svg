@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 110" width="440" height="110">
+  <defs>
+    <!-- Trust Navy Blue Gradient -->
+    <linearGradient id="lksNavy" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E3A8A" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+
+    <!-- Kesariya / Saffron Gold Gradient -->
+    <linearGradient id="kesariyaGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBBF24" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+  </defs>
+
+  <!-- Emblem Container (Left Side) -->
+  <g transform="translate(15, 11)">
+    <!-- Outer Trust Seal / Badge -->
+    <circle cx="44" cy="44" r="40" fill="url(#lksNavy)" stroke="url(#kesariyaGold)" stroke-width="3" />
+    <circle cx="44" cy="44" r="34" fill="none" stroke="url(#kesariyaGold)" stroke-width="1" stroke-dasharray="3 2" opacity="0.7" />
+
+    <!-- Rising Sun / Govt Scheme Rays on Top -->
+    <path d="M26 36 A18 18 0 0 1 62 36" fill="url(#kesariyaGold)" opacity="0.9" />
+    <line x1="44" y1="12" x2="44" y2="16" stroke="#FBBF24" stroke-width="2.2" stroke-linecap="round" />
+    <line x1="29" y1="16" x2="32" y2="19" stroke="#FBBF24" stroke-width="2.2" stroke-linecap="round" />
+    <line x1="59" y1="16" x2="56" y2="19" stroke="#FBBF24" stroke-width="2.2" stroke-linecap="round" />
+
+    <!-- MSME Trust Handshake Symbol -->
+    <!-- Left Arm & Hand -->
+    <path d="M18 45 L30 39 L42 46 C44 47 46 47 48 45 L54 40 L66 45 L58 58 C54 62 47 63 42 60 L30 55 L18 45 Z" fill="#FFFFFF" />
+    <!-- Clasped Fingers Accent -->
+    <path d="M36 51 L43 55 M40 48 L47 52 M44 45 L51 49" stroke="url(#kesariyaGold)" stroke-width="2.4" stroke-linecap="round" />
+
+    <!-- Bottom Rupee Support Bar -->
+    <rect x="28" y="66" width="32" height="4" rx="2" fill="url(#kesariyaGold)" />
+  </g>
+
+  <!-- Brand Typography (Right Side) -->
+  <g transform="translate(110, 61)">
+    <!-- Main Brand Name: LoanKiSeva -->
+    <text x="0" y="0" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="39" font-weight="800" letter-spacing="-0.6">
+      <tspan fill="#0F172A">Loan</tspan><tspan fill="#D97706">Ki</tspan><tspan fill="#1E3A8A">Seva</tspan>
+    </text>
+    
+    <!-- Tagline / Niche Subtext -->
+    <text x="2" y="23" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#475569" letter-spacing="1.3">
+      GOVT SCHEMES • MUDRA • PMEGP • MSME
+    </text>
+  </g>
+</svg>

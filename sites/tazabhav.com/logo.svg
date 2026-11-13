@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 110" width="440" height="110">
+  <defs>
+    <!-- Pure Metallic Gold Gradient -->
+    <linearGradient id="pureGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FEF08A" />
+      <stop offset="35%" stop-color="#FACC15" />
+      <stop offset="70%" stop-color="#CA8A04" />
+      <stop offset="100%" stop-color="#854D0E" />
+    </linearGradient>
+
+    <!-- Gold Top Shine Gradient -->
+    <linearGradient id="goldShine" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FEF9C3" />
+      <stop offset="100%" stop-color="#EAB308" />
+    </linearGradient>
+
+    <!-- Silver / Platinum Accent Gradient -->
+    <linearGradient id="silverCoin" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F8FAFC" />
+      <stop offset="50%" stop-color="#CBD5E1" />
+      <stop offset="100%" stop-color="#64748B" />
+    </linearGradient>
+
+    <!-- Dark Slate Gradient -->
+    <linearGradient id="darkSlate" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" />
+      <stop offset="100%" stop-color="#090D16" />
+    </linearGradient>
+  </defs>
+
+  <!-- Emblem Container (Left Side) -->
+  <g transform="translate(14, 12)">
+    <!-- Dark Slate Rounded Badge -->
+    <rect x="4" y="4" width="78" height="78" rx="20" fill="url(#darkSlate)" stroke="url(#pureGold)" stroke-width="2.5" />
+
+    <!-- Silver Bullion Coin (Back Right) -->
+    <circle cx="57" cy="31" r="14" fill="url(#silverCoin)" stroke="#090D16" stroke-width="2" />
+    <circle cx="57" cy="31" r="10" fill="none" stroke="#475569" stroke-width="1.2" />
+    <text x="57" y="35" font-family="'Segoe UI', Arial, sans-serif" font-size="11" font-weight="900" fill="#1E293B" text-anchor="middle">₹</text>
+
+    <!-- 3D Metallic Gold Bullion Bar (Foreground) -->
+    <!-- Bar Base / Front Face -->
+    <polygon points="15,62 23,44 55,44 63,62" fill="url(#pureGold)" stroke="#FEF08A" stroke-width="1" />
+    <!-- Bar Top Face -->
+    <polygon points="23,44 29,34 49,34 55,44" fill="url(#goldShine)" />
+    <!-- Engraved 24K Stamp -->
+    <text x="39" y="57" font-family="'Segoe UI', Arial, sans-serif" font-size="9.5" font-weight="900" fill="#422006" text-anchor="middle" letter-spacing="0.5">24K</text>
+
+    <!-- Live Rate Sparkle / Star (Top Left) -->
+    <path d="M23 16 L25 22 L31 24 L25 26 L23 32 L21 26 L15 24 L21 22 Z" fill="#FEF08A" />
+  </g>
+
+  <!-- Brand Typography (Right Side) -->
+  <g transform="translate(108, 61)">
+    <!-- Main Brand Name: TazaBhav -->
+    <text x="0" y="0" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="41" font-weight="800" letter-spacing="-0.8">
+      <tspan fill="#0F172A">Taza</tspan><tspan fill="#CA8A04">Bhav</tspan>
+    </text>
+    
+    <!-- Tagline / Niche Subtext -->
+    <text x="2" y="23" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.2" font-weight="700" fill="#475569" letter-spacing="1.4">
+      24K/22K GOLD • SILVER • LIVE COMMODITY
+    </text>
+  </g>
+</svg>

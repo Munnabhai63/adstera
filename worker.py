@@ -581,8 +581,8 @@ async def run_session(
         parsed_dom = parsed_dom.split(":")[0]
     target_domain = parsed_dom.lower() if parsed_dom else "loanraaj.com"
 
-    # ADV-8 & ADV-9: 40% chance of content-aware session
-    is_content_aware = (rng.random() < 0.40) and not use_fixture
+    # ADV-8 & ADV-9: Content-aware published post selection for all live sessions
+    is_content_aware = not use_fixture
     content_article = None
     if is_content_aware:
         try:
@@ -821,6 +821,46 @@ async def run_session(
         except Exception as e_af:
             logger.debug("Adsterra tracker attach notice: %s", e_af)
 
+        # ── ORGANIC STAGE 1 & 2: GOOGLE SEARCH JOURNEY & COOKIE PRE-WARM ──
+        if not use_fixture:
+            try:
+                from urllib.parse import quote_plus
+                search_kw = ""
+                if content_article and content_article.get("title_keyword"):
+                    search_kw = content_article["title_keyword"]
+                if not search_kw:
+                    search_kw = f"instant personal loan {target_domain.replace('.com', '')}"
+                google_url = f"https://www.google.com/search?q={quote_plus(search_kw)}"
+                logger.info("Executing Organic Google Search Pre-Warm: %s", google_url)
+                await page.goto(google_url, wait_until="domcontentloaded", timeout=20000)
+                await asyncio.sleep(rng.uniform(5.5, 8.5))
+                # Natural human scroll on SERP
+                try:
+                    await page.mouse.wheel(0, rng.uniform(400, 700))
+                except Exception:
+                    pass
+                await asyncio.sleep(rng.uniform(2.5, 4.0))
+
+                # Stage 2: 40% probability authority cookie warmup
+                if rng.random() < 0.40:
+                    auth_sites = [
+                        "https://www.livemint.com/money",
+                        "https://www.moneycontrol.com",
+                        "https://en.wikipedia.org/wiki/Debt_consolidation",
+                        "https://www.financialexpress.com/money",
+                    ]
+                    chosen_auth = rng.choice(auth_sites)
+                    logger.info("Warming commercial cookies on authority portal: %s", chosen_auth)
+                    await page.goto(chosen_auth, wait_until="domcontentloaded", timeout=20000)
+                    await asyncio.sleep(rng.uniform(7.0, 11.0))
+                    try:
+                        await page.mouse.wheel(0, rng.uniform(300, 600))
+                    except Exception:
+                        pass
+                    await asyncio.sleep(rng.uniform(2.0, 3.0))
+            except Exception as e_pw:
+                logger.debug("Google pre-warm notice: %s", e_pw)
+
         # Resilient 3-tier navigation with error recovery
         nav_kwargs: dict = {"wait_until": "domcontentloaded", "timeout": 25000}
         if referrer:
@@ -831,6 +871,7 @@ async def run_session(
 
         # Tier 1: Primary attempt
         try:
+            logger.info("Stage 3 Money Target: Navigating to %s (Google Referrer active)", start_url)
             await page.goto(start_url, **nav_kwargs)
             nav_succeeded = True
         except Exception as nav_err1:

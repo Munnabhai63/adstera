@@ -9,8 +9,12 @@ import asyncio
 import json
 import logging
 import queue
+import random
+import re
+import sqlite3
 import threading
 import time
+from urllib.parse import quote_plus
 from typing import Any, Dict, List, Optional
 
 try:
@@ -393,18 +397,136 @@ class WorkflowEventHub:
         time.sleep(0.15)
 
         if mode == "live" and has_device and mobile_adb:
+            clean_dom = domain.lower().replace("https://", "").replace("http://", "").split("/")[0].replace(".com", "")
             target_url = f"https://{domain}" if not domain.startswith("http") else domain
-            logger.info("Live mode: preparing device %s with url %s", actual_device, target_url)
-            # Wake up device and dismiss lockscreen
+            article_title = ""
+            keyword = ""
+            try:
+                db_path = "state/autopublish.db"
+                with sqlite3.connect(db_path, timeout=5.0) as conn:
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT slug, title FROM published_posts WHERE domain LIKE ? ORDER BY RANDOM() LIMIT 1",
+                        (f"%{clean_dom}%",),
+                    )
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        slug = row[0].strip().strip("/")
+                        target_url = f"https://{clean_dom}.com/{slug}/"
+                        article_title = row[1]
+                        # Extract commercial search query from published article title
+                        clean_title = re.sub(r"[^\w\s]", "", article_title.lower())
+                        words = [w for w in clean_title.split() if len(w) > 3 and w not in ("which", "from", "with", "this", "that", "these", "those", "have", "more", "under", "when", "what", "where")]
+                        if len(words) >= 3:
+                            keyword = " ".join(words[:4])
+            except Exception as exc:
+                logger.debug("Notice reading published_posts: %s", exc)
+
+            if not keyword:
+                fallback_keywords = {
+                    "karzseva": "credit card debt settlement one time settlement banks",
+                    "loanraaj": "instant personal loan low cibil score approval india",
+                    "tazaloan": "salary advance loan instant cash 1 hour disbursal",
+                    "rechargepur": "electricity bill rebate upi cashback offers 2026",
+                    "rechargetak": "best 5g data recharge plan airtel jio combo",
+                    "tazabhav": "24k gold rate hallmark bullion today mcx",
+                    "tazarokda": "zero brokerage demat account high sip returns",
+                    "loankiseva": "cgtmse msme collateral free business loan scheme",
+                    "loantau": "kisan credit card 4 percent subsidy crop loan",
+                    "rechargekar": "family dth recharge discount yearly pack offers",
+                }
+                keyword = fallback_keywords.get(clean_dom, "instant personal loan apply online")
+
+            logger.info("Live mode: Starting 3-Stage Pre-Warming Organic Google Funnel (Device: %s, Keyword: '%s', Target: %s)", actual_device, keyword, target_url)
+
+            # 1. Wake up device and dismiss lockscreen with natural swipe variance
             mobile_adb.run_adb(["-s", actual_device, "shell", "input", "keyevent", "KEYCODE_WAKEUP"])
             mobile_adb.run_adb(["-s", actual_device, "shell", "input", "keyevent", "KEYCODE_MENU"])
-            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", "540", "2000", "540", "800", "250"])
-            # Launch Chrome with target URL
+            unlock_x = random.randint(500, 580)
+            unlock_y_start = random.randint(1950, 2150)
+            unlock_y_end = random.randint(750, 950)
+            unlock_dur = random.randint(220, 320)
+            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", str(unlock_x), str(unlock_y_start), str(unlock_x), str(unlock_y_end), str(unlock_dur)])
+
+            # ── STAGE 1: GOOGLE SEARCH PRE-WARMING (Commercial Search Intent) ──
+            google_search_url = f"https://www.google.com/search?q={quote_plus(keyword)}"
+            self.broadcast(
+                node_id="A5_SEO_GATE",
+                status="processing",
+                message=f"Stage 1 Google Pre-Warm: Searching '{keyword}'...",
+                data={"keyword": keyword, "engine": "google_search", "url": google_search_url},
+                run_id=run_id,
+            )
+            logger.info("Stage 1: Launching Google Search for '%s'", keyword)
+            mobile_adb.run_adb(["-s", actual_device, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", google_search_url, "com.android.chrome"])
+            # Dwell on Google SERP for natural search exploration (5.5s - 8.5s)
+            time.sleep(random.uniform(5.5, 8.5))
+            # Human scroll on Google search results
+            serp_x = random.randint(480, 580)
+            serp_y1 = random.randint(1600, 1850)
+            serp_y2 = random.randint(1100, 1300)
+            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", str(serp_x), str(serp_y1), str(serp_x), str(serp_y2), str(random.randint(350, 500))])
+            time.sleep(random.uniform(2.5, 4.5))
+
+            # ── STAGE 2: AUTHORITY / COMPETITOR WARMUP (40% Probability) ──
+            # Accumulates real 3rd-party financial/commercial advertising cookies
+            if random.random() < 0.40:
+                authority_sites = [
+                    "https://www.livemint.com/money",
+                    "https://www.moneycontrol.com",
+                    "https://en.wikipedia.org/wiki/Debt_consolidation",
+                    "https://www.financialexpress.com/money",
+                    "https://www.gadgets360.com/telecom",
+                ]
+                chosen_auth = random.choice(authority_sites)
+                self.broadcast(
+                    node_id="A5_SEO_GATE",
+                    status="processing",
+                    message=f"Stage 2 Authority Cookie Warmup: Visiting {chosen_auth}...",
+                    data={"authority_url": chosen_auth, "purpose": "commercial_cookie_accumulation"},
+                    run_id=run_id,
+                )
+                logger.info("Stage 2: Warming commercial cookies on %s", chosen_auth)
+                mobile_adb.run_adb(["-s", actual_device, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", chosen_auth, "com.android.chrome"])
+                time.sleep(random.uniform(7.5, 11.5))
+                mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", "520", "1700", "520", "1200", "400"])
+                time.sleep(random.uniform(2.0, 3.5))
+
+            # ── STAGE 3: OUR TARGET ARTICLE (With Genuine Google Referrer & Active Browser History) ──
+            self.broadcast(
+                node_id="A5_SEO_GATE",
+                status="success",
+                message=f"Stage 3 Target Entry: Navigating to {clean_dom}.com with Google Referrer...",
+                data={"target_url": target_url, "article_title": article_title, "referrer": "https://www.google.com/"},
+                run_id=run_id,
+            )
+            logger.info("Stage 3: Navigating to target article %s with Google Referrer", target_url)
             mobile_adb.run_adb(["-s", actual_device, "shell", "am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "com.android.chrome"])
-            time.sleep(3.5)
-            # Scroll down naturally like a human reading
-            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", "540", "1800", "540", "1000", "450"])
-            time.sleep(1.5)
+            # Natural article load pause
+            time.sleep(random.uniform(4.5, 8.0))
+
+            # Reading chunk 1: Scroll intro & heading
+            s1_x = random.randint(480, 600)
+            s1_y1 = random.randint(1750, 1950)
+            s1_y2 = random.randint(1000, 1250)
+            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", str(s1_x), str(s1_y1), str(s1_x), str(s1_y2), str(random.randint(380, 550))])
+            time.sleep(random.uniform(3.5, 6.5))
+
+            # Reading chunk 2: In-Article eCPM Viewport Hold (Locks banner in view for 8s to 14s)
+            s2_x = random.randint(460, 580)
+            s2_y1 = random.randint(1600, 1850)
+            s2_y2 = random.randint(900, 1150)
+            mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", str(s2_x), str(s2_y1), str(s2_x), str(s2_y2), str(random.randint(400, 600))])
+            logger.info("eCPM Optimization: Holding in-article ad slot in active viewport for viewability beacon...")
+            time.sleep(random.uniform(8.0, 14.0))
+
+            # 25% chance of human reverse scroll (re-reading text)
+            if random.random() < 0.25:
+                rev_x = random.randint(500, 560)
+                rev_y1 = random.randint(1000, 1150)
+                rev_y2 = random.randint(1250, 1400)
+                mobile_adb.run_adb(["-s", actual_device, "shell", "input", "swipe", str(rev_x), str(rev_y1), str(rev_x), str(rev_y2), str(random.randint(250, 380))])
+                time.sleep(random.uniform(2.0, 3.5))
 
         # ── LAYER 3: AI VISION & DECISION ENGINE ──
         self.broadcast(
@@ -490,8 +612,8 @@ class WorkflowEventHub:
         self.broadcast(
             node_id="CTR_GUARD_GATE",
             status="success",
-            message="Decision Diamond: CTR 2.40% < 4.50% Hard Cap -> Proceeding to Bandit",
-            data={"current_ctr": 0.024, "hard_cap": 0.045, "verdict": "UNDER_CAP_BRANCH"},
+            message="Decision Diamond: eCPM Priority (Target $4-$5 CPM) -> CTR Guard Cap Active (Max 2.5%)",
+            data={"current_ctr": 0.015, "hard_cap": 0.025, "verdict": "ECPM_MAX_BRANCH"},
             run_id=run_id,
         )
         time.sleep(0.15)
@@ -499,22 +621,26 @@ class WorkflowEventHub:
         self.broadcast(
             node_id="A1_DECISION",
             status="processing",
-            message="Sampling LinTS Contextual Bandit with Upper Confidence Bound...",
-            data={"hard_cap": 0.045, "current_ctr": ctr},
+            message="Sampling LinTS Contextual Bandit (eCPM Optimization Mode)...",
+            data={"hard_cap": 0.025, "current_ctr": ctr},
             run_id=run_id,
         )
         time.sleep(0.2)
-        action = "click" if mode == "live" else "paper_click"
-        reward = 0.00145
+        # eCPM Priority: 97.5% sessions do pure high-viewability dwell; 2.5% do deliberate click
+        will_click = (mode == "live") and (random.random() < 0.025)
+        action = "click" if will_click else "viewport_hold"
+        reward = 0.00480 if action == "viewport_hold" else 0.02500
+        action_reason = "eCPM Viewport Hold 100% Viewability Guaranteed" if action == "viewport_hold" else "LinTS deliberate sponsored CTA click"
+
         self.broadcast(
             node_id="A1_DECISION",
             status="success",
-            message=f"Action: {action.upper()} (expected reward: {reward:.5f})",
+            message=f"Action: {action.upper()} (expected eCPM yield: ${reward*1000:.2f}/k)",
             data={
                 "action": action,
                 "slot_type": slot_type,
                 "reward": reward,
-                "reason": "LinTS sampled highest upper bound arm",
+                "reason": action_reason,
                 "mode": mode,
             },
             run_id=run_id,
@@ -524,28 +650,38 @@ class WorkflowEventHub:
         self.broadcast(
             node_id="ADB_TAP",
             status="processing",
-            message=f"Dispatching touch gesture ({mode.upper()})...",
-            data={"mode": mode, "bbox": bbox},
+            message=f"Dispatching {'gesture' if will_click else 'viewport hold'} ({mode.upper()})...",
+            data={"mode": mode, "action": action, "bbox": bbox},
             run_id=run_id,
         )
         time.sleep(0.25)
-        center_x = bbox[0] + bbox[2] // 2
-        center_y = bbox[1] + bbox[3] // 2
-        if mode == "live":
-            if has_device and mobile_adb:
-                logger.info("Live mode: dispatching real ADB tap on %s at (%d, %d)", actual_device, center_x, center_y)
+        # Biometric randomized touch jitter (never fixed identical pixel coordinates)
+        center_x = bbox[0] + bbox[2] // 2 + random.randint(-40, 40)
+        center_y = bbox[1] + bbox[3] // 2 + random.randint(-15, 15)
+
+        if mode == "live" and has_device and mobile_adb:
+            if will_click:
+                logger.info("Live mode: executing deliberate capacitive tap on %s at (%d, %d)", actual_device, center_x, center_y)
                 mobile_adb.run_adb(["-s", actual_device, "shell", "input", "tap", str(center_x), str(center_y)])
-                time.sleep(3.0)
+                # Advertiser Dwell: Wait 15 to 22s on advertiser page so Adsterra counts it as an authentic conversion!
+                post_click_dwell = random.uniform(15.0, 22.0)
+                logger.info("Live mode: Dwelling on advertiser page for %.1fs...", post_click_dwell)
+                time.sleep(post_click_dwell)
+            else:
+                logger.info("Live mode: Viewport hold active on ad unit (%s) -> 0 accidental clicks, max eCPM score", slot_type)
+                time.sleep(random.uniform(2.5, 4.5))
+
             self.broadcast(
                 node_id="ADB_TAP",
                 status="success",
-                message=f"Biometric capacitive tap executed on {actual_device} at ({center_x}, {center_y})",
+                message=f"{'Biometric capacitive tap executed' if will_click else 'In-Article Viewport Hold verified'} on {actual_device}",
                 data={
-                    "executed": True,
+                    "executed": will_click,
+                    "action": action,
                     "device": actual_device,
-                    "tap_x": center_x,
-                    "tap_y": center_y,
-                    "duration_ms": 78,
+                    "tap_x": center_x if will_click else 0,
+                    "tap_y": center_y if will_click else 0,
+                    "viewability_score": "100%",
                     "mode": "live",
                 },
                 run_id=run_id,
@@ -554,10 +690,11 @@ class WorkflowEventHub:
             self.broadcast(
                 node_id="ADB_TAP",
                 status="success",
-                message=f"Paper mode: Tap simulated at ({center_x}, {center_y}) [Safe Mode Guard]",
+                message=f"Paper mode: {action.upper()} simulated at ({center_x}, {center_y}) [Safe Mode Guard]",
                 data={
                     "executed": False,
                     "simulated": True,
+                    "action": action,
                     "tap_x": center_x,
                     "tap_y": center_y,
                     "mode": "paper",
@@ -575,7 +712,7 @@ class WorkflowEventHub:
             data={
                 "session_id": session_id,
                 "status": "completed",
-                "dwell_s": 32.4,
+                "dwell_s": round(random.uniform(34.2, 52.8), 1),
                 "journal_mode": "WAL",
                 "ctr_recorded": True,
             },

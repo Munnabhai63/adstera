@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Tech Blue Gradient -->
+    <linearGradient id="favTechBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+
+    <!-- Electric Green Gradient -->
+    <linearGradient id="favElecGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ADE80" />
+      <stop offset="100%" stop-color="#16A34A" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Square Background -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#favTechBlue)" stroke="url(#favElecGreen)" stroke-width="2.5" />
+
+  <!-- Digital Wallet -->
+  <rect x="12" y="24" width="40" height="28" rx="6" fill="#0F172A" stroke="#FFFFFF" stroke-width="2" />
+  <rect x="39" y="33" width="15" height="10" rx="3" fill="url(#favElecGreen)" />
+  <circle cx="44" cy="38" r="1.8" fill="#0F172A" />
+
+  <!-- Lightning Bolt (Utility Bill) -->
+  <path d="M27 11 L18 26 H25 L23 37 L33 22 H26 L27 11 Z" fill="url(#favElecGreen)" />
+
+  <!-- Water Drop -->
+  <path d="M41 11 C41 11 35 18 35 21.5 A6 6 0 0 0 47 21.5 C47 18 41 11 41 11 Z" fill="#38BDF8" />
+</svg>

@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Royal Gold Gradient -->
+    <linearGradient id="favGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE08D" />
+      <stop offset="50%" stop-color="#D4AF37" />
+      <stop offset="100%" stop-color="#AA7C11" />
+    </linearGradient>
+    
+    <!-- Royal Navy Blue Gradient -->
+    <linearGradient id="favNavy" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E3A8A" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Square Background -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#favNavy)" stroke="url(#favGold)" stroke-width="2.5" />
+
+  <!-- Royal Crown -->
+  <path d="M18 22 L21 13 L27 18 L32 10 L37 18 L43 13 L46 22 Z" fill="url(#favGold)" />
+
+  <!-- Financial Growth Bars -->
+  <rect x="17" y="40" width="7" height="12" rx="1.5" fill="url(#favGold)" opacity="0.85" />
+  <rect x="28.5" y="33" width="7" height="19" rx="1.5" fill="url(#favGold)" opacity="0.95" />
+  <rect x="40" y="26" width="7" height="26" rx="1.5" fill="url(#favGold)" />
+</svg>

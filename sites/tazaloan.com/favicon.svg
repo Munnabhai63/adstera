@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Fresh Mint Green Gradient -->
+    <linearGradient id="favMint" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+
+    <!-- Dark Charcoal Gradient -->
+    <linearGradient id="favCharcoal" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#27272A" />
+      <stop offset="100%" stop-color="#111827" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Square Background -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#favCharcoal)" stroke="#10B981" stroke-width="2.5" />
+
+  <!-- Speed Lines -->
+  <line x1="11" y1="24" x2="20" y2="24" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" opacity="0.8" />
+  <line x1="9" y1="32" x2="18" y2="32" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" opacity="0.6" />
+  <line x1="12" y1="40" x2="20" y2="40" stroke="#34D399" stroke-width="2.2" stroke-linecap="round" opacity="0.8" />
+
+  <!-- Center Thunderbolt -->
+  <path d="M36 12 L20 35 H32 L28 52 L46 28 H34 L36 12 Z" fill="url(#favMint)" />
+</svg>

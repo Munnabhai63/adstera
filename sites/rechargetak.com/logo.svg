@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 110" width="440" height="110">
+  <defs>
+    <!-- Electric Blue Gradient -->
+    <linearGradient id="elecBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="50%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#1E3A8A" />
+    </linearGradient>
+
+    <!-- Vibrant Energy Orange Gradient -->
+    <linearGradient id="energyOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C" />
+      <stop offset="50%" stop-color="#F97316" />
+      <stop offset="100%" stop-color="#EA580C" />
+    </linearGradient>
+  </defs>
+
+  <!-- Emblem Container (Left Side) -->
+  <g transform="translate(14, 12)">
+    <!-- Electric Blue Rounded Badge -->
+    <rect x="4" y="4" width="78" height="78" rx="20" fill="url(#elecBlue)" stroke="#38BDF8" stroke-width="2" />
+
+    <!-- 5G Signal Waves (Top Right of Phone) -->
+    <path d="M50 20 A14 14 0 0 1 64 34" fill="none" stroke="url(#energyOrange)" stroke-width="3.2" stroke-linecap="round" />
+    <path d="M50 13 A21 21 0 0 1 71 34" fill="none" stroke="#FFFFFF" stroke-width="2.5" stroke-linecap="round" opacity="0.9" />
+
+    <!-- Modern Smartphone Outline -->
+    <rect x="22" y="22" width="32" height="50" rx="6" fill="#0F172A" stroke="#FFFFFF" stroke-width="2.5" />
+    <!-- Phone Speaker Notch -->
+    <line x1="34" y1="27" x2="42" y2="27" stroke="#94A3B8" stroke-width="2" stroke-linecap="round" />
+
+    <!-- Instant Recharge Bolt Inside Phone -->
+    <path d="M40 34 L31 47 H38 L36 60 L46 46 H39 L40 34 Z" fill="url(#energyOrange)" />
+  </g>
+
+  <!-- Brand Typography (Right Side) -->
+  <g transform="translate(108, 61)">
+    <!-- Main Brand Name: RechargeTak -->
+    <text x="0" y="0" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="39" font-weight="800" letter-spacing="-0.8">
+      <tspan fill="#1E3A8A">Recharge</tspan><tspan fill="#F97316">Tak</tspan>
+    </text>
+    
+    <!-- Tagline / Niche Subtext -->
+    <text x="2" y="23" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.2" font-weight="700" fill="#475569" letter-spacing="1.4">
+      5G MOBILE RECHARGE • DATA • CASHBACK
+    </text>
+  </g>
+</svg>

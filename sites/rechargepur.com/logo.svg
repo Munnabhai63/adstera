@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 110" width="440" height="110">
+  <defs>
+    <!-- Tech Blue Gradient -->
+    <linearGradient id="techBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="50%" stop-color="#1D4ED8" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+
+    <!-- Electric Green Gradient -->
+    <linearGradient id="elecGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ADE80" />
+      <stop offset="50%" stop-color="#22C55E" />
+      <stop offset="100%" stop-color="#15803D" />
+    </linearGradient>
+  </defs>
+
+  <!-- Emblem Container (Left Side) -->
+  <g transform="translate(14, 12)">
+    <!-- Tech Blue Rounded Badge -->
+    <rect x="4" y="4" width="78" height="78" rx="20" fill="url(#techBlue)" stroke="url(#elecGreen)" stroke-width="2.5" />
+
+    <!-- Digital Wallet Body -->
+    <rect x="17" y="29" width="52" height="36" rx="8" fill="#0F172A" stroke="#FFFFFF" stroke-width="2.2" />
+    
+    <!-- Wallet Clasp / UPI Flap -->
+    <rect x="52" y="41" width="19" height="12" rx="4" fill="url(#elecGreen)" />
+    <circle cx="58" cy="47" r="2.2" fill="#0F172A" />
+
+    <!-- Utility Icons Above/On Wallet: Electricity Bolt & Water Drop -->
+    <!-- Electricity Bolt (Left) -->
+    <path d="M34 15 L23 32 H31 L29 45 L41 28 H33 L34 15 Z" fill="url(#elecGreen)" stroke="#0F172A" stroke-width="1" />
+
+    <!-- Water Drop (Right) -->
+    <path d="M52 15 C52 15 45 23 45 27.5 A7 7 0 0 0 59 27.5 C59 23 52 15 52 15 Z" fill="#38BDF8" stroke="#0F172A" stroke-width="1" />
+  </g>
+
+  <!-- Brand Typography (Right Side) -->
+  <g transform="translate(108, 61)">
+    <!-- Main Brand Name: RechargePur -->
+    <text x="0" y="0" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="39" font-weight="800" letter-spacing="-0.8">
+      <tspan fill="#0F172A">Recharge</tspan><tspan fill="#16A34A">Pur</tspan>
+    </text>
+    
+    <!-- Tagline / Niche Subtext -->
+    <text x="2" y="23" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.2" font-weight="700" fill="#475569" letter-spacing="1.4">
+      ELECTRICITY • WATER BILLS • UPI OFFERS
+    </text>
+  </g>
+</svg>

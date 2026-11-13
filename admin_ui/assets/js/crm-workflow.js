@@ -780,7 +780,7 @@
     if (state.running) return;
     var modeInput = document.querySelector('input[name="wfMode"]:checked');
     var stepsInput = $('#wfSteps');
-    var mode = modeInput ? modeInput.value : 'paper';
+    var mode = modeInput ? modeInput.value : 'live';
     var steps = clamp(parseInt(stepsInput ? stepsInput.value : '3', 10) || 3, 1, 10);
     var runId = Date.now().toString().slice(-5);
     state.mode = mode; state.steps = steps;

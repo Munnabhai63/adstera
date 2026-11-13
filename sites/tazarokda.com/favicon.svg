@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Royal Blue Gradient -->
+    <linearGradient id="favTrBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E40AF" />
+      <stop offset="100%" stop-color="#0F172A" />
+    </linearGradient>
+
+    <!-- Investment Green Gradient -->
+    <linearGradient id="favInvestGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4ADE80" />
+      <stop offset="100%" stop-color="#16A34A" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Square Background -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#favTrBlue)" stroke="#3B82F6" stroke-width="2.2" />
+
+  <!-- Growth Bars -->
+  <rect x="13" y="38" width="7" height="14" rx="1.5" fill="#60A5FA" opacity="0.85" />
+  <rect x="24" y="31" width="7" height="21" rx="1.5" fill="#38BDF8" />
+  <rect x="35" y="23" width="7" height="29" rx="1.5" fill="url(#favInvestGreen)" />
+  <rect x="46" y="15" width="7" height="37" rx="1.5" fill="#4ADE80" />
+
+  <!-- Bullish Trend Line & Arrow -->
+  <path d="M12 33 L25 25 L34 28 L50 11" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+  <path d="M42 11 H50 V19" fill="none" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

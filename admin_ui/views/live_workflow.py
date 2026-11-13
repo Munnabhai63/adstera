@@ -392,8 +392,8 @@ WORKFLOW_MARKUP = r"""
         <div class="lwv-control">
           <span>Execution mode</span>
           <div class="lwv-seg" role="radiogroup" aria-label="Execution mode">
-            <label><input type="radio" name="wfMode" value="paper" checked><span>Paper (safe)</span></label>
-            <label class="lwv-live-opt"><input type="radio" name="wfMode" value="live"><span>Live touch</span></label>
+            <label><input type="radio" name="wfMode" value="paper"><span>Paper (simulated)</span></label>
+            <label class="lwv-live-opt"><input type="radio" name="wfMode" value="live" checked><span>Live touch (Phone)</span></label>
           </div>
         </div>
         <div class="lwv-control">

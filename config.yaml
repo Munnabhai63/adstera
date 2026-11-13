@@ -37,7 +37,7 @@ target:
   min_dwell: 25
   max_dwell: 110
   scroll_prob: 0.85
-  click_prob: 0.045
+  click_prob: 0.025
   ad_clicks_max: 1
   target_impressions: 1000
   target_clicks: 50
@@ -220,12 +220,12 @@ browser:
   block_resources: []
 android_cdp:
   enabled: true
-  device_id: ""             # Auto-detect attached USB ADB serial (e.g. RZCX21WTS9E)
+  device_id: ''
   preferred_socket: chrome_devtools_remote
   port_min: 9222
   port_max: 9299
-  fail_closed: true         # Never spoof Android UA on Windows Chromium if phone disconnects
-  dedicated_device: false   # Preserve personal Chrome tabs & logins; clean only owned tabs & visited origins
+  fail_closed: true
+  dedicated_device: false
   prefer_for_mobile_only: true
 network:
   mode: mobile_tether
@@ -236,14 +236,13 @@ network:
   reconnect_poll_interval: 1.5
 adsterra_api:
   enabled: true
-  api_key: ""  # Loaded securely from .env (ADSTERRA_API_KEY)
+  api_key: ''
   endpoint: https://api3.adsterratools.com/publisher/stats.json
   sync_interval_min: 15
 payout_safety:
   solo_network: adsterra
   skip_lead_form_submit: true
   skip_cpa_stacking: true
-
 lead_engine:
   enabled: true
   payout_safe_skip_submit: true
@@ -260,7 +259,7 @@ serp:
   max_serp_scroll_depth: 3
 telegram:
   enabled: true
-  bot_token: ""  # Loaded securely from .env (TELEGRAM_BOT_TOKEN)
+  bot_token: ''
   chat_id: '5812452868'
   heartbeat_hours: 2
   daily_report_hour: 8
@@ -417,11 +416,11 @@ autopublish:
   sync_winners_to_queue: true
   schedule_mode: 5_wave_24h
   wave_hours_ist:
-  - "07:00"
-  - "11:30"
-  - "16:00"
-  - "20:00"
-  - "00:00"
+  - 07:00
+  - '11:30'
+  - '16:00'
+  - '20:00'
+  - 00:00
   articles_per_domain_per_day: 5
   daily_total_target: 50
   wave_domain_gap_seconds: 300

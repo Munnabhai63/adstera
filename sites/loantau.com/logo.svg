@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 430 110" width="430" height="110">
+  <defs>
+    <!-- Earth Green Gradient -->
+    <linearGradient id="earthGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#16A34A" />
+      <stop offset="55%" stop-color="#15803D" />
+      <stop offset="100%" stop-color="#052E16" />
+    </linearGradient>
+
+    <!-- Harvest Yellow / Gold Gradient -->
+    <linearGradient id="harvestYellow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="50%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#CA8A04" />
+    </linearGradient>
+  </defs>
+
+  <!-- Emblem Container (Left Side) -->
+  <g transform="translate(15, 11)">
+    <!-- Circular Farm Badge -->
+    <circle cx="44" cy="44" r="40" fill="url(#earthGreen)" stroke="url(#harvestYellow)" stroke-width="3" />
+
+    <!-- Rolling Green Fields / Hills at Bottom -->
+    <path d="M10 60 Q28 48 46 60 T80 56 V70 A40 40 0 0 1 8 66 Z" fill="#14532D" opacity="0.85" />
+    <path d="M14 66 Q38 54 74 66 A40 40 0 0 1 14 66 Z" fill="url(#harvestYellow)" opacity="0.25" />
+
+    <!-- Golden Wheat Stalk (Centre Stem) -->
+    <path d="M44 70 V20" stroke="url(#harvestYellow)" stroke-width="3" stroke-linecap="round" />
+
+    <!-- Wheat Grains (Left & Right Pairs) -->
+    <path d="M44 54 C35 52 31 46 33 40 C39 42 43 47 44 54 Z" fill="url(#harvestYellow)" />
+    <path d="M44 54 C53 52 57 46 55 40 C49 42 45 47 44 54 Z" fill="url(#harvestYellow)" />
+
+    <path d="M44 42 C35 40 31 34 33 28 C39 30 43 35 44 42 Z" fill="url(#harvestYellow)" />
+    <path d="M44 42 C53 40 57 34 55 28 C49 30 45 35 44 42 Z" fill="url(#harvestYellow)" />
+
+    <path d="M44 30 C37 28 34 23 36 18 C41 20 43 24 44 30 Z" fill="url(#harvestYellow)" />
+    <path d="M44 30 C51 28 54 23 52 18 C47 20 45 24 44 30 Z" fill="url(#harvestYellow)" />
+
+    <!-- Top Wheat Tip -->
+    <path d="M44 20 C41 14 42 10 44 8 C46 10 47 14 44 20 Z" fill="#FDE047" />
+  </g>
+
+  <!-- Brand Typography (Right Side) -->
+  <g transform="translate(110, 61)">
+    <!-- Main Brand Name: LoanTau -->
+    <text x="0" y="0" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="42" font-weight="800" letter-spacing="-0.6">
+      <tspan fill="#14532D">Loan</tspan><tspan fill="#CA8A04">Tau</tspan>
+    </text>
+    
+    <!-- Tagline / Niche Subtext -->
+    <text x="2" y="23" font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="11.2" font-weight="700" fill="#475569" letter-spacing="1.4">
+      KCC • TRACTOR LOAN • AGRI FINANCE
+    </text>
+  </g>
+</svg>

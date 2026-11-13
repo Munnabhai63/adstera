@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Electric Blue Gradient -->
+    <linearGradient id="favElecBlue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB" />
+      <stop offset="100%" stop-color="#1E3A8A" />
+    </linearGradient>
+
+    <!-- Energy Orange Gradient -->
+    <linearGradient id="favOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FB923C" />
+      <stop offset="100%" stop-color="#EA580C" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded Square Background -->
+  <rect x="2" y="2" width="60" height="60" rx="14" fill="url(#favElecBlue)" stroke="#38BDF8" stroke-width="2" />
+
+  <!-- 5G Signal Arcs -->
+  <path d="M38 14 A12 12 0 0 1 50 26" fill="none" stroke="url(#favOrange)" stroke-width="3" stroke-linecap="round" />
+  <path d="M38 8 A18 18 0 0 1 56 26" fill="none" stroke="#FFFFFF" stroke-width="2.2" stroke-linecap="round" opacity="0.9" />
+
+  <!-- Smartphone Frame -->
+  <rect x="16" y="18" width="26" height="38" rx="5" fill="#0F172A" stroke="#FFFFFF" stroke-width="2.2" />
+
+  <!-- Recharge Bolt -->
+  <path d="M31 26 L23 37 H29 L27 48 L36 36 H30 L31 26 Z" fill="url(#favOrange)" />
+</svg>
