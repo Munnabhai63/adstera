@@ -168,10 +168,34 @@ def ping_search_engines(domain):
 print("Autonomous Publishing Engine & Anti-AI Quality Gate initialized successfully.")
 
 
+def strip_invisible_artifacts(text: str) -> str:
+    """
+    Strip invisible LLM/watermark artifacts and normalize NBSP:
+    - Normalizes NBSP (\u00a0) to regular ASCII space
+    - Normalizes zero-width space (\u200b) between word characters to space
+    - Strips \u200b, \u200c, \u200d, \ufeff, \u2060
+    - Leaves content inside <pre>...</pre> and <code>...</code> completely untouched
+    """
+    if not text:
+        return ""
+    parts = re.split(r"(<(?:pre|code)[^>]*>.*?</(?:pre|code)>)", text, flags=re.DOTALL | re.IGNORECASE)
+    cleaned_parts = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            cleaned_parts.append(part)
+        else:
+            p = part.replace("\u00a0", " ")
+            p = re.sub(r"(?<=\w)\u200b(?=\w)", " ", p)
+            p = re.sub(r"[\u200b\u200c\u200d\ufeff\u2060]", "", p)
+            cleaned_parts.append(p)
+    return "".join(cleaned_parts)
+
+
 def _strip_code_fences_and_preamble(raw: str) -> str:
     clean = re.sub(r"^```[a-zA-Z]*\s*", "", (raw or "").strip(), flags=re.MULTILINE)
     clean = re.sub(r"```\s*$", "", clean, flags=re.MULTILINE).strip()
     clean = re.sub(r"<think>.*?</think>", "", clean, flags=re.DOTALL | re.IGNORECASE).strip()
+    clean = strip_invisible_artifacts(clean)
     if "<p" in clean and ("<h2" not in clean or clean.find("<p") < clean.find("<h2")):
         clean = clean[clean.find("<p"):]
     elif "<h2" in clean:

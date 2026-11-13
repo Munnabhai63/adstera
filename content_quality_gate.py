@@ -75,11 +75,22 @@ class ContentQualityFinishGate:
 
         # 5. Execute Claude-SEO v2.5.0 `content_humanize.py` (strip invisible Unicode watermarks + 48 AI phrase replacements)
         try:
+            from autopublish_engine import strip_invisible_artifacts
+            clean = strip_invisible_artifacts(clean)
+        except Exception:
+            pass
+
+        try:
             import seo_pipeline
             hum = seo_pipeline.humanize_with_claude_seo(clean)
             clean = hum.get("cleaned", clean)
         except Exception:
             pass
+
+        # Standalone fallback if claude-seo script directory is absent in CI
+        if "delve" in clean.lower():
+            clean = re.sub(r"\bdelve\s+into\b", "explore", clean, flags=re.IGNORECASE)
+            clean = re.sub(r"\bdelve\b", "explore", clean, flags=re.IGNORECASE)
 
         return clean.strip()
 

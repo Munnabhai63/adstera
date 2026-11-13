@@ -274,6 +274,12 @@ def test_claude_seo_v2_5_full_subsystem_on_article() -> None:
     assert "\u200b" not in sanitized
     assert "delve" not in sanitized.lower()
 
+    from autopublish_engine import strip_invisible_artifacts
+    assert "hello world" == strip_invisible_artifacts("hello\u200bworld")
+    assert "a  b" == strip_invisible_artifacts("a\u00a0 b")
+    assert "<pre>a\u200b</pre>" == strip_invisible_artifacts("<pre>a\u200b</pre>")
+    assert "<code>code\u200bval</code>" == strip_invisible_artifacts("<code>code\u200bval</code>")
+
     formatted_html, faqs, meta = ContentQualityFinishGate.format_editorial_layout(
         clean_html=sanitized,
         title="SBI Commercial Truck Loan 2026: Complete Guide",
