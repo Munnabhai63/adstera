@@ -121,3 +121,20 @@ If domain traffic tripping causes a circuit breaker pause, reset states safely:
 ```bash
 python state_cleanup.py --apply
 ```
+
+
+---
+
+## 5. Corrections and Auditor Verification Notes (Post-Audit Remediation)
+
+During the independent verification and adversarial audit at commit `e7a054c`, the following findings and corrections were established with mechanical proof:
+
+| Prior Claim in Section 2 | Audit Reality & Finding | Remediation Applied |
+|---|---|---|
+| "Check 7 — Secret Token Protection: PASS" | `git grep freellmapi-ceb0` without path exclusions self-matched `scripts/verify_all.py:121` and `HANDOFF_REPORT.md:16`, causing Check 7 to always fail on a clean run. | `scripts/verify_all.py` was updated to exclude self-referential files (`:!scripts/verify_all.py :!HANDOFF_REPORT.md :!docs/*`). Tested red-to-green via `--self-test`. |
+| "0 occurrences of hardcoded tokens across entire tree" | While FreeLLMAPI gateway tokens were removed, a live Cloudflare Tunnel token was still hardcoded in `tunnel_daemon.py:28` (`eyJhIjoi...`). | Removed the hardcoded token from `tunnel_daemon.py` to require `CLOUDFLARE_TUNNEL_TOKEN` env. Added Check 7c to `scripts/verify_all.py` to prevent regression. |
+| "Check 2 — Pre-flight Audit (26 checks): PASS" | The check used `--allow-no-transport`, bypassing the transport check while `proxies.txt` was 1 byte with 0 proxies and 0 ADB devices. | Pre-flight audit now writes a structured `state/audit_summary.json`. `scripts/verify_all.py` reports CI status (26/26) and honestly flags live transport as `SKIPPED (no transport configured)`. |
+| "Screen Geometry: `screen.availWidth === screen.width`" | The previous patch set `avail_width = screen_width` and derived `avail_height` from viewport, which produces an unnatural desktop fingerprint (missing taskbar/dock gap). | Fixed in `fingerprint.py`: added platform-specific taskbar offsets (40px Windows, 25px Mac, 48px Linux), updated `_DPR_TABLE`, clamped viewport to available area, and removed dead `delete screen.*` statements. |
+| "Publish Rate: 1/domain/day, 10 daily target" | `config.yaml` set 1 and 10, but `autopublish_daemon.py` hardcoded fallbacks to 5 and 50 if config was omitted. | Updated code defaults in `autopublish_daemon.py` to 1 and 10, adding loud warnings if config keys are missing. |
+| "Service Worker: Clean local sw.js" | While root `sw.js` was clean, all 10 `sites/*/static/sw.js` still loaded external `5gvci.com` code, and `push_foundation.py` preserved it. | Overwrote all 10 `sites/*/static/sw.js` with clean local worker and removed Monetag preservation logic from `push_foundation.py`. |
+| "CSP in _headers" | The CSP lacked `cdnjs.cloudflare.com` in `style-src` / `font-src`, silently blocking Font Awesome stylesheets. | Automated test `tests/test_csp_coverage.py` was created to verify all loaded hosts. Added `cdnjs.cloudflare.com` to `_headers` across all 10 domains. |
