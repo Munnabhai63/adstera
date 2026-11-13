@@ -34,3 +34,6 @@ network_articles_part1.json
 
 # Isolated clone of user-supplied CMS template (never modify original source)
 cms_template_clone/
+.venv/
+venv/
+
