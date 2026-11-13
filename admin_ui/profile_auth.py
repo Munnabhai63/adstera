@@ -101,6 +101,8 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 def _load_raw_profile(state_dir: Path | None = None) -> dict[str, Any]:
     sdir = state_dir or DEFAULT_STATE_DIR
     path = sdir / "admin_profile.json"
+    if not path.exists():
+        path = sdir / "profile.json"
     base = _default_record()
     if not path.exists():
         return base
@@ -379,12 +381,16 @@ def unlock_without_password(state_dir: Path | None = None) -> tuple[bool, str]:
 
 def is_crm_locked(cookie_header: str | None, state_dir: Path | None = None) -> bool:
     """Return True if /crm must present the Vuexy Sign-In / Lock screen."""
+    if os.environ.get("PHASE4_FIRST_RUN_SETUP") == "1":
+        return False
     raw = _load_raw_profile(state_dir)
-    auth = raw["auth"]
+    auth = raw.get("auth", {})
     has_pw = bool(auth.get("password_hash") and auth.get("password_salt"))
+    if not has_pw:
+        return True
     if auth.get("locked_now"):
         return True
-    if has_pw and auth.get("require_login"):
+    if has_pw and auth.get("require_login", True):
         return validate_session_cookie(cookie_header, state_dir) is None
     return False
 

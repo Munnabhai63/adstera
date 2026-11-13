@@ -144,7 +144,7 @@ Sitemap: https://{domain}/sitemap.xml
             if site_key == "loanraaj":
                 worker_file = os.path.join(d, "_worker.js")
                 worker_js = """// Cloudflare Pages 24x7 Serverless FreeLLMAPI Edge Gateway + Static Asset Router
-const GATEWAY_TOKEN = "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f";
+const GATEWAY_TOKEN = env.GATEWAY_TOKEN || "__GATEWAY_TOKEN__";
 
 const UPSTREAM_ROUTES = [
   { provider: "ovh", model: "Qwen2.5-VL-72B-Instruct", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
@@ -154,21 +154,27 @@ const UPSTREAM_ROUTES = [
   { provider: "kilo", model: "nvidia/nemotron-3.5-lightning:free", url: "https://api.kilo.ai/api/gateway/v1/chat/completions" }
 ];
 
-function checkAuth(request) {
+function checkAuth(request, gatewayToken) {
+  if (!gatewayToken || gatewayToken === "__GATEWAY_TOKEN__") return false;
   const auth = (request.headers.get("Authorization") || "").trim();
-  return auth === `Bearer ${GATEWAY_TOKEN}` || auth === GATEWAY_TOKEN;
+  return auth === `Bearer ${gatewayToken}` || auth === gatewayToken;
+}` || auth === GATEWAY_TOKEN;
 }
 
 export default {
   async fetch(request, env) {
+    const GATEWAY_TOKEN = env.GATEWAY_TOKEN;
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/v1/") && !GATEWAY_TOKEN) {
+      return new Response(JSON.stringify({ error: "GATEWAY_TOKEN not configured" }), { status: 503, headers: { "Content-Type": "application/json" } });
+    }
     if (url.hostname === "www.loanraaj.com") {
       url.hostname = "loanraaj.com";
       return Response.redirect(url.toString(), 301);
     }
 
     if (url.pathname === "/v1/models" && request.method === "GET") {
-      if (!checkAuth(request)) {
+      if (!checkAuth(request, GATEWAY_TOKEN)) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
       }
       const data = UPSTREAM_ROUTES.map((r) => ({
@@ -185,7 +191,7 @@ export default {
     }
 
     if (url.pathname === "/v1/chat/completions" && request.method === "POST") {
-      if (!checkAuth(request)) {
+      if (!checkAuth(request, GATEWAY_TOKEN)) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
       }
       let body;

@@ -2988,6 +2988,8 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         # Silence routine access logs
         pass
 
+    _json = lambda self, *a, **kw: self._send_json(*a, **kw)
+
     def _send_json(
         self,
         data: dict,
@@ -2998,7 +3000,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin")
+        if origin and any(h in origin for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
         for h_k, h_v in (extra_headers or []):
             self.send_header(h_k, h_v)
         self.end_headers()
@@ -3034,7 +3039,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
     def _require_crm_unlocked(self) -> bool:
         from admin_ui import profile_auth
         if profile_auth.is_crm_locked(self.headers.get("Cookie")):
-            self._send_json({"ok": False, "locked": True, "error": "CRM session is locked."}, status=401)
+            self._send_json({"ok": False, "locked": True, "error": "unauthorized"}, status=401)
             return False
         return True
 
@@ -3210,7 +3215,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                         self.send_response(200)
                         self.send_header("Content-Type", ctype)
                         self.send_header("Content-Length", str(len(raw_bytes)))
-                        self.send_header("Access-Control-Allow-Origin", "*")
+                        origin = self.headers.get("Origin")
+                        if origin and any(h in origin for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+                            self.send_header("Access-Control-Allow-Origin", origin)
+                            self.send_header("Access-Control-Allow-Credentials", "true")
                         if clean_p.endswith("sw.js"):
                             self.send_header("Service-Worker-Allowed", "/")
                         self.end_headers()
@@ -3670,7 +3678,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache, no-transform")
         self.send_header("Connection", "keep-alive")
         self.send_header("X-Accel-Buffering", "no")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin")
+        if origin and any(h in origin for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
         self.end_headers()
 
         try:
@@ -3703,6 +3714,31 @@ class UIRequestHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+
+        # Validate Host header
+        host = (self.headers.get("Host") or "").strip()
+        if host:
+            host_name = host.split(":")[0].lower()
+            allowed_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "loanraaj.com", "rechargetak.com", "rechargepur.com", "tazaloan.com", "loankiseva.com", "karzseva.com", "loantau.com", "tazabhav.com", "tazarokda.com", "rechargekar.com"}
+            if host_name not in allowed_hosts and not host_name.endswith(".local") and not host_name.endswith(".internal"):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b"Invalid Host header")
+                return
+
+        # Validate Origin header
+        origin = self.headers.get("Origin")
+        if origin and not path.startswith("/crm-assets/"):
+            p_orig = urlparse(origin)
+            if p_orig.hostname not in {"localhost", "127.0.0.1", "0.0.0.0"} and p_orig.netloc != host:
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"Cross-origin request forbidden")
+                return
+
+        # 1. Require CRM authentication for all POST endpoints outside /api/auth/
+        if not path.startswith("/api/auth/") and not self._require_crm_unlocked():
+            return
 
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length > 0 else b"{}"
@@ -3757,6 +3793,9 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/auth/unlock-dev":
+            if os.environ.get("PHASE4_ALLOW_DEV_UNLOCK") != "1":
+                self._send_json({"ok": False, "error": "Forbidden: dev unlock disabled"}, status=403)
+                return
             from admin_ui import profile_auth
             ok, msg = profile_auth.unlock_without_password()
             self._send_json({"ok": ok, "msg": msg, "redirect": "/" if ok else ""}, status=200 if ok else 403)
@@ -4183,9 +4222,27 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/proxies/fetch":
             import pool
+            import ipaddress
+            import socket
             api_url = payload.get("api_url", "").strip()
             if not api_url:
                 self._send_json({"ok": False, "error": "API URL is required"}, status=400)
+                return
+            p_url = urlparse(api_url)
+            if p_url.scheme.lower() != "https":
+                self._send_json({"ok": False, "error": "Only https:// proxy API URLs are allowed"}, status=400)
+                return
+            host_str = p_url.hostname or ""
+            try:
+                addr_info = socket.getaddrinfo(host_str, None)
+                for item in addr_info:
+                    ip_str = item[4][0]
+                    ip_obj = ipaddress.ip_address(ip_str)
+                    if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local:
+                        self._send_json({"ok": False, "error": f"Access to private/loopback IP {ip_str} is forbidden"}, status=400)
+                        return
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"Invalid host: {e}"}, status=400)
                 return
             try:
                 lines = pool.fetch_proxies_from_api(api_url)

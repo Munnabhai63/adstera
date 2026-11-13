@@ -69,7 +69,9 @@ _LAST_WATCHDOG_ATTEMPT = 0.0
 def ensure_local_daemon_running(api_key: str = "") -> bool:
     """Check if localhost:3001 is up; if not, auto-spawn FreeLLMAPI server in background."""
     global _LAST_WATCHDOG_ATTEMPT
-    token = api_key or "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f"
+    token = api_key or os.environ.get("FREELLMAPI_TOKEN") or os.environ.get("FREELLMAPI_KEY")
+    if not token:
+        raise ValueError("FREELLMAPI_TOKEN environment variable is not set")
     headers = {"Authorization": f"Bearer {token}"}
     try:
         with httpx.Client(timeout=2.5) as client:
@@ -153,7 +155,10 @@ class FreeLLMClient:
                     pass
 
         url = (url or DEFAULT_API_URL).rstrip("/")
-        key = key or "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f"
+        if not key:
+            key = os.environ.get("FREELLMAPI_TOKEN") or os.environ.get("FREELLMAPI_KEY")
+        if not key:
+            raise ValueError("FREELLMAPI_TOKEN environment variable is not set")
         return url, key
 
     def is_available(self) -> bool:

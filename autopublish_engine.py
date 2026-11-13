@@ -122,7 +122,10 @@ class AntiAIDetectionGate:
 
 # 2. 3-LAYER 24x7 FREELLMAPI GATEWAY CLIENT (Cloudflare Edge + Direct Cloud + Local Watchdog)
 FREELLMAPI_URL = "https://loanraaj.com/v1/chat/completions"
-AUTH_TOKEN = "Bearer freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f"
+_token_val = os.environ.get("FREELLMAPI_TOKEN") or os.environ.get("FREELLMAPI_KEY")
+if not _token_val:
+    raise ValueError("FREELLMAPI_TOKEN environment variable is not set")
+AUTH_TOKEN = f"Bearer {_token_val}"
 _CLIENT_SINGLETON: FreeLLMClient | None = None
 
 

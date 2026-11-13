@@ -22,8 +22,12 @@ SERVER_INDEX = FREELLM_DIR / "dist" / "index.js"
 
 def is_server_healthy() -> bool:
     try:
+        token = os.environ.get("FREELLMAPI_TOKEN") or os.environ.get("FREELLMAPI_KEY")
+        if not token:
+            raise ValueError("FREELLMAPI_TOKEN environment variable is not set")
+        headers = {"Authorization": f"Bearer {token}"}
         with httpx.Client(timeout=2.0) as client:
-            r = client.get("http://localhost:3001/v1/models", headers={"Authorization": "Bearer freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f"})
+            r = client.get("http://localhost:3001/v1/models", headers=headers)
             return r.status_code == 200
     except Exception:
         return False
