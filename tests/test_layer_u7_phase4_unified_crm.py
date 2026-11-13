@@ -232,6 +232,7 @@ def test_u7_ui_server_unified_routes_vhost_auth_and_phase4_apis(
     monkeypatch.setenv("PHASE4_LEGACY_DB_PATH", str(missing_legacy_db))
     monkeypatch.setenv("PHASE4_SAFE_MODE_PATH", str(safe_mode_path))
     monkeypatch.setenv("PHASE4_CALIBRATION_WINDOW_DAYS", "30")
+    monkeypatch.setenv("PHASE4_FIRST_RUN_SETUP", "1")
 
     ports_to_test = [0]
     if _port_is_free("127.0.0.1", 5050):
@@ -298,6 +299,7 @@ def test_u7_ui_server_unified_routes_vhost_auth_and_phase4_apis(
             thread.join(timeout=3.0)
 
     # 5. Auth lock check (require_login=True blocks /api/phase4/* with 401 when unauthenticated)
+    monkeypatch.delenv("PHASE4_FIRST_RUN_SETUP", raising=False)
     ok_pw, _, _ = profile_auth.set_password("StrongPass9!", "StrongPass9!", require_login=True, state_dir=state_dir)
     assert ok_pw is True
 

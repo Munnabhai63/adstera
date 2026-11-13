@@ -202,8 +202,8 @@ def test_parallel_two_domain_batch_concurrency_and_isolation(tmp_path: Path, mon
     assert pub_doms == {"tazaloan", "loankiseva"}
     assert stages["tazaloan"] == "Cloudflare & GSC"
     assert stages["loankiseva"] == "Cloudflare & GSC"
-    assert (tmp_path / "sites" / "tazaloan.com" / "tazaloan-interest-rate-guide.html").exists()
-    assert (tmp_path / "sites" / "loankiseva.com" / "loankiseva-interest-rate-guide.html").exists()
+    assert (tmp_path / "sites" / "tazaloan.com" / "tazaloan-interest-rate-guide.html").exists() or (tmp_path / "sites" / "tazaloan.com" / "tazaloan-interest-rate-guide" / "index.html").exists()
+    assert (tmp_path / "sites" / "loankiseva.com" / "loankiseva-interest-rate-guide.html").exists() or (tmp_path / "sites" / "loankiseva.com" / "loankiseva-interest-rate-guide" / "index.html").exists()
 
 
 def test_publish_failure_resets_processing_topic_cleanly(tmp_path: Path, monkeypatch) -> None:

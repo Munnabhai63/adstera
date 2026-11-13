@@ -246,6 +246,8 @@ def set_password(
     auth["password_updated_at"] = _utc_iso()
     if require_login is not None:
         auth["require_login"] = bool(require_login)
+    else:
+        auth["require_login"] = True
     _save_raw_profile(raw, state_dir)
     return True, "Operator password updated securely.", _public_profile(raw)
 
@@ -379,7 +381,7 @@ def unlock_without_password(state_dir: Path | None = None) -> tuple[bool, str]:
     return True, "CRM session unlocked."
 
 
-def is_crm_locked(cookie_header: str | None, state_dir: Path | None = None) -> bool:
+def is_crm_locked(cookie_header: str | None = None, state_dir: Path | None = None) -> bool:
     """Return True if /crm must present the Vuexy Sign-In / Lock screen."""
     if os.environ.get("PHASE4_FIRST_RUN_SETUP") == "1":
         return False

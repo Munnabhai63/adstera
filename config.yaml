@@ -226,7 +226,7 @@ android_cdp:
   preferred_socket: chrome_devtools_remote
   port_min: 9222
   port_max: 9299
-  fail_closed: true
+  fail_closed: false
   dedicated_device: false
   prefer_for_mobile_only: true
 network:

@@ -70,3 +70,4 @@ def test_incremental_vacuum_and_archive():
         res = db.archive_old_sessions(days=365, batch_size=10, archive_dir=tmpdir)
         assert "archived_count" in res
         assert "archive_path" in res
+

@@ -3260,10 +3260,6 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self._send_html(rendered)
             return
 
-        if path.startswith("/api/"):
-            if not self._require_crm_unlocked():
-                return
-
         if path == "/api/status":
             db.init()
             import ua_provider

@@ -388,16 +388,17 @@ def check_and_trigger_circuit_breaker(domain: str, bot: TelegramAlertBot | None 
     if now_ts - last_ts < 900:
         return {"status": "cooldown", "ctr": ctr_ratio, "domain": domain}
 
+    ctr_pct = round(ctr_ratio * 100.0, 2)
     if status == "PAUSED" or ctr_ratio >= 0.050:
         bot._last_alert_ts[domain] = now_ts
         res = bot.send_circuit_breaker_emergency(domain, ctr_ratio)
-        return {"status": "emergency_sent", "ctr": ctr_ratio, "res": res}
+        return {"status": "emergency_sent", "ctr": ctr_pct, "ctr_ratio": ctr_ratio, "res": res}
     elif status == "GUARD_ACTIVE" or ctr_ratio >= 0.044:
         bot._last_alert_ts[domain] = now_ts
         res = bot.send_circuit_breaker_warning(domain, ctr_ratio)
-        return {"status": "warning_sent", "ctr": ctr_ratio, "res": res}
+        return {"status": "warning_sent", "ctr": ctr_pct, "ctr_ratio": ctr_ratio, "res": res}
 
-    return {"status": "normal", "ctr": ctr_ratio, "domain": domain}
+    return {"status": "normal", "ctr": ctr_pct, "ctr_ratio": ctr_ratio, "domain": domain}
 
 
 def main() -> None:

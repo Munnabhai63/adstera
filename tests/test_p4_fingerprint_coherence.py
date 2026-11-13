@@ -54,3 +54,4 @@ def test_desktop_plugins_prototype_in_js():
     assert "MimeTypeArray.prototype" in js
     assert "PDF Viewer" in js
     assert "namedItem" in js
+

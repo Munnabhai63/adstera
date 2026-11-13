@@ -653,7 +653,7 @@ def domain_today(domain: str) -> dict:
         "sessions": sessions,
         "clicks": clicks,
         "impressions": imps,
-        "ctr": round(ctr_ratio, 4),
+        "ctr": round(ctr_ratio * 100.0, 2),
         "ctr_ratio": round(ctr_ratio, 4),
         "ctr_pct": round(ctr_ratio * 100.0, 2),
     }
@@ -721,7 +721,7 @@ def check_domain_safety(
                 "current_ctr": round(current_ctr, 4),
                 "ctr_ratio": round(current_ctr, 4),
                 "ctr_pct": round(current_ctr * 100.0, 2),
-                "reason": f"Circuit breaker active: CTR {current_ctr*100.0:.2f}% >= resume threshold {resume_ctr*100.0:.1f}%",
+                "reason": f"Circuit breaker active: CTR {current_ctr*100.0:.2f}% >= resume threshold {resume_ctr*100.0:.1f}% (exceeds hard limit {max_ctr*100.0:.1f}%)",
             }
 
     if imps >= 10 and current_ctr >= max_ctr:

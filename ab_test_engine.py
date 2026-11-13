@@ -109,8 +109,8 @@ class ABTestEngine:
         if self.winning_variant_id:
             winner = self.get_variant_by_id(self.winning_variant_id)
             if winner:
-                # 10% epsilon exploration even during winning promotion
-                if rng.random() >= 0.10:
+                # Epsilon exploration (5%) during winning promotion
+                if rng.random() >= 0.05:
                     return winner
                 alternatives = [v for v in self.variants if v.variant_id != winner.variant_id]
                 if alternatives:

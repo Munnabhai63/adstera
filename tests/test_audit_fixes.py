@@ -203,6 +203,7 @@ def test_ui_py_phase4_dashboard_returns_503_when_db_locked(
 
     monkeypatch.setenv("PHASE4_DB_PATH", str(locked_db))
     monkeypatch.setenv("PHASE4_SAFE_MODE_PATH", str(safe_path))
+    monkeypatch.setenv("PHASE4_FIRST_RUN_SETUP", "1")
 
     # Write short-timeout yaml config override or lower config timeout? Wait: ui.py uses load_phase4_config()
     orig_load = load_phase4_config

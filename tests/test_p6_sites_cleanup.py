@@ -32,8 +32,9 @@ def test_csp_headers_on_all_domains():
 def test_language_coherence_on_articles():
     # Verify no pages have wrong language tag
     dev_re = re.compile(r'[\u0900-\u097F]')
-    sample_pages = list(SITES_DIR.glob("*/*.html"))[:20]
+    sample_pages = [p for p in SITES_DIR.glob("*/*.html") if not p.name.startswith("google")][:20]
     for p in sample_pages:
         txt = p.read_text(encoding="utf-8", errors="ignore")
         match = re.search(r'<html[^>]*\slang=["\']([^"\']+)["\']', txt, re.IGNORECASE)
         assert match is not None, f"Page {p} missing <html lang=...>"
+

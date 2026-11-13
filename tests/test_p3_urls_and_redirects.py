@@ -8,7 +8,7 @@ def test_no_flat_html_files_except_index():
     base = Path("sites")
     flat_non_index = [
         f for f in base.glob("*/*.html")
-        if f.name != "index.html" and f.is_file()
+        if f.name != "index.html" and not f.name.startswith("google") and f.is_file()
     ]
     assert len(flat_non_index) == 0, f"Found flat article html files: {flat_non_index}"
 

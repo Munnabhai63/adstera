@@ -556,11 +556,11 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
         seo_brief = seo_pipeline.generate_seo_brief(site_id, topic)
         seo_title = seo_brief["seo_title"]
         meta_desc = seo_brief["meta_description"]
+        primary_kw = seo_brief.get("primary_keyword", topic)
         if not valid_description(meta_desc):
             meta_desc = f"Complete guide on {primary_kw}: compare updated rates, eligibility criteria, and step-by-step procedures."
             if len(meta_desc) > 155:
                 meta_desc = meta_desc[:155].rsplit(" ", 1)[0]
-        primary_kw = seo_brief["primary_keyword"]
 
         # PHASE 2: Dynamic CC0 Image
         dynamic_img = seo_pipeline.get_dynamic_seo_image(primary_kw, site_id)

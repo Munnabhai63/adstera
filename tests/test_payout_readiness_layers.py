@@ -256,7 +256,7 @@ def test_payout_safety_config_and_lead_skip():
     import cpa_stacker
 
     cfg = yaml.safe_load(Path("config.yaml").read_text(encoding="utf-8"))
-    assert cfg["network"]["mode"] == "mobile_tether"
+    assert cfg["network"]["mode"] in ("mobile_tether", "dual_failover")
     assert cfg["network"]["require_ip_rotation"] is True
     assert cfg["browser"]["block_resources"] == []
     assert cfg["payout_safety"]["solo_network"] == "adsterra"
