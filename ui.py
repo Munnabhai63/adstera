@@ -3123,6 +3123,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self._send_html(AUTOPUBLISH_DASHBOARD_HTML)
             return
 
+        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev"}
+        if path.startswith("/api/") and path not in _PUBLIC_API:
+            if not self._require_crm_unlocked():
+                return
+
         if path == "/api/autopublish/stats":
             if not self._require_crm_unlocked():
                 return
@@ -3732,9 +3737,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b"Cross-origin request forbidden")
                 return
 
-        # 1. Require CRM authentication for all POST endpoints outside /api/auth/
-        if not path.startswith("/api/auth/") and not self._require_crm_unlocked():
-            return
+        # 1. Require CRM authentication for all POST endpoints outside _PUBLIC_API
+        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev"}
+        if path.startswith("/api/") and path not in _PUBLIC_API:
+            if not self._require_crm_unlocked():
+                return
 
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length > 0 else b"{}"
