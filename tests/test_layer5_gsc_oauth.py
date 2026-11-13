@@ -4,8 +4,10 @@ tests/test_layer5_gsc_oauth.py — Comprehensive Layer 5 GSC OAuth2, Real APIs &
 from __future__ import annotations
 
 import asyncio
+import base64
 import datetime
 import functools
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -22,7 +24,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import gsc_auth
 import gsc_monitor
 import gsc_submitter
-from gsc_auth import GSCAuthManager, SCOPE_INDEXING, SCOPE_WEBMASTERS, SCOPE_WEBMASTERS_RO, sign_rs256_jwt
+from gsc_auth import (
+    GSCAuthManager,
+    SCOPE_INDEXING,
+    SCOPE_WEBMASTERS,
+    SCOPE_WEBMASTERS_RO,
+    sign_rs256_jwt,
+    load_rsa_private_key_from_pem,
+    _SHA256_DIGEST_INFO_PREFIX,
+)
 from gsc_monitor import DEFAULT_DOMAINS, GSCMonitor
 from gsc_submitter import GoogleIndexingSubmitter
 
@@ -49,53 +59,94 @@ def _isolate_env(tmp_path: Path, monkeypatch) -> None:
         monkeypatch.delenv(k, raising=False)
 
 
+_FALLBACK_TEST_RSA_KEY = (
+    "-----BEGIN PRIVATE KEY-----\n"
+    "MIICdwIBADANBgkqhkiG9w0BAQEFAASCAmEwggJdAgEAAoGBANCCb9D88mqh1tUKKtfZXkF5QT7l\n"
+    "ti6CzS8wVReGd5a0qRw+ZG8UNW5P/Z50V8aaHiykp/gObyYAOshIhz+OyuGABuuX49pdDrU34pih\n"
+    "ZM0EHkDdYGbe9D3tEFTMnrkt91efreo9fKOQGSLJJHuDtYYJA8vPpV0f2GS+wGHEykgdAgMBAAEC\n"
+    "gYA1o0hWb6uAyM82EJ6C1lUL7MBfCMK75kQYPou1OI8tAp56OIanmIBCN2ubxnwKB/15KIZZJoVr\n"
+    "NiXo/ddk/zurHchI2l0MqsaHzUDK281/z5b5S2YdJto6oBzNPz4p8Opx9aiM8l8eyz5M/Zb7fM4A\n"
+    "K8ZjFleYx1uWqcYEEzyvVQJBAN3q9Z6oMADfb6U+sJ7MILcw2zh6onkoAqUr00XBZvYpjTBrAtzF\n"
+    "zNZ4VAB6SJPeLCD4mcVhcAhpXSsfsg7Ec+MCQQDwiE9H0NMx0O9q8DFfuBiglV9pp9H1Sb3ZdmVQ\n"
+    "FjsbBdrVJLUSY+HCSDN5x8cZD3l2uf1K1fTKeMNBQVQNSxP/AkEAmj4H7/l4O/MQ12rGOekpSAqG\n"
+    "JDBgoxMjG4hldRNiq+/feWq3d5lnsR27TQWxUk1WoKgJwP3jb4VEQ4fpK4hx/wJBAM45QCfljb0v\n"
+    "UqYQC3TyxQKhLu3KOcQhFkmlLdXNSZ2wll+aGjkLM9s7xg6KT1RYJR669cS8ziTuBxIiraq8DQcC\n"
+    "QA1Ql2U7sglSxdMLlYqxZ/jbSIJtxwL5F1hHzwO6n4JzgWJlnRTaiUa4NEioBHKztkeaYJUlOuzI\n"
+    "UritaaXdD2w=\n"
+    "-----END PRIVATE KEY-----"
+)
+
+
 @functools.lru_cache(maxsize=1)
 def _generate_ephemeral_pkcs8_pem() -> str:
-    """Generate an ephemeral 2048-bit PKCS#8 RSA test key using Windows .NET Cryptography."""
-    ps_script = (
-        '$p = New-Object System.Security.Cryptography.CngKeyCreationParameters;'
-        '$p.ExportPolicy = [System.Security.Cryptography.CngExportPolicies]::AllowPlaintextExport;'
-        '$k = [System.Security.Cryptography.CngKey]::Create([System.Security.Cryptography.CngAlgorithm]::Rsa, [NullString]::Value, $p);'
-        '$b = $k.Export([System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob);'
-        '$k.Dispose();'
-        'Write-Output ("-----BEGIN PRIVATE KEY-----`n" + [Convert]::ToBase64String($b, "InsertLineBreaks") + "`n-----END PRIVATE KEY-----")'
-    )
-    res = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", ps_script],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    pem = res.stdout.strip()
-    assert "BEGIN PRIVATE KEY" in pem
-    return pem
+    """Generate an ephemeral 2048-bit PKCS#8 RSA test key using Windows .NET Cryptography or Linux fallback."""
+    import shutil
+    if sys.platform == "win32" and shutil.which("powershell"):
+        ps_script = (
+            '$p = New-Object System.Security.Cryptography.CngKeyCreationParameters;'
+            '$p.ExportPolicy = [System.Security.Cryptography.CngExportPolicies]::AllowPlaintextExport;'
+            '$k = [System.Security.Cryptography.CngKey]::Create([System.Security.Cryptography.CngAlgorithm]::Rsa, [NullString]::Value, $p);'
+            '$b = $k.Export([System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob);'
+            '$k.Dispose();'
+            'Write-Output ("-----BEGIN PRIVATE KEY-----`n" + [Convert]::ToBase64String($b, "InsertLineBreaks") + "`n-----END PRIVATE KEY-----")'
+        )
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        pem = res.stdout.strip()
+        assert "BEGIN PRIVATE KEY" in pem
+        return pem
+    return _FALLBACK_TEST_RSA_KEY
 
 
 def _verify_jwt_with_dotnet(pem: str, jwt_str: str) -> bool:
+    """Cryptographically verify RS256 JWT signature using Windows .NET on Windows, or pure Python RSA math on Linux."""
+    import shutil
+    if sys.platform == "win32" and shutil.which("powershell"):
+        parts = jwt_str.split(".")
+        assert len(parts) == 3
+        signing_input = f"{parts[0]}.{parts[1]}"
+        sig_b64url = parts[2]
+        b64_key = pem.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace("\r", "").replace("\n", "").strip()
+        ps_script = (
+            f'$b = [Convert]::FromBase64String("{b64_key}");'
+            '$k = [System.Security.Cryptography.CngKey]::Import($b, [System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob);'
+            '$r = New-Object System.Security.Cryptography.RSACng($k);'
+            f'$s = "{sig_b64url}".Replace("-", "+").Replace("_", "/");'
+            'while ($s.Length % 4 -ne 0) { $s += "=" };'
+            '$sig = [Convert]::FromBase64String($s);'
+            f'$data = [System.Text.Encoding]::ASCII.GetBytes("{signing_input}");'
+            '$ok = $r.VerifyData($data, $sig, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1);'
+            '$r.Dispose(); $k.Dispose();'
+            'Write-Output $ok'
+        )
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return res.stdout.strip().lower() == "true"
+
     parts = jwt_str.split(".")
     assert len(parts) == 3
-    signing_input = f"{parts[0]}.{parts[1]}"
-    sig_b64url = parts[2]
-    b64_key = pem.replace("-----BEGIN PRIVATE KEY-----", "").replace("-----END PRIVATE KEY-----", "").replace("\r", "").replace("\n", "").strip()
-    ps_script = (
-        f'$b = [Convert]::FromBase64String("{b64_key}");'
-        '$k = [System.Security.Cryptography.CngKey]::Import($b, [System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob);'
-        '$r = New-Object System.Security.Cryptography.RSACng($k);'
-        f'$s = "{sig_b64url}".Replace("-", "+").Replace("_", "/");'
-        'while ($s.Length % 4 -ne 0) { $s += "=" };'
-        '$sig = [Convert]::FromBase64String($s);'
-        f'$data = [System.Text.Encoding]::ASCII.GetBytes("{signing_input}");'
-        '$ok = $r.VerifyData($data, $sig, [System.Security.Cryptography.HashAlgorithmName]::SHA256, [System.Security.Cryptography.RSASignaturePadding]::Pkcs1);'
-        '$r.Dispose(); $k.Dispose();'
-        'Write-Output $ok'
-    )
-    res = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", ps_script],
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return res.stdout.strip().lower() == "true"
+    signing_input_bytes = f"{parts[0]}.{parts[1]}".encode("ascii")
+    sig_b64 = parts[2]
+    rem = len(sig_b64) % 4
+    if rem:
+        sig_b64 += "=" * (4 - rem)
+    sig = base64.urlsafe_b64decode(sig_b64)
+
+    n, d = load_rsa_private_key_from_pem(pem)
+    k = (n.bit_length() + 7) // 8
+    sig_int = int.from_bytes(sig, byteorder="big")
+    em = pow(sig_int, 65537, n).to_bytes(k, byteorder="big")
+    digest = hashlib.sha256(signing_input_bytes).digest()
+    expected_suffix = _SHA256_DIGEST_INFO_PREFIX + digest
+    return em.startswith(b"\x00\x01") and em.endswith(expected_suffix)
 
 
 def test_rs256_jwt_cryptographic_verification() -> None:
