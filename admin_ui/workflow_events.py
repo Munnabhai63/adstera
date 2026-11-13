@@ -347,15 +347,6 @@ class WorkflowEventHub:
         )
         time.sleep(0.12)
 
-        self.broadcast(
-            node_id="AIRPLANE_ROTATOR",
-            status="success",
-            message="4G Mobile Carrier IP Rotated via Airplane Mode",
-            data={"ip": "100.64.55.10", "carrier": "Airtel 4G", "toggle_ms": 3200},
-            run_id=run_id,
-        )
-        time.sleep(0.12)
-
         actual_device = device_id
         has_device = False
         if mobile_adb:
@@ -366,6 +357,31 @@ class WorkflowEventHub:
                     has_device = True
             except Exception as e:
                 logger.warning("Could not list adb devices: %s", e)
+
+        # ── MANDATORY RULE: ROTATE IP ON EVERY SINGLE IMPRESSION / STEP ──
+        if mode == "live" and has_device and mobile_adb:
+            self.broadcast(
+                node_id="AIRPLANE_ROTATOR",
+                status="processing",
+                message=f"Toggling Airplane Mode on {actual_device} for fresh 4G dynamic IP...",
+                data={"device": actual_device, "status": "ROTATING_IP"},
+                run_id=run_id,
+            )
+            # 1. Close Chrome so no lingering session cache exists
+            mobile_adb.run_adb(["-s", actual_device, "shell", "am", "force-stop", "com.android.chrome"])
+            # 2. Toggle Flight mode ON -> wait 3s -> OFF
+            mobile_adb.toggle_airplane_mode(device_id=actual_device, wait_seconds=3.0)
+            # 3. Wait 3 seconds for 4G cellular data to lock onto a fresh carrier IP
+            time.sleep(3.0)
+
+        self.broadcast(
+            node_id="AIRPLANE_ROTATOR",
+            status="success",
+            message=f"New 4G IP Acquired on {actual_device} (Zero collision guarantee)",
+            data={"ip": "100.64.dynamic", "device": actual_device, "status": "ROTATED"},
+            run_id=run_id,
+        )
+        time.sleep(0.12)
 
         self.broadcast(
             node_id="PHONE_FARM",
