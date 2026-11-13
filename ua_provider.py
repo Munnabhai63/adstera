@@ -23,39 +23,108 @@ CACHE_DIR = Path(__file__).parent / "state" / "useragents"
 API_BASE = "https://useragent.in"
 DATA_BASE = "https://useragent.in/assets/data"
 
+_CHROME_BASE_BUILDS: dict[str, int] = {
+    "122": 6261,
+    "123": 6312,
+    "124": 6367,
+    "125": 6422,
+    "126": 6478,
+    "127": 6533,
+    "128": 6613,
+    "129": 6668,
+    "130": 6723,
+    "131": 6778,
+    "132": 6834,
+    "133": 6943,
+    "134": 6998,
+    "135": 7049,
+}
+
+_REAL_ANDROID_MODELS = [
+    ("14", "SM-S928B"),    # Galaxy S24 Ultra
+    ("14", "SM-S918B"),    # Galaxy S23 Ultra
+    ("14", "Pixel 8 Pro"),
+    ("14", "Pixel 8"),
+    ("14", "OnePlus 12"),
+    ("14", "SM-A556B"),    # Galaxy A55
+    ("14", "SM-A546E"),    # Galaxy A54
+    ("14", "23127PN0CG"),  # Xiaomi 14
+    ("14", "V2307"),       # Vivo X100 Pro
+    ("14", "RMX3888"),     # Realme GT5 Pro
+    ("13", "SM-S908B"),    # Galaxy S22 Ultra
+    ("13", "Pixel 7 Pro"),
+    ("13", "Pixel 7"),
+    ("13", "CPH2581"),     # OnePlus 12R
+    ("13", "SM-A546B"),    # Galaxy A54
+    ("13", "OnePlus 11"),
+    ("13", "SM-G991B"),    # Galaxy S21
+    ("12", "Pixel 6 Pro"),
+    ("12", "Pixel 6"),
+    ("12", "SM-G998B"),    # Galaxy S21 Ultra
+]
+
+_REAL_TABLET_MODELS = [
+    ("14", "SM-X910"),     # Galaxy Tab S9 Ultra
+    ("14", "SM-X810"),     # Galaxy Tab S9+
+    ("14", "Pixel Tablet"),
+    ("13", "SM-X710"),     # Galaxy Tab S9
+]
+
+_ALL_MOBILE_MODELS = _REAL_ANDROID_MODELS + _REAL_TABLET_MODELS
+
+
 def _generate_fallback_desktop() -> list[str]:
+    # Strictly Windows NT 10.0 (never 11.0), frozen Mac OS X 10_15_7, and Linux x86_64
     oses = [
         "Windows NT 10.0; Win64; x64",
-        "Windows NT 11.0; Win64; x64",
+        "Windows NT 10.0; Win64; x64",
+        "Windows NT 10.0; Win64; x64",
         "Macintosh; Intel Mac OS X 10_15_7",
-        "Macintosh; Intel Mac OS X 14_2_1",
-        "Macintosh; Intel Mac OS X 13_5_2",
         "X11; Linux x86_64",
     ]
     uas = []
-    for major in range(120, 136):
-        for minor in range(1, 120):
-            for os_str in oses:
-                uas.append(f"Mozilla/5.0 ({os_str}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.{6000 + minor * 5}.{minor} Safari/537.36")
-                if len(uas) >= 8989:
-                    return uas
+    majors = list(range(122, 136))
+    for i in range(8989):
+        major = str(majors[i % len(majors)])
+        base_build = _CHROME_BASE_BUILDS[major]
+        patch = 30 + (i // len(majors))
+        os_str = oses[i % len(oses)]
+        is_edge = (i % 7 == 0 and "Windows" in os_str)
+        if is_edge:
+            uas.append(
+                f"Mozilla/5.0 ({os_str}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                f"Chrome/{major}.0.{base_build}.{patch} Safari/537.36 Edg/{major}.0.2903.{patch}"
+            )
+        else:
+            uas.append(
+                f"Mozilla/5.0 ({os_str}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                f"Chrome/{major}.0.{base_build}.{patch} Safari/537.36"
+            )
     return uas
 
 
 def _generate_fallback_mobile() -> list[str]:
-    models = [
-        ("14", "SM-S928B"), ("14", "SM-S918B"), ("14", "Pixel 8 Pro"), ("14", "Pixel 8"),
-        ("14", "OnePlus 12"), ("14", "23127PN0CG"), ("13", "SM-S908B"), ("13", "Pixel 7 Pro"),
-        ("13", "CPH2581"), ("14", "V2307"), ("13", "SM-A546B"), ("12", "Pixel 6 Pro"),
-        ("14", "SM-A556B"), ("13", "OnePlus 11"), ("14", "2311DRK48G"), ("12", "SM-G998B"),
-    ]
     uas = []
-    for major in range(120, 136):
-        for minor in range(1, 100):
-            for and_ver, model in models:
-                uas.append(f"Mozilla/5.0 (Linux; Android {and_ver}; {model}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.{6000 + minor * 5}.{minor} Mobile Safari/537.36")
-                if len(uas) >= 18114:
-                    return uas
+    majors = list(range(122, 136))
+    for i in range(18114):
+        major = str(majors[i % len(majors)])
+        base_build = _CHROME_BASE_BUILDS[major]
+        and_ver, model = _ALL_MOBILE_MODELS[i % len(_ALL_MOBILE_MODELS)]
+        patch = 20 + (i // len(_ALL_MOBILE_MODELS))
+        is_tablet = any(t in model.lower() for t in ("sm-x", "tablet"))
+        mob_token = "" if is_tablet else "Mobile "
+        is_samsung_browser = (i % 7 == 0 and not is_tablet)
+        if is_samsung_browser:
+            sb_ver = f"2{4 + (i % 3)}.0"
+            uas.append(
+                f"Mozilla/5.0 (Linux; Android {and_ver}; {model}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                f"SamsungBrowser/{sb_ver} Chrome/{major}.0.{base_build}.{patch} {mob_token}Safari/537.36"
+            )
+        else:
+            uas.append(
+                f"Mozilla/5.0 (Linux; Android {and_ver}; {model}) AppleWebKit/537.36 (KHTML, like Gecko) "
+                f"Chrome/{major}.0.{base_build}.{patch} {mob_token}Safari/537.36"
+            )
     return uas
 
 
@@ -69,21 +138,6 @@ _mobile_pool: list[str] = []
 _normalized_desktop_pool: list[str] = []
 _normalized_mobile_pool: list[str] = []
 _initialized: bool = False
-
-_REAL_ANDROID_MODELS = [
-    ("14", "SM-S918B"),
-    ("14", "SM-S928B"),
-    ("14", "Pixel 8 Pro"),
-    ("14", "Pixel 8"),
-    ("14", "OnePlus 12"),
-    ("14", "SM-A546E"),
-    ("13", "SM-G991B"),
-    ("13", "Pixel 7"),
-    ("14", "RMX3888"),
-    ("14", "23127PN0CG"),
-    ("13", "CPH2581"),
-    ("14", "V2307"),
-]
 
 _REAL_CHROME_VERSIONS = [
     ("128", "128.0.6613.138"),
@@ -227,36 +281,44 @@ def _normalize_ua_for_chromium(ua: str, idx: int, is_mobile: bool) -> str:
     """
     Normalize any raw useragent.in entry from the 27,103 pool into a 100%
     Chromium-coherent User-Agent (eliminates Firefox/WebKit-only TLS mismatch
-    and clamps synthetic future Chrome versions like Chrome/151 into 128-134).
-    Preserves real OS & device model tokens across all 27,103 entries.
+    and clamps synthetic future Chrome versions like Chrome/151 into 122-135).
+    Preserves real OS & device model tokens injectively across all 27,103 entries.
     """
-    _, ch_full = _REAL_CHROME_VERSIONS[idx % len(_REAL_CHROME_VERSIONS)]
-    os_ver, model = _REAL_ANDROID_MODELS[idx % len(_REAL_ANDROID_MODELS)]
-
-    # Strip trailing synthetic annotations like '(Chrome Custom Tab)'
     cleaned = re.sub(r"\s*\(Chrome Custom Tab\)\s*$", "", ua.strip())
 
+    m_ch = re.search(r"Chrome/(\d+)\.([\d\.]+)", cleaned)
+    if m_ch:
+        major_int = int(m_ch.group(1))
+        if 122 <= major_int <= 135:
+            ch_full = f"{major_int}.{m_ch.group(2)}"
+        else:
+            norm_major = str(122 + (major_int % 14))
+            base_build = _CHROME_BASE_BUILDS.get(norm_major, 6778)
+            rest_parts = m_ch.group(2).split(".")
+            patch = rest_parts[-1] if rest_parts else str(idx)
+            ch_full = f"{norm_major}.0.{base_build}.{patch}"
+    else:
+        norm_major = str(122 + (idx % 14))
+        base_build = _CHROME_BASE_BUILDS.get(norm_major, 6778)
+        ch_full = f"{norm_major}.0.{base_build}.{idx + 10}"
+
     if is_mobile:
-        # Ensure Android Chromium coherent UA for mobile/tablet pool
         is_tablet = any(tok in cleaned.lower() for tok in ("tablet", "ipad", "sm-t", "sm-x", "pad"))
         mob_token = "" if is_tablet else "Mobile "
 
-        # Extract real Android model if present and not generic 'K'
         m_and = re.search(r"Android\s+(\d+(?:\.\d+)?);\s*([^)]+)\)", cleaned, re.IGNORECASE)
         if m_and:
-            found_os = m_and.group(1)
-            found_model = m_and.group(2).split("Build")[0].strip()
-            if int(found_os.split(".")[0]) >= 12 and found_model.upper() not in ("K", "MOBILE", "ANDROID", "WV"):
-                os_ver = found_os
-                model = found_model
+            os_ver = m_and.group(1).split(".")[0]
+            model = m_and.group(2).split("Build")[0].strip()
+            if os_ver not in ("12", "13", "14"):
+                os_ver = "14"
+            if model.upper() in ("K", "MOBILE", "ANDROID", "WV", ""):
+                _, model = _REAL_ANDROID_MODELS[idx % len(_REAL_ANDROID_MODELS)]
+        else:
+            os_ver, model = _REAL_ANDROID_MODELS[idx % len(_REAL_ANDROID_MODELS)]
 
-        # Check if existing Chrome version is realistic (122..135)
-        m_ch = re.search(r"Chrome/(\d+)\.([\d\.]+)", cleaned)
-        if m_ch and 122 <= int(m_ch.group(1)) <= 135:
-            ch_full = f"{m_ch.group(1)}.{m_ch.group(2)}"
-
-        if "SamsungBrowser/" in cleaned:
-            m_sb = re.search(r"SamsungBrowser/([\d\.]+)", cleaned)
+        if "samsungbrowser/" in cleaned.lower():
+            m_sb = re.search(r"SamsungBrowser/([\d\.]+)", cleaned, re.IGNORECASE)
             sb_ver = m_sb.group(1) if m_sb else "26.0"
             return (
                 f"Mozilla/5.0 (Linux; Android {os_ver}; {model}) "
@@ -269,10 +331,6 @@ def _normalize_ua_for_chromium(ua: str, idx: int, is_mobile: bool) -> str:
         )
 
     # Desktop normalization
-    m_ch = re.search(r"Chrome/(\d+)\.([\d\.]+)", cleaned)
-    if m_ch and 122 <= int(m_ch.group(1)) <= 135:
-        ch_full = f"{m_ch.group(1)}.{m_ch.group(2)}"
-
     low = cleaned.lower()
     if "macintosh" in low or "mac os x" in low:
         os_token = "Macintosh; Intel Mac OS X 10_15_7"
@@ -282,9 +340,11 @@ def _normalize_ua_for_chromium(ua: str, idx: int, is_mobile: bool) -> str:
         os_token = "Windows NT 10.0; Win64; x64"
 
     if "edg/" in low and "linux" not in os_token.lower():
+        m_edg = re.search(r"Edg/([\d\.]+)", cleaned)
+        edg_ver = m_edg.group(1) if m_edg else ch_full
         return (
             f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 "
-            f"(KHTML, like Gecko) Chrome/{ch_full} Safari/537.36 Edg/{ch_full}"
+            f"(KHTML, like Gecko) Chrome/{ch_full} Safari/537.36 Edg/{edg_ver}"
         )
     return (
         f"Mozilla/5.0 ({os_token}) AppleWebKit/537.36 "
@@ -295,12 +355,26 @@ def _normalize_ua_for_chromium(ua: str, idx: int, is_mobile: bool) -> str:
 def _filter_recent_uas(ua_list: list[str], min_chrome_version: int = 118, is_mobile: bool = False) -> list[str]:
     """
     FP-2: Normalize the entire 27,103 useragent.in pool into modern Chromium-coherent
-    User-Agents (Chrome 122-135) so zero UAs in the pool are wasted and 0% browser/TLS
-    mismatch ever occurs.
+    User-Agents (Chrome 122-135) with guaranteed injective uniqueness (no collisions)
+    and zero browser/TLS mismatch.
     """
-    if not ua_list:
-        return _FALLBACK_MOBILE if is_mobile else _FALLBACK_DESKTOP
-    return [_normalize_ua_for_chromium(ua, i, is_mobile) for i, ua in enumerate(ua_list)]
+    pool = ua_list if ua_list else (_FALLBACK_MOBILE if is_mobile else _FALLBACK_DESKTOP)
+    seen: set[str] = set()
+    result: list[str] = []
+    for i, ua in enumerate(pool):
+        norm = _normalize_ua_for_chromium(ua, i, is_mobile)
+        if norm in seen:
+            m = re.search(r"(Chrome/\d+\.0\.\d+\.)(\d+)", norm)
+            if m:
+                base_p = int(m.group(2))
+                bump = 1
+                while norm in seen:
+                    new_p = base_p + bump * 11 + (i % 17)
+                    norm = norm[:m.start(2)] + str(new_p) + norm[m.end(2):]
+                    bump += 1
+        seen.add(norm)
+        result.append(norm)
+    return result
 
 
 def _select_desktop_os_bucket(pool: list[str], seed_bytes: bytes, is_cellular: bool) -> list[str]:
@@ -322,18 +396,14 @@ def _select_desktop_os_bucket(pool: list[str], seed_bytes: bytes, is_cellular: b
 
 
 def _resolve_chrome_build(chrome_major: str, existing_ua: str, seed_bytes: bytes, browser_version: str) -> str:
-    """Return an authentic Chrome X.Y.Z.W build string coherent with chrome_major."""
-    m_cur = re.search(r"Chrome/(\d+)\.([\d\.]+)", existing_ua)
-    if m_cur and m_cur.group(1) == str(chrome_major) and m_cur.group(2) != "0.0.0":
-        return f"{chrome_major}.{m_cur.group(2)}"
-
-    builds = _CHROME_MAJOR_BUILDS.get(str(chrome_major))
-    if builds:
-        return builds[seed_bytes[9] % len(builds)]
-
+    """Return an authentic Chrome X.Y.Z.W build string coherent with chrome_major and diverse across seeds."""
     if browser_version and browser_version.startswith(f"{chrome_major}."):
         return browser_version
-    return f"{chrome_major}.0.0.0"
+
+    base_build = _CHROME_BASE_BUILDS.get(str(chrome_major), 6778)
+    # Incorporate seed bytes to provide realistic diverse Chromium build/patch releases
+    patch = ((int.from_bytes(seed_bytes[8:12], "big") if seed_bytes else 100) % 10000) + 1
+    return f"{chrome_major}.0.{base_build}.{patch}"
 
 
 def get_matching_ua(
@@ -368,7 +438,9 @@ def get_matching_ua(
 
     target_build = _resolve_chrome_build(chrome_major, chosen, seed_bytes, browser_version)
     chosen = re.sub(r"Chrome/\d+(?:\.[\d\.]+)?", f"Chrome/{target_build}", chosen)
-    chosen = re.sub(r"Edg/\d+(?:\.[\d\.]+)?", f"Edg/{target_build}", chosen)
+    if "Edg/" in chosen:
+        edge_patch = ((int.from_bytes(seed_bytes[12:16], "big") if seed_bytes else 100) % 10000) + 1
+        chosen = re.sub(r"Edg/\d+(?:\.[\d\.]+)?", f"Edg/{chrome_major}.0.2903.{edge_patch}", chosen)
     return chosen
 
 
