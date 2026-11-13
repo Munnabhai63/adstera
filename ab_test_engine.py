@@ -20,6 +20,7 @@ import json
 import logging
 from pathlib import Path
 import random
+import time
 from typing import Optional
 
 import db
@@ -78,6 +79,8 @@ class ABTestEngine:
         self.variants: list[StrategyVariant] = variants or copy.deepcopy(_DEFAULT_VARIANTS)
         self.enabled: bool = enabled
         self.winning_variant_id: Optional[str] = None
+        self.promoted_at: float = 0.0
+        self.promotion_ttl_seconds: float = 7 * 86400.0  # 7-day TTL before re-learning
         self._load_state()
 
     def get_variant_by_id(self, variant_id: str) -> Optional[StrategyVariant]:
@@ -88,16 +91,30 @@ class ABTestEngine:
 
     def select_variant(self, rng: random.Random) -> StrategyVariant:
         """
-        Select a strategy variant.
-        If A/B testing is disabled or a winner is permanently promoted, returns that winner or 'balanced'.
-        Otherwise selects probabilistically by weight.
+        Select a strategy variant with 10% epsilon-greedy exploration and TTL expiry.
+        If A/B testing is disabled, returns 'balanced' or the first variant.
+        When a winner is promoted, retains 10% exploration of non-winner variants.
         """
         if not self.enabled:
             return self.get_variant_by_id("balanced") or self.variants[0]
 
+        # Check TTL expiry of winning variant promotion
+        if self.winning_variant_id and self.promoted_at > 0:
+            if time.time() - self.promoted_at > self.promotion_ttl_seconds:
+                logger.info("A/B Test Engine promotion TTL expired for '%s' — re-opening exploration", self.winning_variant_id)
+                self.winning_variant_id = None
+                self.promoted_at = 0.0
+                self._save_state()
+
         if self.winning_variant_id:
             winner = self.get_variant_by_id(self.winning_variant_id)
             if winner:
+                # 10% epsilon exploration even during winning promotion
+                if rng.random() >= 0.10:
+                    return winner
+                alternatives = [v for v in self.variants if v.variant_id != winner.variant_id]
+                if alternatives:
+                    return rng.choice(alternatives)
                 return winner
 
         weights = [v.weight for v in self.variants]
@@ -152,6 +169,7 @@ class ABTestEngine:
         if scores:
             winner = max(scores, key=lambda k: scores[k])
             self.winning_variant_id = winner
+            self.promoted_at = time.time()
             self._save_state()
             logger.info("A/B Test Engine promoted winning variant: %s (score=%.4f)", winner, scores[winner])
 
@@ -167,6 +185,7 @@ class ABTestEngine:
             STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
             data = {
                 "winning_variant_id": self.winning_variant_id,
+                "promoted_at": getattr(self, "promoted_at", 0.0),
                 "variants": [asdict(v) for v in self.variants],
             }
             STATE_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
@@ -178,6 +197,7 @@ class ABTestEngine:
             if STATE_PATH.exists():
                 data = json.loads(STATE_PATH.read_text(encoding="utf-8"))
                 self.winning_variant_id = data.get("winning_variant_id")
+                self.promoted_at = float(data.get("promoted_at", 0.0) or 0.0)
         except Exception:
             pass
 

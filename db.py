@@ -3,8 +3,10 @@ db.py — SQLite wrapper: session logging, daily counts, CTR tracking.
 """
 from __future__ import annotations
 
+import json
 import logging
 import sqlite3
+import time
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -584,6 +586,36 @@ def get_ab_test_metrics(last_n: int = 500) -> dict[str, dict[str, Any]]:
     return metrics
 
 
+def compute_adsterra_revenue(impressions: int, clicks: int, cpm_rate: float = 2.50, cpc_rate: float = 0.03) -> float:
+    """
+    Canonical unified Adsterra revenue calculation:
+    revenue = (impressions / 1000.0) * cpm_rate + (clicks * cpc_rate)
+    """
+    return round((max(0, impressions) / 1000.0) * cpm_rate + (max(0, clicks) * cpc_rate), 2)
+
+
+_CIRCUIT_BREAKER_FILE = Path(__file__).parent / "state" / "circuit_breaker.json"
+
+
+def _load_circuit_breaker_state() -> dict:
+    try:
+        if _CIRCUIT_BREAKER_FILE.exists():
+            return json.loads(_CIRCUIT_BREAKER_FILE.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    return {}
+
+
+def _save_circuit_breaker_state(data: dict) -> None:
+    try:
+        _CIRCUIT_BREAKER_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _CIRCUIT_BREAKER_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        tmp.replace(_CIRCUIT_BREAKER_FILE)
+    except Exception:
+        pass
+
+
 def domain_today(domain: str) -> dict:
     """Return metrics logged for a specific domain today."""
     clean_domain = (domain or "loanraaj.com").lower().strip()
@@ -597,18 +629,28 @@ def domain_today(domain: str) -> dict:
             (clean_domain,),
         ).fetchone()
     if not row:
-        return {"domain": clean_domain, "sessions": 0, "clicks": 0, "impressions": 0, "ctr": 0.0}
+        return {
+            "domain": clean_domain,
+            "sessions": 0,
+            "clicks": 0,
+            "impressions": 0,
+            "ctr": 0.0,
+            "ctr_ratio": 0.0,
+            "ctr_pct": 0.0,
+        }
     
     sessions = int(row["sessions"])
     clicks = int(row["ad_clicks"])
     imps = int(row["impressions"])
-    ctr_val = (clicks / imps * 100.0) if imps > 0 else 0.0
+    ctr_ratio = (clicks / imps) if imps > 0 else 0.0
     return {
         "domain": clean_domain,
         "sessions": sessions,
         "clicks": clicks,
         "impressions": imps,
-        "ctr": round(ctr_val, 2),
+        "ctr": round(ctr_ratio, 4),
+        "ctr_ratio": round(ctr_ratio, 4),
+        "ctr_pct": round(ctr_ratio * 100.0, 2),
     }
 
 
@@ -633,10 +675,17 @@ def domain_ctr(domain: str, last_n: int = 100) -> float:
     return round(row["clicks"] / row["imps"], 4)
 
 
-def check_domain_safety(domain: str, max_ctr: float = 0.050, warning_ctr: float = 0.044) -> dict:
+def check_domain_safety(
+    domain: str,
+    max_ctr: float = 0.050,
+    warning_ctr: float = 0.044,
+    resume_ctr: float = 0.035,
+) -> dict:
     """
     Evaluates independent per-domain CTR against strict anti-IVT safety bounds.
+    Persists trip state to state/circuit_breaker.json so restarts do not forget pause.
     - If CTR >= max_ctr (5.0%) and impressions >= 10: PAUSED (100% zero-click suppression).
+    - If previously PAUSED, stays paused until CTR drops below resume_ctr (3.5%).
     - If CTR >= warning_ctr (4.4%) and impressions >= 10: GUARD_ACTIVE (suppress 80% of clicks).
     - Otherwise: OPTIMAL (allow natural ad click evaluation).
     """
@@ -647,13 +696,44 @@ def check_domain_safety(domain: str, max_ctr: float = 0.050, warning_ctr: float 
     clicks = today_stats["clicks"]
     current_ctr = (clicks / imps) if imps > 0 else 0.0
 
+    cb_state = _load_circuit_breaker_state()
+    domain_cb = cb_state.get(clean_domain, {})
+    is_already_paused = bool(domain_cb.get("paused", False))
+
+    if is_already_paused:
+        if current_ctr < resume_ctr:
+            domain_cb["paused"] = False
+            domain_cb["unpaused_at"] = time.time()
+            domain_cb["last_ctr"] = current_ctr
+            cb_state[clean_domain] = domain_cb
+            _save_circuit_breaker_state(cb_state)
+            is_already_paused = False
+        else:
+            return {
+                "domain": clean_domain,
+                "status": "PAUSED",
+                "allow_click": False,
+                "current_ctr": round(current_ctr, 4),
+                "ctr_ratio": round(current_ctr, 4),
+                "ctr_pct": round(current_ctr * 100.0, 2),
+                "reason": f"Circuit breaker active: CTR {current_ctr*100.0:.2f}% >= resume threshold {resume_ctr*100.0:.1f}%",
+            }
+
     if imps >= 10 and current_ctr >= max_ctr:
+        domain_cb["paused"] = True
+        domain_cb["paused_at"] = time.time()
+        domain_cb["last_ctr"] = current_ctr
+        domain_cb["reason"] = f"CTR {current_ctr * 100.0:.2f}% exceeds hard limit {max_ctr * 100.0:.1f}%"
+        cb_state[clean_domain] = domain_cb
+        _save_circuit_breaker_state(cb_state)
         return {
             "domain": clean_domain,
             "status": "PAUSED",
             "allow_click": False,
-            "current_ctr": round(current_ctr * 100.0, 2),
-            "reason": f"CTR {current_ctr * 100.0:.2f}% exceeds hard limit {max_ctr * 100.0:.1f}%",
+            "current_ctr": round(current_ctr, 4),
+            "ctr_ratio": round(current_ctr, 4),
+            "ctr_pct": round(current_ctr * 100.0, 2),
+            "reason": domain_cb["reason"],
         }
     elif imps >= 10 and current_ctr >= warning_ctr:
         allow = random.random() < 0.20  # throttle 80% of attempts
@@ -661,7 +741,9 @@ def check_domain_safety(domain: str, max_ctr: float = 0.050, warning_ctr: float 
             "domain": clean_domain,
             "status": "GUARD_ACTIVE",
             "allow_click": allow,
-            "current_ctr": round(current_ctr * 100.0, 2),
+            "current_ctr": round(current_ctr, 4),
+            "ctr_ratio": round(current_ctr, 4),
+            "ctr_pct": round(current_ctr * 100.0, 2),
             "reason": f"CTR {current_ctr * 100.0:.2f}% in warning zone (throttled)",
         }
     else:
@@ -669,7 +751,9 @@ def check_domain_safety(domain: str, max_ctr: float = 0.050, warning_ctr: float 
             "domain": clean_domain,
             "status": "OPTIMAL",
             "allow_click": True,
-            "current_ctr": round(current_ctr * 100.0, 2),
+            "current_ctr": round(current_ctr, 4),
+            "ctr_ratio": round(current_ctr, 4),
+            "ctr_pct": round(current_ctr * 100.0, 2),
             "reason": "CTR in healthy green zone",
         }
 
@@ -705,15 +789,17 @@ def all_domains_summary(default_cpm: float = 4.50, configured_domains: list | No
         s = int(r["sessions"])
         c = int(r["ad_clicks"])
         i = int(r["impressions"])
-        ctr_val = (c / i * 100.0) if i > 0 else 0.0
+        ctr_ratio = (c / i) if i > 0 else 0.0
         safety = check_domain_safety(dom)
-        est_rev = round((i / 1000.0) * default_cpm + (c * 0.04), 2)
+        est_rev = compute_adsterra_revenue(i, c, cpm_rate=default_cpm)
         summary.append({
             "domain": dom,
             "sessions": s,
             "impressions": i,
             "clicks": c,
-            "ctr": round(ctr_val, 2),
+            "ctr": round(ctr_ratio, 4),
+            "ctr_ratio": round(ctr_ratio, 4),
+            "ctr_pct": round(ctr_ratio * 100.0, 2),
             "status": safety["status"],
             "allow_click": safety["allow_click"],
             "cpm": round(default_cpm, 2),
@@ -760,14 +846,16 @@ def get_metrics(cpm_rate: float = 2.50) -> dict:
     clicks = int(row["ad_clicks"]) if row else 0
     imps = int(row["impressions"]) if row else 0
 
-    ctr_val = (clicks / imps * 100.0) if imps > 0 else 0.0
-    rev = round((imps / 1000.0) * cpm_rate + (clicks * 0.03), 2)
+    ctr_ratio = (clicks / imps) if imps > 0 else 0.0
+    rev = compute_adsterra_revenue(imps, clicks, cpm_rate=cpm_rate)
 
     return {
         "sessions": sessions,
         "impressions": imps,
         "clicks": clicks,
-        "ctr": round(ctr_val, 2),
+        "ctr": round(ctr_ratio, 4),
+        "ctr_ratio": round(ctr_ratio, 4),
+        "ctr_pct": round(ctr_ratio * 100.0, 2),
         "cpm": round(cpm_rate, 2),
         "revenue": rev,
     }

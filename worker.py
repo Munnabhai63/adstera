@@ -181,24 +181,56 @@ async def _ensure_ad_slots_rendered_and_viewed(page: Page, rng: random.Random, u
 
 
 async def _count_impressions(page: Page) -> int:
-    """Count visible ad elements/iframes on the page (deduplicated by bounding box)."""
-    count = 0
-    seen_boxes: set[tuple[int, int]] = set()
-    for sel in _AD_SELECTORS:
-        try:
-            elems = await page.query_selector_all(sel)
-            for e in elems:
-                if await e.is_visible():
-                    box = await e.bounding_box()
-                    if box and box.get("width", 0) > 0 and box.get("height", 0) > 0:
-                        key = (int(round(box["x"] / 12.0)), int(round(box["y"] / 12.0)))
-                        if key in seen_boxes:
-                            continue
-                        seen_boxes.add(key)
-                    count += 1
-        except Exception:
-            pass
-    return count
+    """
+    Count visible ad units on the page deduplicated by verified element identity,
+    nested container elimination, and spatial bounding-box overlap.
+    """
+    try:
+        count = await page.evaluate(
+            """(selectors) => {
+                const all = [];
+                for (const sel of selectors) {
+                    try {
+                        document.querySelectorAll(sel).forEach(el => all.push(el));
+                    } catch(e) {}
+                }
+                const unique = Array.from(new Set(all));
+                const visible = unique.filter(el => {
+                    if (!el) return false;
+                    const style = window.getComputedStyle(el);
+                    if (style.visibility === 'hidden' || style.display === 'none' || parseFloat(style.opacity || '1') <= 0.05) return false;
+                    const rect = el.getBoundingClientRect();
+                    return rect.width >= 10 && rect.height >= 10;
+                });
+
+                // Discard container wrappers when an inner ad unit is already present
+                const filtered = visible.filter(el => {
+                    return !visible.some(other => other !== el && el.contains(other));
+                });
+
+                // Spatial deduplication: prevent double-counting overlapping elements (>50% overlap or same center)
+                const distinct = [];
+                for (const el of filtered) {
+                    const rect = el.getBoundingClientRect();
+                    const overlaps = distinct.some(d => {
+                        const dRect = d.getBoundingClientRect();
+                        const xOverlap = Math.max(0, Math.min(rect.right, dRect.right) - Math.max(rect.left, dRect.left));
+                        const yOverlap = Math.max(0, Math.min(rect.bottom, dRect.bottom) - Math.max(rect.top, dRect.top));
+                        const overlapArea = xOverlap * yOverlap;
+                        const minArea = Math.min(rect.width * rect.height, dRect.width * dRect.height);
+                        return (minArea > 0 && overlapArea / minArea > 0.4) || (Math.abs(rect.left - dRect.left) < 15 && Math.abs(rect.top - dRect.top) < 15);
+                    });
+                    if (!overlaps) {
+                        distinct.push(el);
+                    }
+                }
+                return distinct.length;
+            }""",
+            _AD_SELECTORS,
+        )
+        return int(count)
+    except Exception:
+        return 0
 
 
 # ── Step 9: Proxy Slot Deduplication, Viewport Intersection & Safe CTR Guard ──
@@ -833,6 +865,8 @@ async def run_session(
             logger.debug("Adsterra tracker attach notice: %s", e_af)
 
         # ── ORGANIC STAGE 1 & 2: GOOGLE SEARCH JOURNEY & COOKIE PRE-WARM ──
+        nav_succeeded = False
+        nav_error_detail = ""
         if not use_fixture:
             try:
                 from urllib.parse import quote_plus
@@ -852,8 +886,28 @@ async def run_session(
                     pass
                 await asyncio.sleep(rng.uniform(2.5, 4.0))
 
-                # Stage 2: 40% probability authority cookie warmup
-                if rng.random() < 0.40:
+                # Attempt realistic organic search result click (P5-5)
+                serp_clicked = False
+                try:
+                    serp_links = await page.query_selector_all(f"a[href*='{target_domain}']")
+                    for s_link in serp_links:
+                        if await s_link.is_visible():
+                            s_box = await s_link.bounding_box()
+                            if s_box and s_box["width"] > 10 and s_box["height"] > 10:
+                                await s_link.scroll_into_view_if_needed(timeout=2500)
+                                await asyncio.sleep(rng.uniform(0.8, 1.5))
+                                cx = s_box["x"] + s_box["width"] * rng.uniform(0.3, 0.7)
+                                cy = s_box["y"] + s_box["height"] * rng.uniform(0.3, 0.7)
+                                await human.click_point(page, cx, cy, rng)
+                                serp_clicked = True
+                                logger.info("Pillar 3: Successfully clicked real SERP result link for %s", target_domain)
+                                nav_succeeded = True
+                                break
+                except Exception as serp_click_err:
+                    logger.debug("SERP click attempt notice: %s", serp_click_err)
+
+                # Stage 2: 40% probability authority cookie warmup (if no SERP click was made)
+                if not serp_clicked and rng.random() < 0.40:
                     auth_sites = [
                         "https://www.livemint.com/money",
                         "https://www.moneycontrol.com",
@@ -877,17 +931,17 @@ async def run_session(
         if referrer:
             nav_kwargs["referer"] = referrer
 
-        nav_succeeded = False
-        nav_error_detail = ""
+        if not nav_succeeded:
+            nav_error_detail = ""
 
-        # Tier 1: Primary attempt
-        try:
-            logger.info("Stage 3 Money Target: Navigating to %s (Google Referrer active)", start_url)
-            await page.goto(start_url, **nav_kwargs)
-            nav_succeeded = True
-        except Exception as nav_err1:
-            nav_error_detail = f"{type(nav_err1).__name__}: {str(nav_err1)[:80]}"
-            logger.warning("Initial navigation to %s failed (%s) — retrying with relaxed commit condition...", start_url, nav_err1)
+            # Tier 1: Primary attempt
+            try:
+                logger.info("Stage 3 Money Target: Navigating to %s (Google Referrer active)", start_url)
+                await page.goto(start_url, **nav_kwargs)
+                nav_succeeded = True
+            except Exception as nav_err1:
+                nav_error_detail = f"{type(nav_err1).__name__}: {str(nav_err1)[:80]}"
+                logger.warning("Initial navigation to %s failed (%s) — retrying with relaxed commit condition...", start_url, nav_err1)
 
         # Tier 2: Settle & relaxed retry (commit wait_until)
         if not nav_succeeded:
