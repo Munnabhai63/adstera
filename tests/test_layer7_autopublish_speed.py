@@ -327,3 +327,29 @@ def test_claude_seo_v2_5_full_subsystem_on_article() -> None:
     assert audit["claude_seo_score"] == 100.0
     assert all(audit["checks"].values())
 
+
+def test_dry_run_meets_length_floor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify dry-run genuinely produces at least 1,250 words without mocking word count."""
+    import sys
+    import re
+    import subprocess
+    from content_quality_gate import ARTICLE_WORD_COUNT_FLOOR
+
+    cmd = [sys.executable, "autopublish_daemon.py", "--dry-run", "--site", "loanraaj"]
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
+    assert res.returncode == 0, f"Dry-run exited non-zero: {res.stdout}"
+
+    wc_match = re.search(r"Word count:\s*(\d+)", res.stdout)
+    score_match = re.search(r"Quality score:\s*([\d.]+)", res.stdout)
+    assert wc_match is not None, f"Word count not found in output: {res.stdout}"
+    assert score_match is not None, f"Quality score not found in output: {res.stdout}"
+
+    wc = int(wc_match.group(1))
+    score = float(score_match.group(1))
+
+    # Must clear single source of truth floor and the >=1250 target
+    assert wc >= ARTICLE_WORD_COUNT_FLOOR, f"Word count {wc} below single source floor {ARTICLE_WORD_COUNT_FLOOR}"
+    assert wc >= 1250, f"Word count {wc} below target floor 1250"
+    assert score >= 90.0, f"Quality score {score} below 90.0"
+
+

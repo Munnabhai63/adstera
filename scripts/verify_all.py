@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
+from content_quality_gate import ARTICLE_WORD_COUNT_FLOOR
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -64,7 +65,7 @@ def main():
     score_match = re.search(r"Quality score:\s*([\d.]+)", out) or re.search(r"score=([\d.]+)", out)
     wc = int(wc_match.group(1)) if wc_match else 0
     score = float(score_match.group(1)) if score_match else 0.0
-    c3 = (rc == 0 and wc >= 1200 and score >= 90.0)
+    c3 = (rc == 0 and wc >= ARTICLE_WORD_COUNT_FLOOR and score >= 90.0)
     results.append(("3. Autopublish Dry-run (loanraaj)", c3, f"Exit 0, wc={wc}, score={score}" if c3 else f"Failed: {out.strip()}"))
 
     # Check 4: Images self-hosted >= 5, 0 zero-image, 0 hotlinks

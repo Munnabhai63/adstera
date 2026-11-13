@@ -10,6 +10,8 @@ import re
 import html
 from typing import Any
 
+ARTICLE_WORD_COUNT_FLOOR: int = 1200
+
 BANNED_LEAK_PHRASES = [
     "banned ai buzzwords",
     "geo-direct opening",
@@ -320,7 +322,7 @@ class ContentQualityFinishGate:
         if not has_table: score -= 15.0
         if not has_faqs: score -= 15.0
         if not no_leaks: score -= 30.0
-        if word_count < 1000: score -= 20.0
+        if word_count < ARTICLE_WORD_COUNT_FLOOR: score -= 20.0
 
         audit_meta = {
             "score": score,
