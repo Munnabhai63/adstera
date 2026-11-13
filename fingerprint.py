@@ -76,6 +76,13 @@ _MOBILE_VIEWPORTS = [
     (375, 812), (393, 852), (360, 800),
 ]
 
+# ── DPR & Platform scaling table (TASK 2.3) ──────────────────────────────────
+_DPR_TABLE = {
+    "Windows": [(1920, 1.0), (1536, 1.25), (2560, 1.25), (3840, 1.5)],
+    "macOS":   [(1440, 2.0), (1728, 2.0), (2560, 2.0), (3840, 2.0)],
+    "Linux":   [(1920, 1.0), (2560, 1.0), (1366, 1.0)],
+}
+
 # ── Platform strings ────────────────────────────────────────────────────────────
 _DESKTOP_PLATFORMS = ["Win32", "Win32", "Win32", "MacIntel", "Linux x86_64"]
 _MOBILE_PLATFORMS = ["Linux armv8l", "iPhone", "Linux aarch64"]
@@ -279,14 +286,42 @@ def sync_fingerprint_to_ua(fp: Fingerprint, ua: str, rng: Optional[_SeededRng] =
         else:
             fp.hardware_concurrency = rng.choice([8, 12, 16])
             fp.device_memory = rng.choice([8, 16])
-        if fp.viewport_width < 900:
-            fp.viewport_width, fp.viewport_height = rng.choice(_DESKTOP_VIEWPORTS)
-        offset = fp.screen_avail_offset or rng.randint(40, 100)
-        fp.screen_width = max(fp.viewport_width, 1920 if fp.viewport_width > 1500 else fp.viewport_width)
-        fp.screen_height = max(fp.viewport_height, 1080 if fp.viewport_height > 800 else fp.viewport_height)
+
+        plat_key = "macOS" if "Mac" in fp.platform else ("Windows" if "Win" in fp.platform else "Linux")
+        table_pairs = _DPR_TABLE.get(plat_key, [(1920, 1.0)])
+        matched = False
+        for sw, dpr_val in table_pairs:
+            if sw == fp.screen_width:
+                fp.dpr = dpr_val
+                matched = True
+                break
+        if not matched:
+            fp.screen_width, fp.dpr = table_pairs[rng.randint(0, len(table_pairs) - 1)]
+
+        taskbar = 40 if plat_key == "Windows" else (25 if plat_key == "macOS" else 48)
+        fp.screen_avail_offset = taskbar
+        if fp.screen_width == 1920:
+            base_h = 1080
+        elif fp.screen_width == 2560:
+            base_h = 1440
+        elif fp.screen_width == 3840:
+            base_h = 2160
+        elif fp.screen_width == 1536:
+            base_h = 864
+        elif fp.screen_width == 1440:
+            base_h = 900
+        elif fp.screen_width == 1728:
+            base_h = 1117
+        elif fp.screen_width == 1366:
+            base_h = 768
+        else:
+            base_h = 1080
+
+        fp.screen_height = max(base_h, fp.viewport_height + taskbar + 40)
         fp.avail_width = fp.screen_width
-        fp.avail_height = max(fp.viewport_height, fp.screen_height - offset)
-        fp.dpr = 1.25 if fp.screen_width in (1536, 2560) else (2.0 if "Mac" in fp.platform else 1.0)
+        fp.avail_height = fp.screen_height - taskbar
+        fp.viewport_width = min(int(round(fp.screen_width / fp.dpr)), fp.avail_width)
+        fp.viewport_height = min(fp.viewport_height, fp.avail_height)
 
     return fp
 
@@ -322,8 +357,38 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
         screen_avail_offset = 0
     else:
         ua = ua_provider.get_matching_ua("130", False, seed_key=proxy.proxy_id)
-        vw, vh = rng.choice(_DESKTOP_VIEWPORTS)
         platform = ua_provider.infer_platform(ua)
+        plat_key = "macOS" if "Mac" in platform else ("Windows" if "Win" in platform else "Linux")
+        table_pairs = _DPR_TABLE.get(plat_key, [(1920, 1.0)])
+        pair_idx = rng.randint(0, len(table_pairs) - 1)
+        screen_w, dpr = table_pairs[pair_idx]
+        taskbar = 40 if plat_key == "Windows" else (25 if plat_key == "macOS" else 48)
+        screen_avail_offset = taskbar
+
+        if screen_w == 1920:
+            base_h = 1080
+        elif screen_w == 2560:
+            base_h = 1440
+        elif screen_w == 3840:
+            base_h = 2160
+        elif screen_w == 1536:
+            base_h = 864
+        elif screen_w == 1440:
+            base_h = 900
+        elif screen_w == 1728:
+            base_h = 1117
+        elif screen_w == 1366:
+            base_h = 768
+        else:
+            base_h = 1080
+
+        screen_h = base_h
+        avail_w = screen_w
+        avail_h = screen_h - taskbar
+        css_w = int(round(screen_w / dpr))
+        vw = min(css_w, avail_w)
+        vh = min(int(round(avail_h / dpr)) if dpr > 1.0 else avail_h, avail_h)
+
         if rng.chance(0.5):
             hc = rng.choice([4, 8])
             dm = rng.choice([4, 8])
@@ -331,12 +396,6 @@ def build(proxy: Proxy, force_mobile: Optional[bool] = None) -> Fingerprint:
             hc = rng.choice([8, 12, 16])
             dm = rng.choice([8, 16])
         mtp = 0
-        screen_avail_offset = rng.randint(40, 100)
-        screen_w = max(vw, 1920 if vw > 1500 else vw)
-        screen_h = max(vh, 1080 if vh > 800 else vh)
-        avail_w = screen_w
-        avail_h = max(vh, screen_h - screen_avail_offset)
-        dpr = 1.25 if screen_w in (1536, 2560) else (2.0 if "Mac" in platform else 1.0)
 
     webgl_vendor, webgl_renderer = _select_webgl_for_ua(ua, rng)
 
@@ -887,12 +946,6 @@ def init_script(fp: Fingerprint) -> str:
 
   // ── screen & window outer dimensions (P4-1 / FP-3 / LEAK-07) ──────────────
   const _screenTarget = (typeof Screen !== 'undefined' && Screen.prototype) ? Screen.prototype : screen;
-  try {{
-    delete screen.width;
-    delete screen.height;
-    delete screen.availWidth;
-    delete screen.availHeight;
-  }} catch(e) {{}}
   try {{
     Object.defineProperty(_screenTarget, 'width',       {{ get: _makeNative(function() {{ return {fp.screen_width}; }}, 'get width'), enumerable: true, configurable: true }});
     Object.defineProperty(_screenTarget, 'height',      {{ get: _makeNative(function() {{ return {fp.screen_height}; }}, 'get height'), enumerable: true, configurable: true }});
