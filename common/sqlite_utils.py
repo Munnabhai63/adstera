@@ -15,12 +15,18 @@ def configure_sqlite_write_connection(
     busy_timeout_ms: int = DEFAULT_BUSY_TIMEOUT_MS,
     foreign_keys: bool = True,
     temp_store_memory: bool = False,
+    auto_vacuum: str = "INCREMENTAL",
 ) -> sqlite3.Connection:
     """Configure a SQLite write connection for concurrent multi-device WAL access."""
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute(f"PRAGMA busy_timeout={int(busy_timeout_ms)};")
+    if auto_vacuum:
+        try:
+            conn.execute(f"PRAGMA auto_vacuum={auto_vacuum};")
+        except Exception:
+            pass
     if foreign_keys:
         conn.execute("PRAGMA foreign_keys=ON;")
     if temp_store_memory:

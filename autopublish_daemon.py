@@ -26,10 +26,11 @@ from adsterra_links import render_native_ad_card, get_adsterra_config
 from autopublish_engine import AntiAIDetectionGate, query_freellmapi, ping_search_engines, generate_claude_seo_article
 import seo_pipeline
 import topic_intelligence
+from common.paths import AUTOPUBLISH_DB_PATH, STATE_DIR
 
-DB_PATH = os.path.join("state", "autopublish.db")
+DB_PATH = str(AUTOPUBLISH_DB_PATH)
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
-os.makedirs("state", exist_ok=True)
+os.makedirs(str(STATE_DIR), exist_ok=True)
 
 _GIT_SYNC_LOCK = threading.Lock()
 _QUEUE_CLAIM_LOCK = threading.Lock()

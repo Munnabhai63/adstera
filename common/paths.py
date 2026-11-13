@@ -10,6 +10,11 @@ from typing import Any, Dict, Mapping, Optional, Union
 DEFAULT_SAFE_MODE_DIR = "state/phase3/ai_engine"
 DEFAULT_SAFE_MODE_PATH = "state/phase3/ai_engine/safe_mode.json"
 
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+STATE_DIR = PROJECT_ROOT / "state"
+SESSIONS_DB_PATH = PROJECT_ROOT / "sessions.db"
+AUTOPUBLISH_DB_PATH = STATE_DIR / "autopublish.db"
+
 
 def get_safe_mode_path(override: Optional[Union[str, Path]] = None) -> Path:
     """Resolve the single source of truth for ``safe_mode.json``."""

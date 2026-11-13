@@ -8,13 +8,14 @@ import re
 import time
 from pathlib import Path
 
-_PROXY_STATE_FILE_RE = re.compile(r"^(?:mobile_.*|.*_\d+(?:_meta)?)\.json$")
+PROXY_STATE_FILE_RE = re.compile(r"^(?:mobile_.*|.*_\d+(?:_meta)?)\.json$", re.IGNORECASE)
+_PROXY_STATE_FILE_RE = PROXY_STATE_FILE_RE
 
 from playwright.async_api import BrowserContext
 
 logger = logging.getLogger(__name__)
 
-_STATE_DIR = Path("state")
+_STATE_DIR = Path(__file__).resolve().parent / "state"
 
 
 def _state_path(proxy_id: str) -> Path:

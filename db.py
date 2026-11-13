@@ -10,11 +10,12 @@ import time
 from contextlib import contextmanager
 from pathlib import Path
 
+from common.paths import AUTOPUBLISH_DB_PATH, SESSIONS_DB_PATH
 from common.sqlite_utils import DEFAULT_BUSY_TIMEOUT_MS, sqlite_write_context
 
 logger = logging.getLogger(__name__)
 
-_DB_PATH = Path("sessions.db")
+_DB_PATH = SESSIONS_DB_PATH
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS sessions (
@@ -219,6 +220,10 @@ def init() -> None:
     and indexes (DB-3). Run incremental schema migrations."""
     with _conn() as con:
         # DB-1: Full WAL + performance PRAGMAs — no more lock errors at concurrency=6
+        try:
+            con.execute("PRAGMA auto_vacuum = INCREMENTAL;")
+        except Exception:
+            pass
         con.execute("PRAGMA cache_size=10000")
 
         con.executescript(_DDL)
@@ -1225,12 +1230,19 @@ def log_published_post(
     domain: str,
     title: str,
     slug: str,
-    file_path: str,
-    word_count: int,
-    ai_score: float,
-    url: str,
+    file_path: str = "",
+    word_count: int = 0,
+    ai_score: float = 0.0,
+    url: str = "",
 ) -> int:
-    """Log a published article to database."""
+    """Log a published article to database (sessions.db and mirrored to autopublish.db)."""
+    clean_domain = domain.lower().replace("www.", "").strip()
+    if not url:
+        url = f"https://{clean_domain}/{slug}"
+    if not file_path:
+        file_path = f"sites/{clean_domain}/{slug}/index.html"
+
+    last_id = 0
     with _conn(immediate=True) as con:
         cur = con.execute(
             """
@@ -1238,21 +1250,74 @@ def log_published_post(
                 (domain, title, slug, file_path, word_count, ai_score, url, published_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
             """,
-            (domain, title, slug, file_path, word_count, ai_score, url),
+            (clean_domain, title, slug, file_path, word_count, ai_score, url),
         )
-        return cur.lastrowid or 0
+        last_id = cur.lastrowid or 0
+
+    if AUTOPUBLISH_DB_PATH.is_file():
+        try:
+            conn = sqlite3.connect(str(AUTOPUBLISH_DB_PATH), timeout=10.0)
+            try:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO published_posts
+                        (domain, slug, title, category, words, published_at, cf_deployed, google_pinged, quality_score)
+                    VALUES (?, ?, ?, ?, ?, datetime('now'), 1, 0, ?)
+                    """,
+                    (clean_domain, slug, title, "finance", word_count, ai_score),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.debug("Failed mirroring published post to autopublish.db: %s", exc)
+
+    return last_id
 
 
 def get_published_count_today(domain: str = "") -> int:
-    """Count articles published today (UTC) for a domain or all domains."""
+    """Count articles published today (UTC) for a domain or all domains across autopublish.db and sessions.db."""
+    import datetime
+    clean_domain = domain.lower().replace("www.", "").strip()
+    auto_cnt = 0
+    if AUTOPUBLISH_DB_PATH.is_file():
+        try:
+            conn = sqlite3.connect(str(AUTOPUBLISH_DB_PATH), timeout=10.0)
+            conn.row_factory = sqlite3.Row
+            try:
+                today_prefix = datetime.date.today().isoformat()
+                if clean_domain:
+                    row = conn.execute(
+                        """
+                        SELECT COUNT(*) AS c FROM published_posts
+                        WHERE LOWER(domain) = ? AND (date(published_at) = date('now') OR published_at LIKE ?)
+                        """,
+                        (clean_domain, f"{today_prefix}%"),
+                    ).fetchone()
+                else:
+                    row = conn.execute(
+                        """
+                        SELECT COUNT(*) AS c FROM published_posts
+                        WHERE date(published_at) = date('now') OR published_at LIKE ?
+                        """,
+                        (f"{today_prefix}%",),
+                    ).fetchone()
+                if row:
+                    auto_cnt = int(row["c"])
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.debug("Failed reading today count from autopublish.db: %s", exc)
+
+    sess_cnt = 0
     with _conn() as con:
-        if domain:
+        if clean_domain:
             row = con.execute(
                 """
                 SELECT COUNT(*) as c FROM published_posts
-                WHERE domain = ? AND date(published_at) = date('now')
+                WHERE LOWER(domain) = ? AND date(published_at) = date('now')
                 """,
-                (domain,),
+                (clean_domain,),
             ).fetchone()
         else:
             row = con.execute(
@@ -1261,21 +1326,71 @@ def get_published_count_today(domain: str = "") -> int:
                 WHERE date(published_at) = date('now')
                 """
             ).fetchone()
-        return int(row["c"]) if row else 0
+        if row:
+            sess_cnt = int(row["c"])
+
+    return max(auto_cnt, sess_cnt)
 
 
 def get_latest_published_posts(domain: str = "", limit: int = 5) -> list[dict]:
-    """Retrieve the latest published articles."""
+    """Retrieve the latest published articles from state/autopublish.db with fallback to sessions.db."""
+    clean_domain = domain.lower().replace("www.", "").strip()
+    results: list[dict] = []
+
+    if AUTOPUBLISH_DB_PATH.is_file():
+        try:
+            conn = sqlite3.connect(str(AUTOPUBLISH_DB_PATH), timeout=10.0)
+            conn.row_factory = sqlite3.Row
+            try:
+                if clean_domain:
+                    rows = conn.execute(
+                        """
+                        SELECT id, domain, title, slug,
+                               COALESCE(words, 0) AS word_count,
+                               COALESCE(quality_score, 0.0) AS ai_score,
+                               published_at
+                        FROM published_posts
+                        WHERE LOWER(domain) = ?
+                        ORDER BY published_at DESC LIMIT ?
+                        """,
+                        (clean_domain, limit),
+                    ).fetchall()
+                else:
+                    rows = conn.execute(
+                        """
+                        SELECT id, domain, title, slug,
+                               COALESCE(words, 0) AS word_count,
+                               COALESCE(quality_score, 0.0) AS ai_score,
+                               published_at
+                        FROM published_posts
+                        ORDER BY published_at DESC LIMIT ?
+                        """,
+                        (limit,),
+                    ).fetchall()
+                for r in rows:
+                    d = dict(r)
+                    d["url"] = f"https://{d.get('domain', '')}/{d.get('slug', '')}"
+                    d["file_path"] = f"sites/{d.get('domain', '')}/{d.get('slug', '')}/index.html"
+                    results.append(d)
+            finally:
+                conn.close()
+        except Exception as exc:
+            logger.debug("Failed reading latest published posts from autopublish.db: %s", exc)
+
+    if results:
+        return results
+
+    # Fallback to sessions.db
     with _conn() as con:
-        if domain:
+        if clean_domain:
             rows = con.execute(
                 """
                 SELECT id, domain, title, slug, file_path, word_count, ai_score, url, published_at
                 FROM published_posts
-                WHERE domain = ?
+                WHERE LOWER(domain) = ?
                 ORDER BY published_at DESC LIMIT ?
                 """,
-                (domain, limit),
+                (clean_domain, limit),
             ).fetchall()
         else:
             rows = con.execute(
@@ -1289,17 +1404,33 @@ def get_latest_published_posts(domain: str = "", limit: int = 5) -> list[dict]:
         return [dict(r) for r in rows]
 
 
-def archive_old_sessions(retention_days: int = 30, archive_dir: str | Path | None = None) -> dict[str, Any]:
+def incremental_vacuum(pages: int = 100) -> None:
+    """Execute PRAGMA incremental_vacuum on sessions.db to reclaim free pages."""
+    try:
+        with _conn() as con:
+            con.execute(f"PRAGMA incremental_vacuum({int(pages)})")
+    except Exception as exc:
+        logger.debug("incremental_vacuum error: %s", exc)
+
+
+def archive_old_sessions(
+    days: int = 30,
+    batch_size: int = 1000,
+    archive_dir: str | Path | None = None,
+    retention_days: int | None = None,
+) -> dict[str, Any]:
     """
     INFRA-3: Monthly archive rotation for sessions.db.
-    Moves records older than retention_days into an archive database in archive_dir.
+    Moves records older than days/retention_days into an archive database in archive_dir in batches.
     Runs PRAGMA incremental_vacuum on the active database.
     """
     import datetime
     import sqlite3
 
+    effective_days = retention_days if retention_days is not None else days
+
     if archive_dir is None:
-        target_dir = Path(__file__).parent / "archives"
+        target_dir = Path(__file__).resolve().parent / "archives"
     else:
         target_dir = Path(archive_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -1307,17 +1438,20 @@ def archive_old_sessions(retention_days: int = 30, archive_dir: str | Path | Non
     month_str = datetime.datetime.now().strftime("%Y_%m")
     archive_db_path = target_dir / f"sessions_archive_{month_str}.db"
 
-    cutoff_ts = (datetime.datetime.now() - datetime.timedelta(days=retention_days)).strftime("%Y-%m-%d %H:%M:%S")
+    cutoff_ts = (datetime.datetime.now() - datetime.timedelta(days=effective_days)).strftime("%Y-%m-%d %H:%M:%S")
 
     archived_count = 0
-    with _conn() as con:
-        rows = con.execute("SELECT * FROM sessions WHERE ts < ?", (cutoff_ts,)).fetchall()
-        if rows:
+    with _conn(immediate=True) as con:
+        while True:
+            rows = con.execute("SELECT * FROM sessions WHERE ts < ? LIMIT ?", (cutoff_ts, batch_size)).fetchall()
+            if not rows:
+                break
             arch_con = sqlite3.connect(str(archive_db_path))
             try:
                 cur = con.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'")
-                create_sql = cur.fetchone()[0]
-                arch_con.execute(create_sql)
+                create_row = cur.fetchone()
+                if create_row:
+                    arch_con.execute(create_row[0])
             except Exception:
                 pass
 
@@ -1330,8 +1464,9 @@ def archive_old_sessions(retention_days: int = 30, archive_dir: str | Path | Non
             arch_con.commit()
             arch_con.close()
 
-            con.execute("DELETE FROM sessions WHERE ts < ?", (cutoff_ts,))
-            archived_count = len(rows)
+            row_ids = [r[0] for r in rows]
+            con.execute(f"DELETE FROM sessions WHERE id IN ({','.join(['?']*len(row_ids))})", tuple(row_ids))
+            archived_count += len(rows)
 
         try:
             con.execute("PRAGMA incremental_vacuum")

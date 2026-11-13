@@ -42,12 +42,16 @@ PROTECTED_STATE_FILES = frozenset({
     "dynamic_ecpm_weights.json",
     "gsc_metrics.json",
     "gsc_submissions.json",
+    "profile.json",
 })
 
-PROXY_STATE_RE = re.compile(
-    r"^(?:\d{1,3}(?:\.\d{1,3}){3}|localhost|[a-z0-9.-]*trustsource\.live)_\d+(?:_meta)?\.json$",
-    re.IGNORECASE,
-)
+try:
+    from persist import PROXY_STATE_FILE_RE as PROXY_STATE_RE
+except Exception:
+    PROXY_STATE_RE = re.compile(
+        r"^(?:mobile_.*|.*_\d+(?:_meta)?)\.json$",
+        re.IGNORECASE,
+    )
 
 IDLE_ACTIVE_UA: dict[str, Any] = {
     "active": False,
