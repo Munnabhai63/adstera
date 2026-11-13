@@ -23,6 +23,12 @@ logger = logging.getLogger("tunnel_daemon")
 BASE_DIR = Path(__file__).parent.resolve()
 CLOUDFLARED_BIN = BASE_DIR / "bin" / "cloudflared.exe"
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / ".env")
+except Exception:
+    pass
+
 TUNNEL_TOKEN = os.environ.get("CLOUDFLARE_TUNNEL_TOKEN", "").strip()
 if not TUNNEL_TOKEN:
     logger.error("CLOUDFLARE_TUNNEL_TOKEN is not set — refusing to start")
