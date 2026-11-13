@@ -32,11 +32,11 @@ def parse_csp_directives(headers_file: Path) -> dict[str, list[str]]:
 
 
 def is_host_allowed(host: str, directive_tokens: list[str]) -> bool:
-    """Check if host is allowed by directive tokens (e.g. 'https:', '*.example.com', 'example.com')."""
-    if "https:" in directive_tokens or "http:" in directive_tokens or "*" in directive_tokens:
-        return True
+    """Check if host is explicitly allowed by directive tokens (no wildcards permitted for scripts/objects)."""
     for token in directive_tokens:
         token = token.lower().strip("'\"")
+        if token in ("https:", "http:", "*"):
+            continue
         token_host = urlparse(f"https://{token}" if not token.startswith("http") else token).netloc or token
         if token_host == host or (token_host.startswith("*.") and host.endswith(token_host[2:])):
             return True
@@ -54,6 +54,23 @@ def test_all_10_sites_csp_coverage():
         headers_file = site_dir / "_headers"
         csp = parse_csp_directives(headers_file)
         assert csp, f"No Content-Security-Policy found in {headers_file}"
+
+        # D-11 Hard Invariant Assertions: Wildcards forbidden in sensitive directives
+        script_tokens = [t.lower().strip("'\"") for t in csp.get("script-src", [])]
+        assert "https:" not in script_tokens, f"{site_dir.name}: script-src must not contain 'https:' wildcard"
+        assert "*" not in script_tokens, f"{site_dir.name}: script-src must not contain '*' wildcard"
+        assert "unsafe-eval" not in script_tokens, f"{site_dir.name}: script-src must not contain 'unsafe-eval'"
+
+        object_tokens = [t.lower().strip("'\"") for t in csp.get("object-src", [])]
+        assert "none" in object_tokens, f"{site_dir.name}: object-src must be 'none'"
+        assert "https:" not in object_tokens and "*" not in object_tokens, f"{site_dir.name}: object-src must not contain wildcards"
+
+        base_tokens = [t.lower().strip("'\"") for t in csp.get("base-uri", [])]
+        assert "self" in base_tokens, f"{site_dir.name}: base-uri must be 'self'"
+        assert "https:" not in base_tokens and "*" not in base_tokens, f"{site_dir.name}: base-uri must not contain wildcards"
+
+        ancestor_tokens = [t.lower().strip("'\"") for t in csp.get("frame-ancestors", [])]
+        assert "self" in ancestor_tokens, f"{site_dir.name}: frame-ancestors must be 'self'"
 
         # Find pages to check: index.html plus all content pages
         pages_to_check = [
