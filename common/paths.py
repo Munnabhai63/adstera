@@ -92,3 +92,9 @@ def read_safe_mode_state(
         return _fail_closed_payload(
             "fail_closed: safe_mode.json unreadable_or_corrupt", fail_closed=fail_closed
         )
+
+
+def npx_bin() -> str:
+    """Return platform-appropriate npx executable (npx or npx.cmd)."""
+    import shutil
+    return shutil.which("npx") or shutil.which("npx.cmd") or "npx"

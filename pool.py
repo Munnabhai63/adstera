@@ -4,6 +4,7 @@ pool.py — Proxy pool: parsing, geo lookup, health, per-IP locks, cooldowns.
 from __future__ import annotations
 
 import asyncio
+import datetime
 import hashlib
 import logging
 import re
@@ -58,6 +59,7 @@ class Proxy:
 
     # Runtime state
     uses_today: int = 0
+    uses_date: str = field(default_factory=lambda: datetime.date.today().isoformat())
     last_used_ts: float = 0.0
     dead_until_ts: float = 0.0
     active_sessions: int = 0
@@ -108,6 +110,10 @@ class Proxy:
         return p
 
     def is_available(self, max_uses: int, cooldown_secs: float, max_concurrent: int = 1) -> bool:
+        today = datetime.date.today().isoformat()
+        if self.uses_date != today:
+            self.uses_today = 0
+            self.uses_date = today
         now = time.time()
         if now < self.dead_until_ts:
             return False
@@ -122,6 +128,10 @@ class Proxy:
         logger.warning("Proxy %s marked dead for %d min", self.proxy_id, cooldown_min)
 
     def record_use(self) -> None:
+        today = datetime.date.today().isoformat()
+        if self.uses_date != today:
+            self.uses_today = 0
+            self.uses_date = today
         self.uses_today += 1
         self.last_used_ts = time.time()
 

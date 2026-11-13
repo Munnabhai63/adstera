@@ -1,3 +1,4 @@
+from common import npx_bin
 # autopublish_daemon.py - 24/7 Autonomous Publishing Engine with Anti-AI Gate & Search Console Automation
 import os
 import sys
@@ -467,7 +468,7 @@ def _reset_topic_pending(q_id: int) -> None:
         pass
 
 
-def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_20: bool = False):
+def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_20: bool = False, dry_run: bool = False):
     from network_registry import NETWORK_REGISTRY
     MASTER_SITES = NETWORK_REGISTRY
 
@@ -662,6 +663,31 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             f"SchemaEntities={claude_seo_audit['schema_entities']})"
         )
 
+        if dry_run:
+            import tempfile
+            from pathlib import Path
+            try:
+                dry_dir = Path("/tmp/adstera_dryrun")
+                dry_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                dry_dir = Path(tempfile.gettempdir()) / "adstera_dryrun"
+                dry_dir.mkdir(parents=True, exist_ok=True)
+            
+            dry_file = dry_dir / f"{slug}.html"
+            dry_file.write_text(full_html, encoding="utf-8")
+            
+            # Also write to local tempfile dir if /tmp is a different drive on Windows
+            alt_dry_dir = Path(tempfile.gettempdir()) / "adstera_dryrun"
+            alt_dry_dir.mkdir(parents=True, exist_ok=True)
+            (alt_dry_dir / f"{slug}.html").write_text(full_html, encoding="utf-8")
+            
+            imgs = [i for i in re.findall(r'<img[^>]+src="([^"]+)"', full_html) if 'logo' not in i.lower()]
+            q_score = float(quality_meta.get("score", 99.5))
+            print(f"[DRY-RUN] Success! Article generated for site: {site_id} | slug: {slug}")
+            print(f"[DRY-RUN] Output written to: {dry_file}")
+            print(f"[DRY-RUN] Word count: {words_count} | Quality score: {q_score} | Image count: {len(imgs)}")
+            return True
+
         site_dirs = [os.path.join("sites", f"{site_id}.com")]
         for s_dir in site_dirs:
             os.makedirs(s_dir, exist_ok=True)
@@ -691,7 +717,7 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             pass
 
         # Deploy to Cloudflare Pages
-        deploy_cmd = ["npx.cmd", "wrangler", "pages", "deploy", os.path.join("sites", f"{site_id}.com"), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
+        deploy_cmd = [npx_bin(), "wrangler", "pages", "deploy", os.path.join("sites", f"{site_id}.com"), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
         try:
             res = subprocess.run(deploy_cmd, capture_output=True, encoding="utf-8", errors="ignore", timeout=120)
             cf_success = 1 if res.returncode == 0 else 0
@@ -927,7 +953,16 @@ def run_daemon(interval_minutes=None, parallel_domains=None):
 
 if __name__ == "__main__":
     init_db()
-    if len(sys.argv) > 1 and sys.argv[1] == "--kick-stuck":
+    if "--dry-run" in sys.argv:
+        site_arg = "loanraaj"
+        if "--site" in sys.argv:
+            idx = sys.argv.index("--site")
+            if idx + 1 < len(sys.argv):
+                site_arg = sys.argv[idx + 1]
+        seed_queue(fetch_live=False)
+        print(f"Executing DRY-RUN 5-Stage deep auto-publish run (Site: {site_arg})...")
+        publish_next_post(specific_site=site_arg, discover_fresh_20=False, dry_run=True)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--kick-stuck":
         seed_queue(fetch_live=False)
         res = recover_and_kick_stuck_domains(fetch_live=False)
         print(json.dumps(res, indent=2))

@@ -1,3 +1,4 @@
+from common import npx_bin
 # deploy_all_network_sites_live.py - Automated Cloudflare Pages Deployment & Live Verification
 import os
 import subprocess
@@ -30,7 +31,7 @@ for proj, domain in PROJECTS:
     site_dir = os.path.join("sites", f"{proj}.com")
     print(f"\n[Deploying {proj}] -> Source: {site_dir} to Cloudflare Project: {proj}...")
     
-    cmd = ["npx.cmd", "wrangler", "pages", "deploy", site_dir, f"--project-name={proj}", "--branch=main", "--commit-dirty=true"]
+    cmd = [npx_bin(), "wrangler", "pages", "deploy", site_dir, f"--project-name={proj}", "--branch=main", "--commit-dirty=true"]
     try:
         res = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="ignore")
         if res.returncode == 0:

@@ -228,7 +228,7 @@ android_cdp:
   dedicated_device: false
   prefer_for_mobile_only: true
 network:
-  mode: mobile_tether
+  mode: dual_failover
   airplane_mode_wait: 4
   require_ip_rotation: true
   max_rotation_attempts: 2

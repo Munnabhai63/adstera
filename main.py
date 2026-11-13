@@ -89,10 +89,16 @@ async def _session_loop(cfg: dict, pool: ProxyPool, playwright, browser) -> None
             ^ int(time.time() * 1_000_000)
             ^ id(proxy)
         )
-        async with sem:
-            await worker.run_session(playwright, browser, proxy, cfg, rng)
-        pool.release(proxy)
-        _in_flight -= 1
+        ok = False
+        try:
+            async with sem:
+                await worker.run_session(playwright, browser, proxy, cfg, rng)
+            ok = True
+        finally:
+            if not ok and hasattr(pool, "mark_failure"):
+                pool.mark_failure(proxy)
+            pool.release(proxy)
+            _in_flight -= 1
 
     while not _SHUTDOWN.is_set():
         # SCHED-2: Atomic cap check — done_today + in_flight >= daily_cap → skip

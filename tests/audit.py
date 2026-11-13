@@ -51,7 +51,7 @@ def _load_cfg() -> dict:
 
 # ── Check 9: proxy file parsing (no browser needed) ───────────────────────────
 
-def check_proxy_file_parsing(cfg: dict) -> None:
+def check_proxy_file_parsing(cfg: dict, allow_no_transport: bool = False) -> None:
     proxy_file = Path(__file__).parent.parent / cfg["proxy"]["file"]
     if not proxy_file.exists():
         raise AssertionError(f"proxies.txt not found at {proxy_file}")
@@ -66,8 +66,28 @@ def check_proxy_file_parsing(cfg: dict) -> None:
             assert p.port > 0, f"Invalid port in line: {ln!r}"
             parsed.append(p)
 
-    assert len(parsed) > 0, "No valid proxy lines found in proxies.txt"
-    print(f"  [9] PASS — {len(parsed)} proxies parsed successfully")
+    adb_devices = []
+    try:
+        import mobile_adb
+        adb_devices = [d for d in mobile_adb.list_devices() if d.get("status") == "device"]
+    except Exception:
+        pass
+
+    if len(parsed) == 0 and not adb_devices:
+        if allow_no_transport:
+            print("  [9] SKIP — No usable proxies or connected ADB devices (--allow-no-transport)")
+            return
+        net_mode = cfg.get("network", {}).get("mode", "proxy")
+        raise AssertionError(
+            f"No usable transport available for network mode '{net_mode}': "
+            f"'{cfg['proxy']['file']}' contains 0 usable proxies and 0 connected ADB devices found. "
+            "Configure proxies.txt or connect an ADB device."
+        )
+
+    if len(parsed) > 0:
+        print(f"  [9] PASS — {len(parsed)} proxies parsed successfully")
+    else:
+        print(f"  [9] PASS — 0 file proxies, but {len(adb_devices)} ADB device(s) connected")
 
 
 # ── Check 8: no datacenter ASN in pool (static check on ASN names in fallback) ─
@@ -536,23 +556,26 @@ async def _run_browser_checks(cfg: dict) -> None:
         await browser.close()
 
 
-async def run_all_async(cfg: dict | None = None) -> None:
+async def run_all_async(cfg: dict | None = None, allow_no_transport: bool = False) -> None:
     """Run all audit checks asynchronously. Raises SystemExit(1) on any failure."""
     if cfg is None:
         cfg = _load_cfg()
+    if "--allow-no-transport" in sys.argv:
+        allow_no_transport = True
 
     print("Running pre-flight audit…")
     failures: list[str] = []
 
-    net_mode = cfg.get("network", {}).get("mode", "proxy")
-    static_checks = [check_no_datacenter_asn]
-    if net_mode != "mobile_tether":
-        static_checks.insert(0, check_proxy_file_parsing)
+    # Transport check must run always across all network modes (no mobile_tether exemption)
+    static_checks = [check_proxy_file_parsing, check_no_datacenter_asn]
 
     # Static checks
     for check_fn in static_checks:
         try:
-            check_fn(cfg)
+            if check_fn == check_proxy_file_parsing:
+                check_fn(cfg, allow_no_transport=allow_no_transport)
+            else:
+                check_fn(cfg)
         except AssertionError as e:
             print(f"  FAIL — {e}")
             failures.append(str(e))
@@ -579,9 +602,12 @@ async def run_all_async(cfg: dict | None = None) -> None:
         print("\nAll audit checks PASSED [OK]")
 
 
-def run_all(cfg: dict | None = None) -> None:
+def run_all(cfg: dict | None = None, allow_no_transport: bool = False) -> None:
     """Synchronous entrypoint for CLI (python tests/audit.py)."""
-    asyncio.run(run_all_async(cfg))
+    if "--allow-no-transport" in sys.argv:
+        allow_no_transport = True
+    asyncio.run(run_all_async(cfg, allow_no_transport=allow_no_transport))
+
 
 
 if __name__ == "__main__":
