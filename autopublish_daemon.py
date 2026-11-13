@@ -66,11 +66,12 @@ DEFAULT_AUTOPUBLISH_CFG = {
     "sync_winners_to_queue": True,
     "schedule_mode": "5_wave_24h",
     "wave_hours_ist": ["07:00", "11:30", "16:00", "20:00", "00:00"],
-    "articles_per_domain_per_day": 5,
-    "daily_total_target": 50,
+    "articles_per_domain_per_day": 1,
+    "daily_total_target": 10,
     "wave_domain_gap_seconds": 300,
     "discover_20_before_publish": True,
 }
+DEFAULT_CONFIG = DEFAULT_AUTOPUBLISH_CFG
 
 
 def _load_autopublish_config() -> dict:
@@ -362,11 +363,15 @@ def sync_github(site_id: str, slug: str, topic: str) -> None:
             clean_title = re.sub(r'[\'"]', '', topic)[:50]
             commit_msg = f"AutoPublish: Published '{clean_title}' to {site_id}"
             subprocess.run(["git", "commit", "-m", commit_msg], capture_output=True, encoding="utf-8", errors="ignore", timeout=30)
-            res = subprocess.run(["git", "push", "origin", "master"], capture_output=True, encoding="utf-8", errors="ignore", timeout=60)
+            branch = os.environ.get("AUTOPUBLISH_GIT_BRANCH", "master")
+            subprocess.run(["git", "pull", "--rebase", "origin", branch], capture_output=True, encoding="utf-8", errors="ignore", timeout=60)
+            res = subprocess.run(["git", "push", "origin", f"HEAD:{branch}"], capture_output=True, encoding="utf-8", errors="ignore", timeout=60)
             if res.returncode == 0:
-                print(f"[{site_id}] GitHub automatically synced with new post! (origin/master updated)")
+                print(f"[{site_id}] GitHub automatically synced with new post! (origin/{branch} updated)")
             else:
-                print(f"[{site_id}] Git push note: {(res.stderr or '')[:100]}")
+                err_msg = (res.stderr or "")[-300:]
+                print(f"[{site_id}] Git push note: {err_msg[:100]}")
+                _notify_pipeline_error("git_sync", err_msg, domain=site_id)
         except Exception as e:
             print(f"[{site_id}] Git sync exception: {e}")
 
@@ -928,8 +933,12 @@ def select_next_wave_domain(per_domain_cap: int = 5) -> str | None:
 def run_daemon(interval_minutes=None, parallel_domains=None):
     ap_cfg = _load_autopublish_config()
     schedule_mode = str(ap_cfg.get("schedule_mode", "5_wave_24h"))
-    per_dom_cap = int(ap_cfg.get("articles_per_domain_per_day", 5))
-    daily_target = int(ap_cfg.get("daily_total_target", 50))
+    if "articles_per_domain_per_day" not in ap_cfg:
+        print("[WARNING] 'articles_per_domain_per_day' missing in config, using safe fallback: 1")
+    if "daily_total_target" not in ap_cfg:
+        print("[WARNING] 'daily_total_target' missing in config, using safe fallback: 10")
+    per_dom_cap = int(ap_cfg.get("articles_per_domain_per_day", 1))
+    daily_target = int(ap_cfg.get("daily_total_target", 10))
     wave_hours = [str(w) for w in (ap_cfg.get("wave_hours_ist") or ["07:00", "11:30", "16:00", "20:00", "00:00"])]
     discover_20 = bool(ap_cfg.get("discover_20_before_publish", True))
 
