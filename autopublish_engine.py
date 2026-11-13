@@ -122,6 +122,11 @@ class AntiAIDetectionGate:
 
 # 2. 3-LAYER 24x7 FREELLMAPI GATEWAY CLIENT (Cloudflare Edge + Direct Cloud + Local Watchdog)
 FREELLMAPI_URL = "https://loanraaj.com/v1/chat/completions"
+try:
+    from phase3.adapters.adsterra_feed import load_dotenv_into_environ
+    load_dotenv_into_environ()
+except Exception:
+    pass
 _token_val = os.environ.get("FREELLMAPI_TOKEN") or os.environ.get("FREELLMAPI_KEY") or ""
 AUTH_TOKEN = f"Bearer {_token_val}" if _token_val else ""
 _CLIENT_SINGLETON: FreeLLMClient | None = None
