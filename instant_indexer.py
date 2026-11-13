@@ -130,12 +130,13 @@ Sitemap: https://{domain}/sitemap.xml
             with open(llms_file, "w", encoding="utf-8") as f:
                 f.write(llms_content)
 
-            # 4. Cloudflare Pages _redirects (enforce non-www canonical 301 redirect)
+            # 4. Cloudflare Pages _redirects (enforce non-www canonical 301 redirect and .html to clean URL)
             redirects_file = os.path.join(d, "_redirects")
             redirects_content = (
                 f"https://www.{domain}/* https://{domain}/:splat 301\n"
                 f"http://www.{domain}/* https://{domain}/:splat 301\n"
                 f"http://{domain}/* https://{domain}/:splat 301\n"
+                f"/:slug.html /:slug 301\n"
             )
             with open(redirects_file, "w", encoding="utf-8") as f:
                 f.write(redirects_content)

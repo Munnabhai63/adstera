@@ -1,3 +1,4 @@
 https://www.tazaloan.com/* https://tazaloan.com/:splat 301
 http://www.tazaloan.com/* https://tazaloan.com/:splat 301
 http://tazaloan.com/* https://tazaloan.com/:splat 301
+/:slug.html /:slug 301

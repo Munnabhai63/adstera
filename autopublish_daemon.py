@@ -16,6 +16,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 import yaml
+import hashlib
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
@@ -32,6 +33,25 @@ os.makedirs("state", exist_ok=True)
 
 _GIT_SYNC_LOCK = threading.Lock()
 _QUEUE_CLAIM_LOCK = threading.Lock()
+
+def valid_description(d: str | None) -> bool:
+    """Validate meta description according to SEO standards (60-160 chars, no placeholders, no ellipsis)."""
+    if not d or not isinstance(d, str):
+        return False
+    clean = d.strip()
+    if (
+        "..." in clean
+        or "{" in clean
+        or "}" in clean
+        or "page-link" in clean
+        or "Need to include" in clean
+        or clean.startswith(", ,")
+    ):
+        return False
+    if len(clean) < 60 or len(clean) > 160:
+        return False
+    return True
+
 
 DEFAULT_AUTOPUBLISH_CFG = {
     "interval_minutes": 20,
@@ -99,12 +119,13 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         domain TEXT,
         category TEXT,
-        topic TEXT UNIQUE,
+        topic TEXT,
         status TEXT DEFAULT 'pending',
         priority_score REAL DEFAULT 0.0,
         created_at TIMESTAMP
     )
     """)
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_topic_domain ON topic_queue(domain, topic)")
     cols = {r[1] for r in cur.execute("PRAGMA table_info(topic_queue)").fetchall()}
     if "priority_score" not in cols:
         cur.execute("ALTER TABLE topic_queue ADD COLUMN priority_score REAL DEFAULT 0.0")
@@ -197,8 +218,17 @@ def seed_queue(fetch_live: bool = True):
     for site, topics in INITIAL_TOPICS.items():
         for cat, topic in topics:
             try:
+                # Cross-domain check
+                norm = re.sub(r"[^a-z0-9]", "", topic.lower()[:40])
+                dup = cur.execute("SELECT 1 FROM published_posts WHERE domain != ? AND LOWER(title) LIKE ?", (site, f"%{topic[:30]}%")).fetchone()
+                if dup:
+                    continue
                 cur.execute(
-                    "INSERT OR IGNORE INTO topic_queue (domain, category, topic, status, priority_score, created_at) VALUES (?, ?, ?, 'pending', 60.0, ?)",
+                    """
+                    INSERT INTO topic_queue (domain, category, topic, status, priority_score, created_at)
+                    VALUES (?, ?, ?, 'pending', 60.0, ?)
+                    ON CONFLICT(domain, topic) DO UPDATE SET priority_score = MAX(COALESCE(priority_score, 0), 60.0)
+                    """,
                     (site, cat, topic, now),
                 )
                 if cur.rowcount > 0:
@@ -452,7 +482,11 @@ def _ensure_unique_slug(site_id: str, base_slug: str) -> str:
     site_dir = os.path.join("sites", f"{site_id}.com")
     candidate = slug
     suffix = 2
-    while candidate in used or os.path.exists(os.path.join(site_dir, f"{candidate}.html")):
+    while (
+        candidate in used
+        or os.path.exists(os.path.join(site_dir, f"{candidate}.html"))
+        or os.path.exists(os.path.join(site_dir, candidate, "index.html"))
+    ):
         candidate = f"{slug[:48]}-{suffix}"
         suffix += 1
     return candidate
@@ -521,6 +555,10 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
         seo_brief = seo_pipeline.generate_seo_brief(site_id, topic)
         seo_title = seo_brief["seo_title"]
         meta_desc = seo_brief["meta_description"]
+        if not valid_description(meta_desc):
+            meta_desc = f"Complete guide on {primary_kw}: compare updated rates, eligibility criteria, and step-by-step procedures."
+            if len(meta_desc) > 155:
+                meta_desc = meta_desc[:155].rsplit(" ", 1)[0]
         primary_kw = seo_brief["primary_keyword"]
 
         # PHASE 2: Dynamic CC0 Image
@@ -576,6 +614,32 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
         base_slug = re.sub(r'[^a-z0-9]+', '-', primary_kw.lower()).strip('-')[:55]
         slug = _ensure_unique_slug(site_id, base_slug)
         canonical_url = f"{domain_url}/{slug}"
+
+        # PHASE 4B: Distribute 6-9 self-hosted <figure> images between <h2> sections (P3-1)
+        local_img_dir = Path("sites") / f"{site_id}.com" / "img"
+        available_imgs = [f.name for f in local_img_dir.glob("*.webp")] if local_img_dir.exists() else []
+        if available_imgs:
+            h2_split_re = re.compile(r'(<h2[^>]*>.*?</h2>)', re.IGNORECASE | re.DOTALL)
+            h2_parts = h2_split_re.split(content_html)
+            if len(h2_parts) > 2:
+                num_figs = min(len(available_imgs), max(6, min(9, len(h2_parts) // 2)))
+                h = int(hashlib.md5(slug.encode("utf-8")).hexdigest(), 16)
+                figs_inserted = 0
+                new_h2_parts = []
+                for part in h2_parts:
+                    if h2_split_re.match(part) and figs_inserted < num_figs:
+                        fig_fn = available_imgs[(h + figs_inserted * 7) % len(available_imgs)]
+                        fig_alt = html.escape(f"{seo_title} - Section Analysis Exhibit {figs_inserted + 1}")
+                        fig_html = (
+                            f'\n<figure class="article-figure" style="margin:28px 0; text-align:center;">\n'
+                            f'    <img src="/img/{fig_fn}" alt="{fig_alt}" loading="lazy" width="1200" height="675" style="width:100%; height:auto; border-radius:8px;">\n'
+                            f'    <figcaption style="font-size:13px; color:var(--text-muted); margin-top:8px;">Verified benchmarks and documentation analysis for {seo_title}.</figcaption>\n'
+                            f'</figure>\n'
+                        )
+                        new_h2_parts.append(fig_html)
+                        figs_inserted += 1
+                    new_h2_parts.append(part)
+                content_html = "".join(new_h2_parts)
 
         # Schema.org JSON-LD (`seo-schema` + `schema_generate.py` @graph)
         site_domain_clean = domain_url.replace("https://", "").replace("http://", "").rstrip("/")
@@ -665,7 +729,6 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
 
         if dry_run:
             import tempfile
-            from pathlib import Path
             try:
                 dry_dir = Path("/tmp/adstera_dryrun")
                 dry_dir.mkdir(parents=True, exist_ok=True)
@@ -690,9 +753,6 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
 
         site_dirs = [os.path.join("sites", f"{site_id}.com")]
         for s_dir in site_dirs:
-            os.makedirs(s_dir, exist_ok=True)
-            with open(os.path.join(s_dir, f"{slug}.html"), "w", encoding="utf-8") as f:
-                f.write(full_html)
             os.makedirs(os.path.join(s_dir, slug), exist_ok=True)
             with open(os.path.join(s_dir, slug, "index.html"), "w", encoding="utf-8") as f:
                 f.write(full_html)

@@ -18,6 +18,7 @@ import hashlib
 import html
 import json
 import logging
+import sqlite3
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import quote
@@ -608,6 +609,9 @@ class GSCMonitor:
             "domains": fleet_metrics,
         }
 
+        # Record per-domain metrics to state/autopublish.db (P3-7)
+        self._record_db_metrics(fleet_metrics)
+
         if deindexed_domains:
             logger.critical("GSC ALERT: Domains deindexed by Google: %s", deindexed_domains)
             try:
@@ -782,6 +786,75 @@ class GSCMonitor:
             p.write_text(json.dumps(self._cached_metrics, indent=2), encoding="utf-8")
         except Exception as exc:
             logger.debug("Failed to cache GSC metrics: %s", exc)
+
+    def _record_db_metrics(self, fleet_metrics: dict[str, dict[str, Any]]) -> None:
+        """Record per-domain GSC performance and indexing health to state/autopublish.db (P3-7)."""
+        db_path = PROJECT_ROOT / "state" / "autopublish.db"
+        if not db_path.parent.exists():
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+
+        now_iso = datetime.datetime.now().isoformat()
+        try:
+            with sqlite3.connect(db_path, timeout=10.0) as conn:
+                conn.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS gsc_domain_metrics (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        domain TEXT NOT NULL,
+                        published_pages INTEGER DEFAULT 0,
+                        indexed_pages INTEGER DEFAULT 0,
+                        impressions INTEGER DEFAULT 0,
+                        clicks INTEGER DEFAULT 0,
+                        ctr REAL DEFAULT 0.0,
+                        indexing_ratio REAL DEFAULT 0.0,
+                        is_mock INTEGER DEFAULT 1,
+                        data_source TEXT,
+                        recorded_at TEXT NOT NULL
+                    )
+                    """
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS ix_gsc_metrics_domain ON gsc_domain_metrics(domain, recorded_at)"
+                )
+
+                for dom, perf in fleet_metrics.items():
+                    clean_dom = _clean_domain(dom)
+                    short_dom = clean_dom.replace(".com", "")
+                    cur = conn.cursor()
+                    cur.execute(
+                        "SELECT COUNT(*) FROM published_posts WHERE domain = ? OR domain = ? OR domain = ?",
+                        (clean_dom, short_dom, f"{short_dom}.com"),
+                    )
+                    row = cur.fetchone()
+                    published_count = row[0] if row and row[0] else 0
+
+                    if published_count == 0:
+                        site_folder = PROJECT_ROOT / "sites" / f"{short_dom}.com"
+                        if site_folder.is_dir():
+                            published_count = len([
+                                p for p in site_folder.glob("*/index.html")
+                                if p.parent.name not in ("img", "css", "js")
+                            ])
+
+                    indexed_pages = int(perf.get("indexed_pages", 0) or 0)
+                    impressions = int(perf.get("impressions", 0) or 0)
+                    clicks = int(perf.get("clicks", 0) or 0)
+                    ctr = float(perf.get("ctr", 0.0) or 0.0)
+                    is_mock = 1 if perf.get("is_mock", True) else 0
+                    data_source = str(perf.get("data_source", "mock_estimate"))
+                    indexing_ratio = round(indexed_pages / published_count, 4) if published_count > 0 else 1.0
+
+                    conn.execute(
+                        """
+                        INSERT INTO gsc_domain_metrics
+                        (domain, published_pages, indexed_pages, impressions, clicks, ctr, indexing_ratio, is_mock, data_source, recorded_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (clean_dom, published_count, indexed_pages, impressions, clicks, ctr, indexing_ratio, is_mock, data_source, now_iso),
+                    )
+                conn.commit()
+        except Exception as exc:
+            logger.debug("Failed to record GSC metrics to autopublish.db: %s", exc)
 
     def _load_cache(self) -> None:
         try:

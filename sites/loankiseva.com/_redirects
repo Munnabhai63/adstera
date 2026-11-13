@@ -1,3 +1,4 @@
 https://www.loankiseva.com/* https://loankiseva.com/:splat 301
 http://www.loankiseva.com/* https://loankiseva.com/:splat 301
 http://loankiseva.com/* https://loankiseva.com/:splat 301
+/:slug.html /:slug 301
