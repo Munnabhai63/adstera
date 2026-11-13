@@ -89,7 +89,12 @@ def test_custom_api_key_override():
 
 def test_three_layer_zero_waste_audit_and_diagnostics():
     import asyncio
+    from pathlib import Path
     from adsterra_api import diagnose_domain_metrics, load_local_adsterra_ZeroWaste_maps
+
+    banner_file = Path("state/adsterra_banners.json")
+    if not banner_file.exists() or banner_file.stat().st_size == 0:
+        pytest.skip("Adsterra placement map requires synced state/adsterra_banners.json (credentials absent in CI)")
 
     dom_map, place_map = load_local_adsterra_ZeroWaste_maps()
     assert dom_map.get("6190678") == "rechargetak.com"
