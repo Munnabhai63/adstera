@@ -23,22 +23,45 @@ CACHE_DIR = Path(__file__).parent / "state" / "useragents"
 API_BASE = "https://useragent.in"
 DATA_BASE = "https://useragent.in/assets/data"
 
-# Fallbacks if network is completely unreachable on very first run
-_FALLBACK_DESKTOP = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 11.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
-]
+def _generate_fallback_desktop() -> list[str]:
+    oses = [
+        "Windows NT 10.0; Win64; x64",
+        "Windows NT 11.0; Win64; x64",
+        "Macintosh; Intel Mac OS X 10_15_7",
+        "Macintosh; Intel Mac OS X 14_2_1",
+        "Macintosh; Intel Mac OS X 13_5_2",
+        "X11; Linux x86_64",
+    ]
+    uas = []
+    for major in range(120, 136):
+        for minor in range(1, 120):
+            for os_str in oses:
+                uas.append(f"Mozilla/5.0 ({os_str}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.{6000 + minor * 5}.{minor} Safari/537.36")
+                if len(uas) >= 8989:
+                    return uas
+    return uas
 
-_FALLBACK_MOBILE = [
-    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Linux; Android 13; Samsung SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/130.0.6723.37 Mobile/15E148 Safari/604.1",
-    "Mozilla/5.0 (Linux; Android 14; OnePlus 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36",
-]
+
+def _generate_fallback_mobile() -> list[str]:
+    models = [
+        ("14", "SM-S928B"), ("14", "SM-S918B"), ("14", "Pixel 8 Pro"), ("14", "Pixel 8"),
+        ("14", "OnePlus 12"), ("14", "23127PN0CG"), ("13", "SM-S908B"), ("13", "Pixel 7 Pro"),
+        ("13", "CPH2581"), ("14", "V2307"), ("13", "SM-A546B"), ("12", "Pixel 6 Pro"),
+        ("14", "SM-A556B"), ("13", "OnePlus 11"), ("14", "2311DRK48G"), ("12", "SM-G998B"),
+    ]
+    uas = []
+    for major in range(120, 136):
+        for minor in range(1, 100):
+            for and_ver, model in models:
+                uas.append(f"Mozilla/5.0 (Linux; Android {and_ver}; {model}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{major}.0.{6000 + minor * 5}.{minor} Mobile Safari/537.36")
+                if len(uas) >= 18114:
+                    return uas
+    return uas
+
+
+# Coherent procedural fallbacks if network cache is missing
+_FALLBACK_DESKTOP: list[str] = _generate_fallback_desktop()
+_FALLBACK_MOBILE: list[str] = _generate_fallback_mobile()
 
 # In-memory cache
 _desktop_pool: list[str] = []
