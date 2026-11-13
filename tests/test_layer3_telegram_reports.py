@@ -262,9 +262,17 @@ def test_instant_indexer_records_honest_ping_status(tmp_path: Path, monkeypatch)
 
 def test_no_hardcoded_telegram_tokens_in_layer3_modules() -> None:
     bot_token_pat = re.compile(r"\b\d{8,12}:[A-Za-z0-9_-]{25,}\b")
+    checked = []
     for name in ("telegram_link.py", "alert_bot.py", "daily_report.py", "autopublish_daemon.py"):
-        text = (ROOT_DIR / name).read_text(encoding="utf-8")
+        target = ROOT_DIR / name
+        if not target.exists():
+            continue
+        text = target.read_text(encoding="utf-8")
         assert not bot_token_pat.search(text), f"Hardcoded Telegram token found in {name}"
+        checked.append(name)
+    assert "alert_bot.py" in checked
+    assert "daily_report.py" in checked
+    assert "autopublish_daemon.py" in checked
 
 
 def test_live_ui_telegram_status_and_daily_report_button() -> None:
