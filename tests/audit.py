@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -562,7 +563,9 @@ async def _run_browser_checks(cfg: dict) -> None:
                 availWidth: screen.availWidth,
                 availHeight: screen.availHeight,
                 innerWidth: window.innerWidth,
-                innerHeight: window.innerHeight
+                innerHeight: window.innerHeight,
+                widthOwnDesc: Object.getOwnPropertyDescriptor(screen, 'width') === undefined,
+                availWidthOwnDesc: Object.getOwnPropertyDescriptor(screen, 'availWidth') === undefined
             })""")
             assert scr_res["width"] >= scr_res["innerWidth"], (
                 f"[21] FAIL ({label}) — screen.width ({scr_res['width']}) < innerWidth ({scr_res['innerWidth']})"
@@ -572,6 +575,10 @@ async def _run_browser_checks(cfg: dict) -> None:
             )
             assert scr_res["availWidth"] <= scr_res["width"], f"[21] FAIL ({label}) — availWidth > width"
             assert scr_res["availHeight"] <= scr_res["height"], f"[21] FAIL ({label}) — availHeight > height"
+            assert scr_res["widthOwnDesc"], f"[21] FAIL ({label}) — Object.getOwnPropertyDescriptor(screen, 'width') is not undefined"
+            assert scr_res["availWidthOwnDesc"], f"[21] FAIL ({label}) — Object.getOwnPropertyDescriptor(screen, 'availWidth') is not undefined"
+            if not fp.is_mobile:
+                assert abs(fp.screen_width / fp.dpr - fp.viewport_width) < 200, f"[21] FAIL ({label}) — DPR scale gap >= 200"
             if label == "proxy_a":
                 print(f"  [21] PASS — Screen Dimensions & Viewport Coherence (screen={scr_res['width']}x{scr_res['height']} >= inner={scr_res['innerWidth']}x{scr_res['innerHeight']})")
 
@@ -697,6 +704,22 @@ async def run_all_async(cfg: dict | None = None, allow_no_transport: bool = Fals
     except Exception as e:
         print(f"  ERROR — {e}")
         failures.append(str(e))
+
+    passed_cnt = max(0, 26 - len(failures))
+    audit_summary = {
+        "checks": 26,
+        "passed": 26 if not failures else passed_cnt,
+        "failed": len(failures),
+        "failures": failures,
+        "skipped": "transport" if allow_no_transport else "",
+    }
+    try:
+        repo_root = Path(__file__).resolve().parent.parent
+        sdir = repo_root / "state"
+        sdir.mkdir(parents=True, exist_ok=True)
+        (sdir / "audit_summary.json").write_text(json.dumps(audit_summary, indent=2), encoding="utf-8")
+    except Exception as exc:
+        print(f"[Warning] Failed to write audit_summary.json: {exc}")
 
     if failures:
         print(f"\nAudit FAILED — {len(failures)} check(s) failed:")
