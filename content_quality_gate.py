@@ -125,6 +125,17 @@ BANNED_LEAK_PHRASES = [
     "snippet: we need answer",
     "need no markdown",
     "need banned words avoid",
+    # BUG-3: Meta-prompt instructions, system role leak, and length constraints
+    "we need to produce",
+    "must be 1400-1800",
+    "must include clear lead",
+    "must include",
+    "prompt",
+    "you are a senior",
+    "your mission is to",
+    "output this exact html",
+    "critical rules",
+    "strictly forbidden",
 ]
 
 class ContentQualityFinishGate:
