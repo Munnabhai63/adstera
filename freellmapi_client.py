@@ -120,8 +120,12 @@ class FreeLLMClient:
     def __init__(self, config_path: str = "config.yaml", api_key: str = ""):
         self.config_path = Path(config_path)
         self.config = self._load_config()
-        self.api_url, resolved_key = self._resolve_credentials()
-        self.api_key = api_key.strip() if api_key else resolved_key
+        explicit = api_key.strip() if api_key else ""
+        if explicit:
+            self.api_key = explicit
+            self.api_url = self._resolve_url_only()
+        else:
+            self.api_url, self.api_key = self._resolve_credentials()
         freellm_cfg = self.config.get("freellm", {}) or {}
         self.enabled = bool(freellm_cfg.get("enabled", True))
         self.timeout = float(freellm_cfg.get("timeout", 150.0))
@@ -142,6 +146,21 @@ class FreeLLMClient:
             except Exception as e:
                 logger.warning("Failed to load config for FreeLLMClient: %s", e)
         return {}
+
+    def _resolve_url_only(self) -> str:
+        """Resolve API URL from environment or .env without requiring a token."""
+        url = os.environ.get("FREELLMAPI_URL", "").strip()
+        if not url:
+            env_file = Path(".env")
+            if env_file.exists():
+                try:
+                    for line in env_file.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if line.startswith("FREELLMAPI_URL="):
+                            url = line.split("=", 1)[1].strip().strip('"').strip("'")
+                except Exception:
+                    pass
+        return (url or DEFAULT_API_URL).rstrip("/")
 
     def _resolve_credentials(self) -> tuple[str, str]:
         explicit_empty = ("FREELLMAPI_TOKEN" in os.environ and not os.environ["FREELLMAPI_TOKEN"].strip()) or \
