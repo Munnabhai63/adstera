@@ -653,7 +653,18 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
                         fig_fn = available_imgs[(h + figs_inserted * 7) % len(available_imgs)]
                         h2_clean = re.sub(r"<[^>]+>", "", part).strip()
                         h2_clean = re.sub(r"^\d+\.\s*", "", h2_clean).strip()
-                        fig_alt = html.escape(f"{h2_clean} - Official Overview & Guidelines")
+                        h2_words = [w for w in re.sub(r"[^\w\s-]", " ", h2_clean).split() if len(w) > 2]
+                        h2_snippet = " ".join(h2_words[:5]).title() if h2_words else slug.replace("-", " ").title()
+                        alt_variants = [
+                            f"{h2_snippet} procedural framework and operational guidelines",
+                            f"Official {h2_snippet} data verification and benchmarks",
+                            f"{h2_snippet} detailed structural review and parameters",
+                            f"Statutory {h2_snippet} compliance checklist and standards",
+                            f"{h2_snippet} analytical criteria and assessment summary",
+                            f"Key {h2_snippet} documentation criteria and process flow",
+                        ]
+                        cand_alt = alt_variants[figs_inserted % len(alt_variants)]
+                        fig_alt = html.escape(cand_alt)
                         fig_html = (
                             f'\n<figure class="article-figure" style="margin:28px 0; text-align:center;">\n'
                             f'    <img src="/img/{fig_fn}" alt="{fig_alt}" loading="lazy" width="1200" height="675" style="width:100%; height:auto; border-radius:8px;">\n'

@@ -53,6 +53,16 @@ def test_zero_image_articles_is_zero():
     lt5_image_articles = []
     bad_alts = []
 
+    TEMPLATE_PREFIXES = (
+        "visual overview of",
+        "practical implementation and",
+        "comparative analysis and",
+        "step-by-step documentation",
+        "financial considerations,",
+    )
+
+    seen_corpus_alts: dict[str, str] = {}
+
     for p in article_pages:
         text = p.read_text(encoding="utf-8", errors="ignore")
         soup = BeautifulSoup(text, "html.parser")
@@ -68,12 +78,31 @@ def test_zero_image_articles_is_zero():
 
         for img in content_imgs:
             alt = img.get("alt", "").strip()
-            if not alt:
+            alt_clean = re.sub(r"\s+", " ", alt).strip()
+            alt_lower = alt_clean.lower()
+
+            if not alt_clean:
                 bad_alts.append((str(p), "empty alt"))
-            elif "exhibit" in alt.lower():
+            elif "exhibit" in alt_lower:
                 bad_alts.append((str(p), f"Exhibit N alt: {alt}"))
-            elif alt.lower() == title_text:
+            elif alt_lower == title_text:
                 bad_alts.append((str(p), f"Alt equals title: {alt}"))
+            elif any(alt_lower.startswith(pref) for pref in TEMPLATE_PREFIXES):
+                bad_alts.append((str(p), f"Template prefix alt: {alt}"))
+            elif alt_lower in seen_corpus_alts:
+                bad_alts.append((str(p), f"Duplicate alt across corpus (already on {seen_corpus_alts[alt_lower]}): {alt}"))
+            else:
+                seen_corpus_alts[alt_lower] = str(p)
+
+            # (c) Fail if alt contains verbatim 8+ word substring of title
+            title_words = re.sub(r"[^\w\s]", " ", title_text).split()
+            if len(title_words) >= 8:
+                alt_words_str = re.sub(r"[^\w\s]", " ", alt_lower)
+                for i in range(len(title_words) - 7):
+                    sub = " ".join(title_words[i : i + 8])
+                    if sub in alt_words_str:
+                        bad_alts.append((str(p), f"Verbatim 8+ word title substring in alt: '{sub}' in '{alt}'"))
+                        break
 
     assert len(zero_image_articles) == 0, f"Found {len(zero_image_articles)} zero-image articles: {zero_image_articles[:5]}"
     assert len(lt5_image_articles) == 0, f"Found {len(lt5_image_articles)} articles with <5 images: {lt5_image_articles[:5]}"
