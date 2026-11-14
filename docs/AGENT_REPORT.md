@@ -451,9 +451,9 @@ Adding `https:` back to `sites/loanraaj.com/_headers` caused:
 ---
 
 ## DEFECT D-12 — Token Rotation Protocols (Owner Action)
-STATUS: DOCUMENTED
+STATUS: OWNER-ACTION, STILL OPEN
 FILES: `docs/AGENT_REPORT.md`
-CHANGE: Documented exact Cloudflare Zero Trust and FreeLLMAPI dashboard rotation instructions in OWNER MUST DO.
+CHANGE: Documented exact Cloudflare Zero Trust and FreeLLMAPI dashboard rotation instructions in OWNER MUST DO. No code change can revoke or cycle a credential that has already been published in public git history; rotation requires human owner action in the Cloudflare Zero Trust and FreeLLMAPI provider dashboards. The local `.env` is uncommitted and gitignored (.gitignore line 5), so current working files do not leak secrets, but historical commits remain accessible until rotated upstream.
 
 ---
 
@@ -879,8 +879,9 @@ In `.env`, the tunnel token had an accidental duplicated prefix from a copy-past
 The corrupted prefix `eyJhIjoi_` rendered the base64 token invalid, preventing `cloudflared.exe` from authenticating.
 
 ### Resolution & Live Verification
-1. Cleaned the token in `.env` to `eyJhIjoiMWE1N2JlNzk3ZTJjOGM5ZTZiMjc4NDAwNDZkMTY2MjIiLCJ0IjoiM2ZkNjAxYzctMjg4Zi00OTZjLTlmOTMtZGIwZDM3ODIyMDc2IiwicyI6InJSODBMUGRxOU9mWm5JUW9JcVFUL2pydW9DQjcwbUQyakV4TlNPaXZpKzA9In0=`.
-2. Executed `cloudflared.exe tunnel run --token ...` and confirmed live connectivity:
+1. Cleaned the local token in `.env` to fix the duplicated string prefix. Note: Fixing a duplicated prefix in `.env` is a local syntax fix, NOT a credential rotation. The tunnel showing 4 healthy edge connections using the existing secret is evidence the old credential is still valid, not evidence it was rotated.
+2. `.env` is not tracked in Git (`git ls-tree` finds zero copies) and `.gitignore` line 5 strictly covers it. So the current token is not leaking now, but the previously committed one in historical commits still is. Both statements are true simultaneously, which is why upstream rotation remains mandatory (see OWNER MUST DO).
+3. Executed `cloudflared.exe tunnel run --token ...` and confirmed live connectivity:
 ```
 2026-11-14T02:01:17Z INF Registered tunnel connection connIndex=0 location=del04 protocol=quic
 2026-11-14T02:01:17Z INF Updated to new configuration: ingress: [{"hostname":"admin.rechargetak.com","service":"http://localhost:5050"},{"hostname":"admin.rechargekar.com","service":"http://localhost:5050"},{"service":"http_status:404"}]
@@ -900,10 +901,16 @@ All 4 edge connections registered successfully, routing incoming traffic from `a
 
 ## OWNER MUST DO
 
-1. **Cloudflare Tunnel Service:** If you wish to run `cloudflared` as a continuous Windows Service on boot, open an Administrator Command Prompt and run `bin\cloudflared.exe service install <TOKEN>`. Otherwise, keep `python tunnel_daemon.py` running in the background.
-2. **Provide Transport:** Populate `proxies.txt` with working residential proxies OR connect an Android device via USB with ADB debugging enabled.
-3. **Confirm Publish Rate:** Confirm 1 article/domain/day (10 daily target across network) is acceptable.
-4. **Add API Credentials:** Set `PEXELS_API_KEY` / `PIXABAY_API_KEY` and Google Search Console service-account JSON in `.env` if automated image generation and GSC indexing are desired.
+1. **Rotate Cloudflare Tunnel Token:** The token previously committed in `tunnel_daemon.py` must be rotated in the Cloudflare Zero Trust dashboard:
+   - Navigate to **Networks** -> **Tunnels** (https://one.dash.cloudflare.com -> Networks -> Tunnels).
+   - Select your tunnel (e.g. `rechargekar-hub`).
+   - Under **Install cloudflared connector**, copy the newly generated tunnel token after `service install`.
+   - Update `.env` with `CLOUDFLARE_TUNNEL_TOKEN=<new_token>`.
+2. **Rotate FreeLLMAPI Token:** Revoke and regenerate your FreeLLMAPI token at https://freellmapi.com (or your private LLM provider dashboard) and update `.env` with `FREELLMAPI_TOKEN=<new_token>`.
+3. **Cloudflare Tunnel Service:** If you wish to run `cloudflared` as a continuous Windows Service on boot, open an Administrator Command Prompt and run `bin\cloudflared.exe service install <TOKEN>`. Otherwise, keep `python tunnel_daemon.py` running in the background.
+4. **Provide Transport:** Populate `proxies.txt` with working residential proxies OR connect an Android device via USB with ADB debugging enabled.
+5. **Confirm Publish Rate:** Confirm 1 article/domain/day (10 daily target across network) is acceptable.
+6. **Add API Credentials:** Set `PEXELS_API_KEY` / `PIXABAY_API_KEY` and Google Search Console service-account JSON in `.env` if automated image generation and GSC indexing are desired.
 
 ---
 
