@@ -2,31 +2,82 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from bs4 import BeautifulSoup
+
+STATIC_SLUGS = {
+    "about-us",
+    "contact-us",
+    "disclaimer",
+    "privacy-policy",
+    "terms-and-conditions",
+    "calculator",
+    "emi-calculator",
+    "personal-loan-guide",
+    "credit-card-apply",
+}
+
+
+def _get_article_pages(base: Path) -> list[Path]:
+    pages = []
+    for p in base.glob("*/*/index.html"):
+        rel = p.relative_to(base)
+        if len(rel.parts) != 3:
+            continue
+        if any(x in rel.parts for x in ("layouts", "_default", "category")):
+            continue
+        slug = rel.parts[1]
+        if slug in STATIC_SLUGS:
+            continue
+        pages.append(p)
+    return sorted(pages)
+
+
+def _extract_content_images(soup: BeautifulSoup):
+    for tag in soup.find_all(["aside", "nav", "header", "footer"]):
+        tag.decompose()
+    for tag in soup.find_all(class_=re.compile(r"widget|sidebar|author-card")):
+        tag.decompose()
+
+    content = soup.find("div", class_="post-content") or soup.find("article") or soup.find("main")
+    if not content:
+        return []
+    return content.find_all("img")
 
 
 def test_zero_image_articles_is_zero():
     base = Path("sites")
-    img_pattern = re.compile(r'<img[^>]+src=["\']([^"\']+)["\']', re.IGNORECASE)
-
-    article_pages = list(base.glob("*/*/index.html"))
+    article_pages = _get_article_pages(base)
     assert len(article_pages) > 0, "No article pages found"
 
     zero_image_articles = []
     lt5_image_articles = []
+    bad_alts = []
 
     for p in article_pages:
         text = p.read_text(encoding="utf-8", errors="ignore")
-        content_imgs = [
-            i for i in img_pattern.findall(text)
-            if "logo" not in i.lower() and "badge" not in i.lower()
-        ]
+        soup = BeautifulSoup(text, "html.parser")
+
+        title_tag = soup.find("title") or soup.find("h1")
+        title_text = title_tag.get_text().strip().lower() if title_tag else ""
+
+        content_imgs = _extract_content_images(soup)
         if len(content_imgs) == 0:
             zero_image_articles.append(str(p))
         elif len(content_imgs) < 5:
             lt5_image_articles.append((str(p), len(content_imgs)))
 
-    assert len(zero_image_articles) == 0, f"Found {len(zero_image_articles)} zero-image articles"
+        for img in content_imgs:
+            alt = img.get("alt", "").strip()
+            if not alt:
+                bad_alts.append((str(p), "empty alt"))
+            elif "exhibit" in alt.lower():
+                bad_alts.append((str(p), f"Exhibit N alt: {alt}"))
+            elif alt.lower() == title_text:
+                bad_alts.append((str(p), f"Alt equals title: {alt}"))
+
+    assert len(zero_image_articles) == 0, f"Found {len(zero_image_articles)} zero-image articles: {zero_image_articles[:5]}"
     assert len(lt5_image_articles) == 0, f"Found {len(lt5_image_articles)} articles with <5 images: {lt5_image_articles[:5]}"
+    assert len(bad_alts) == 0, f"Found {len(bad_alts)} bad image alts: {bad_alts[:5]}"
 
 
 def test_no_external_hotlinked_images_in_sites():
@@ -47,16 +98,22 @@ def test_no_external_hotlinked_images_in_sites():
 
 def test_all_content_images_self_hosted_and_exist():
     base = Path("sites")
-    img_pattern = re.compile(r'<img[^>]+src=["\'](/img/[^"\']+)["\']', re.IGNORECASE)
-
     missing_images = []
-    for p in base.glob("*/*/index.html"):
+    article_pages = _get_article_pages(base)
+
+    for p in article_pages:
         domain_dir = p.parent.parent
         text = p.read_text(encoding="utf-8", errors="ignore")
-        for img_rel in img_pattern.findall(text):
-            local_path = domain_dir / img_rel.lstrip("/")
+        soup = BeautifulSoup(text, "html.parser")
+        content_imgs = _extract_content_images(soup)
+
+        for img in content_imgs:
+            src = img.get("src", "")
+            if not src.startswith("/img/"):
+                missing_images.append((str(p), f"Non-self-hosted content image src: {src}"))
+                continue
+            local_path = domain_dir / src.lstrip("/")
             if not local_path.exists():
-                missing_images.append((str(p), img_rel))
+                missing_images.append((str(p), f"Missing disk file: {src}"))
 
     assert len(missing_images) == 0, f"Missing local image files on disk: {missing_images[:5]}"
-

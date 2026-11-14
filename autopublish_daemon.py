@@ -651,7 +651,9 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
                 for part in h2_parts:
                     if h2_split_re.match(part) and figs_inserted < num_figs:
                         fig_fn = available_imgs[(h + figs_inserted * 7) % len(available_imgs)]
-                        fig_alt = html.escape(f"{seo_title} - Section Analysis Exhibit {figs_inserted + 1}")
+                        h2_clean = re.sub(r"<[^>]+>", "", part).strip()
+                        h2_clean = re.sub(r"^\d+\.\s*", "", h2_clean).strip()
+                        fig_alt = html.escape(f"{h2_clean} - Official Overview & Guidelines")
                         fig_html = (
                             f'\n<figure class="article-figure" style="margin:28px 0; text-align:center;">\n'
                             f'    <img src="/img/{fig_fn}" alt="{fig_alt}" loading="lazy" width="1200" height="675" style="width:100%; height:auto; border-radius:8px;">\n'
