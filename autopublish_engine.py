@@ -18,6 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from freellmapi_client import FreeLLMClient
+from content_quality_gate import ARTICLE_TARGET_MIN, ARTICLE_TARGET_MAX, ARTICLE_WORD_COUNT_FLOOR
 
 # 1. ANTI-AI DETECTION / HUMANIZER QUALITY GATE
 BANNED_AI_WORDS = [
@@ -209,11 +210,11 @@ def _strip_code_fences_and_preamble(raw: str) -> str:
 # 4. 2-PART DEEP AI SEO & GEO ARTICLE GENERATOR (1,300 - 1,800+ WORDS)
 def generate_claude_seo_article(site_id: str, site_info: dict, seo_brief: dict) -> tuple[str, list[dict[str, str]]]:
     """
-    2-Part Deep AI Article Generator (No Rushing — Full 1,300 to 1,800+ Word Output):
+    2-Part Deep AI Article Generator (Full 3,400 to 3,800 Word Output — 3000-4000 Target Band):
       - Part 1: Direct GEO Lead Paragraph, 3 Analytical Sections with real ₹ math & statutory rules,
-                and a 5-row Empirical Comparison Table.
+                and a 5-row Empirical Comparison Table (1,900 to 2,100 words).
       - Part 2: Step-by-Step Actionable Guide, Real-World Case Breakdown, Common Mistakes Checklist,
-                and 5 Comprehensive FAQs.
+                and 5 Comprehensive FAQs (1,500 to 1,700 words).
     Achieves 100/100 on ContentQualityFinishGate and passes AntiAIDetectionGate.
     """
     from adsterra_links import render_native_ad_card
@@ -231,7 +232,16 @@ CRITICAL CONSTRAINTS:
 3. Cite real Indian figures in ₹, exact % rates, and official institutions (RBI, SBI, HDFC, ICICI, TRAI, NPCI, SEBI, NABARD).
 4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary."""
 
-    part1_prompt = f"""Write PART 1 (750 to 950 words) of the authoritative 2026 consumer guide on: '{primary_kw}'.
+    # Targets derived from unified 3000-4000 word band
+    part1_target_min = 1900
+    part1_target_max = 2100
+    part2_target_min = 1500
+    part2_target_max = 1700
+    # Combined target: 3400 to 3800 words (comfortably within 3000-4000 band)
+    part1_tokens = max(6000, int(part1_target_max * 1.5) + 2000)
+    part2_tokens = max(5000, int(part2_target_max * 1.5) + 2000)
+
+    part1_prompt = f"""Write PART 1 ({part1_target_min} to {part1_target_max} words) of the authoritative 2026 consumer guide on: '{primary_kw}'.
 Category: {category} | Secondary Keywords: {lsi_kws}
 
 Output this exact HTML structure with deep, specific, multi-paragraph analysis in every section:
@@ -255,7 +265,7 @@ Output this exact HTML structure with deep, specific, multi-paragraph analysis i
 </table>
 </div>"""
 
-    part2_prompt = f"""Write PART 2 (650 to 850 words) continuing the 2026 guide on: '{primary_kw}' ({category}).
+    part2_prompt = f"""Write PART 2 ({part2_target_min} to {part2_target_max} words) continuing the 2026 guide on: '{primary_kw}' ({category}).
 Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
 <h2>4. Step-by-Step Online Application & Verification Walkthrough</h2>
 <p>Explain the exact online verification workflow and mandatory KYC checklist:</p>
@@ -287,8 +297,8 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 <p>Write a detailed 3-sentence factual answer comparing instant digital channels (15 mins - 4 hours) vs branch processing (2 - 4 working days).</p>"""
 
     try:
-        raw_part1 = query_freellmapi(part1_prompt, system_prompt, max_tokens=2800, timeout=150.0)
-        raw_part2 = query_freellmapi(part2_prompt, system_prompt, max_tokens=2600, timeout=150.0)
+        raw_part1 = query_freellmapi(part1_prompt, system_prompt, max_tokens=part1_tokens, timeout=180.0)
+        raw_part2 = query_freellmapi(part2_prompt, system_prompt, max_tokens=part2_tokens, timeout=180.0)
     except Exception as llm_err:
         logger.error(f"[FreeLLMAPI] Generation failed for '{primary_kw}': {llm_err}")
         raise RuntimeError(f"FreeLLMAPI generation failed for '{primary_kw}': {llm_err}") from llm_err
@@ -306,14 +316,16 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 
     raw_html = f"{clean_p1}\n\n{clean_p2}"
 
-    # P3-2: Dynamic topic-specific expansion (never hardcoded network-wide filler)
+    # P3-2: Dynamic topic-specific expansion tied to ARTICLE_TARGET_MIN floor (3000 words)
     current_words = len(re.findall(r"\b\w+\b", raw_html))
-    if current_words < 1050:
-        expand_prompt = f"""Write an additional analytical section (300 to 450 words) on '{primary_kw}' ({category}) for Indian consumers in 2026.
+    if current_words < ARTICLE_TARGET_MIN:
+        needed_words = max(500, ARTICLE_TARGET_MIN - current_words)
+        expand_tokens = max(2500, int(needed_words * 1.6))
+        expand_prompt = f"""Write an additional analytical section ({needed_words} to {needed_words + 300} words) on '{primary_kw}' ({category}) for Indian consumers in 2026.
 Focus on regulatory protections, grievance redressal, and cost optimization for this specific topic.
-Output only valid HTML with an <h2> heading and 2-3 detailed analytical paragraphs with ₹ figures."""
+Output only valid HTML with an <h2> heading and 3-4 detailed analytical paragraphs with ₹ figures."""
         try:
-            extra_content = query_freellmapi(expand_prompt, system_prompt, max_tokens=1200, timeout=60.0)
+            extra_content = query_freellmapi(expand_prompt, system_prompt, max_tokens=expand_tokens, timeout=90.0)
             clean_extra = _strip_code_fences_and_preamble(extra_content or "")
             if len(clean_extra) > 200:
                 raw_html = f"{raw_html}\n{clean_extra}"

@@ -300,6 +300,7 @@ def recover_and_kick_stuck_domains(target_domains=None, fetch_live: bool = False
     )
 
 # 3. ARTICLE GENERATION ENGINE (Using FreeLLMAPI)
+# DEAD: not called; live path is generate_claude_seo_article()
 def generate_article_content(site_id, site_info, category, topic):
     site_name = site_info["name"]
     system_prompt = f"""You are a senior investigative economic and technical journalist writing for {site_name}.
