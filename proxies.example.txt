@@ -1,0 +1,35 @@
+# ==============================================================================
+# proxies.example.txt — Supported Proxy Formats & Configuration Examples
+# ==============================================================================
+# Copy this file to proxies.txt (which is gitignored) and insert your real
+# residential or 4G mobile proxy endpoints.
+#
+# Supported Formats:
+# ------------------------------------------------------------------------------
+# 1. host:port (unauthenticated / IP-whitelisted)
+#    198.51.100.10:8080
+#    gw.provider.com:3128
+#
+# 2. user:pass@host:port (standard credentials)
+#    customer123:secretpass@gw.provider.com:8000
+#    res_user:mypassword@mobile.provider.com:9000
+#
+# 3. host:port:user:pass (colon-delimited credentials)
+#    gw.provider.com:8000:customer123:secretpass
+#    198.51.100.25:3128:res_user:mypassword
+#
+# 4. With URI scheme prefix (http://, https://, socks5://)
+#    http://res_user:mypassword@gw.provider.com:8000
+#    socks5://198.51.100.30:1080
+#
+# Notes:
+# - Ports must be valid integers between 1 and 65535.
+# - Datacenter ASNs (AWS, GCP, Azure, DigitalOcean, etc.) are rejected by audit.
+# - Blank lines and lines starting with '#' are ignored.
+# ==============================================================================
+
+# Example entries (replace with your actual proxy providers):
+# user_residential_us:pass123@us-res.proxyprovider.com:10001
+# user_residential_uk:pass123@uk-res.proxyprovider.com:10002
+# 203.0.113.50:8080:user_mobile:secret999
+# 198.51.100.45:3128

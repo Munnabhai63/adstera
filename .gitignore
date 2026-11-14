@@ -32,6 +32,9 @@ network_articles_part1.json
 !.dev.vars.example
 !.env.example
 
+# Network / Proxies
+proxies.txt
+
 # Isolated clone of user-supplied CMS template (never modify original source)
 cms_template_clone/
 .venv/
