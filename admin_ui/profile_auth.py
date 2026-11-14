@@ -79,7 +79,7 @@ def _default_record() -> dict[str, Any]:
         "updated_at": _utc_iso(),
         "auth": {
             "require_login": False,
-            "locked_now": False,
+            "locked_now": True,
             "password_hash": "",
             "password_salt": "",
             "password_updated_at": "",
@@ -262,7 +262,7 @@ def clear_password(current_password: str, state_dir: Path | None = None) -> tupl
     auth["password_salt"] = ""
     auth["password_updated_at"] = ""
     auth["require_login"] = False
-    auth["locked_now"] = False
+    auth["locked_now"] = True
     _save_raw_profile(raw, state_dir)
     return True, "Password lock removed; CRM returned to open localhost mode.", _public_profile(raw)
 
@@ -388,7 +388,7 @@ def is_crm_locked(cookie_header: str | None = None, state_dir: Path | None = Non
     raw = _load_raw_profile(state_dir)
     auth = raw.get("auth", {})
     has_pw = bool(auth.get("password_hash") and auth.get("password_salt"))
-    if not has_pw:
+    if not has_pw and auth.get("locked_now", True):
         return True
     if auth.get("locked_now"):
         return True

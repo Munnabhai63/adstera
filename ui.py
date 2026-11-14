@@ -3123,7 +3123,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self._send_html(AUTOPUBLISH_DASHBOARD_HTML)
             return
 
-        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev"}
+        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev", "/api/autopublish/preview"}
         if path.startswith("/api/") and path not in _PUBLIC_API:
             if not self._require_crm_unlocked():
                 return
@@ -3508,9 +3508,6 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 mon = GSCMonitor()
                 auth_status = mon.auth.get_status()
                 cached = mon._cached_metrics or {}
-                if not cached:
-                    mon.audit_all_domains()
-                    cached = mon._cached_metrics or {}
                 dom_rows = []
                 for dom in mon.domains:
                     clean_dom = str(dom.get("domain", dom) if isinstance(dom, dict) else dom).lower().replace("https://", "").replace("http://", "").rstrip("/")
@@ -3738,7 +3735,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 return
 
         # 1. Require CRM authentication for all POST endpoints outside _PUBLIC_API
-        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev"}
+        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev", "/api/autopublish/preview"}
         if path.startswith("/api/") and path not in _PUBLIC_API:
             if not self._require_crm_unlocked():
                 return
@@ -4377,19 +4374,43 @@ def _start_background_sync_worker() -> None:
     t.start()
 
 
-def run_server(port: int = 5050, host: str = "127.0.0.1") -> None:
+SERVER_INSTANCE: Optional[ThreadingHTTPServer] = None
+
+
+def start_server(port: int = 5050, host: str = "127.0.0.1") -> ThreadingHTTPServer:
+    global SERVER_INSTANCE
     server_address = (host, port)
     httpd = ThreadingHTTPServer(server_address, UIRequestHandler)
+    SERVER_INSTANCE = httpd
     _start_background_sync_worker()
+    t = threading.Thread(target=httpd.serve_forever, daemon=True, name="LiveUIServer")
+    t.start()
+    return httpd
+
+
+def stop_server() -> None:
+    global SERVER_INSTANCE
+    if SERVER_INSTANCE:
+        try:
+            SERVER_INSTANCE.shutdown()
+            SERVER_INSTANCE.server_close()
+        except Exception:
+            pass
+        SERVER_INSTANCE = None
+
+
+def run_server(port: int = 5050, host: str = "127.0.0.1") -> None:
+    httpd = start_server(port=port, host=host)
     print("\n" + "="*60)
     print(f">> QA Control Dashboard running at: http://{host}:{port}")
     print("="*60 + "\n")
     try:
-        httpd.serve_forever()
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
         print("\nShutting down web dashboard…")
         RUNNER.stop()
-        httpd.server_close()
+        stop_server()
 
 
 if __name__ == "__main__":

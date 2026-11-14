@@ -100,8 +100,8 @@ def test_forecast_anomaly_detection():
     normal_res = forecaster.detect_anomaly(actual_today=45.0, threshold_pct=0.20)
     assert not normal_res["anomaly"]
 
-    # Actual $20 vs projected ~$50 is 60% drop -> CRITICAL anomaly
-    alert_res = forecaster.detect_anomaly(actual_today=20.0, threshold_pct=0.20)
+    # Actual $15 vs projected ~$33-$50 is >50% drop across all weekdays -> CRITICAL anomaly
+    alert_res = forecaster.detect_anomaly(actual_today=15.0, threshold_pct=0.20)
     assert alert_res["anomaly"]
     assert alert_res["severity"] == "CRITICAL"
     assert "Revenue dropped" in alert_res["message"]
