@@ -401,14 +401,52 @@ class ContentQualityFinishGate:
         try:
             import seo_pipeline
             qrg_res = seo_pipeline.score_with_claude_seo_qrg(html_out)
+            humanize_res = seo_pipeline.humanize_with_claude_seo(html_out)
         except Exception:
-            qrg_res = {"overall_quality": 92, "information_density": 0.5, "filler_score": 0, "ai_pattern_score": 0}
+            qrg_res = {"overall_quality": 65, "information_density": 0.5, "filler_score": 0, "ai_pattern_score": 0}
+            humanize_res = {"change_count": 0}
+
+        filler_score = qrg_res.get("filler_score", 0)
+        ai_pattern_count = humanize_res.get("change_count", 0)
+        h2_count = len(re.findall(r"<h2\b", html_out, re.IGNORECASE))
+        has_rich_schema = ("@type" in html_out and "Article" in html_out) or ("@graph" in html_out) or (len(faqs) >= 2)
 
         score = 100.0
-        if not has_table: score -= 15.0
-        if not has_faqs: score -= 15.0
-        if not no_leaks: score -= 30.0
-        if prose_words < ARTICLE_WORD_COUNT_FLOOR: score -= 20.0
+        # QRG filler: -30
+        if filler_score >= 15:
+            score -= 30.0
+        # AI pattern score (from content_humanize.py): deduct proportional to detected pattern count
+        if ai_pattern_count > 0:
+            score -= min(25.0, float(ai_pattern_count * 5.0))
+        # Missing cluster box: -15
+        if not has_cluster:
+            score -= 15.0
+        # Missing EEAT box: -15
+        if not has_eeat:
+            score -= 15.0
+        # Missing TOC: -10
+        if not has_toc:
+            score -= 10.0
+        # Missing rich schema: -10
+        if not has_rich_schema:
+            score -= 10.0
+        # H2 count < 4: -15
+        if h2_count < 4:
+            score -= 15.0
+        # prose_words < floor: -20
+        if prose_words < ARTICLE_WORD_COUNT_FLOOR:
+            score -= 20.0
+        # no leaks: -30
+        if not no_leaks:
+            score -= 30.0
+        # has table: -15
+        if not has_table:
+            score -= 15.0
+        # has faqs: -15
+        if not has_faqs:
+            score -= 15.0
+
+        score = max(0.0, min(100.0, score))
 
         audit_meta = {
             "score": score,

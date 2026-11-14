@@ -24,30 +24,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-# Wire local Claude SEO v2.5.0 scripts directory (`F:/UserData/Downloads/ai-power-tools/claude-seo/scripts`)
-CLAUDE_SEO_SCRIPTS_DIR = r"F:\UserData\Downloads\ai-power-tools\claude-seo\scripts"
-if os.path.isdir(CLAUDE_SEO_SCRIPTS_DIR) and CLAUDE_SEO_SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, CLAUDE_SEO_SCRIPTS_DIR)
-
 try:
-    import content_humanize as _claude_humanize  # type: ignore
-except Exception:
-    _claude_humanize = None
-
-try:
-    import content_quality as _claude_quality  # type: ignore
-except Exception:
-    _claude_quality = None
-
-try:
-    import parse_html as _claude_parse_html  # type: ignore
-except Exception:
-    _claude_parse_html = None
-
-try:
-    import schema_generate as _claude_schema_gen  # type: ignore
-except Exception:
-    _claude_schema_gen = None
+    import vendor.claude_seo.content_humanize as _claude_humanize
+    import vendor.claude_seo.content_quality as _claude_quality
+    import vendor.claude_seo.parse_html as _claude_parse_html
+    import vendor.claude_seo.schema_generate as _claude_schema_gen
+except ImportError as exc:
+    raise ImportError(f"Claude-SEO vendor subsystem missing in vendor/claude_seo/: {exc}") from exc
 
 
 # Authoritative Primary Regulatory Sources per Domain (seo-content + seo-geo E-E-A-T External Citations)
@@ -451,18 +434,9 @@ def humanize_with_claude_seo(raw_html: str) -> dict[str, Any]:
     - Normalizes 16 exotic whitespace codepoints (`\\u00a0`, `\\u202f`)
     - Replaces 48 LLM-typical filler patterns (`delve into`, `tapestry of`, `ever-evolving`, etc.)
     """
-    if _claude_humanize is not None:
-        try:
-            return _claude_humanize.humanize(raw_html)
-        except Exception:
-            pass
-    return {
-        "cleaned": raw_html,
-        "changes": [],
-        "change_count": 0,
-        "invisible_removed": {},
-        "invisible_count": 0,
-    }
+    if _claude_humanize is None:
+        raise RuntimeError("Claude-SEO vendor subsystem content_humanize is not available")
+    return _claude_humanize.humanize(raw_html)
 
 
 def score_with_claude_seo_qrg(text_or_html: str) -> dict[str, Any]:
@@ -477,23 +451,9 @@ def score_with_claude_seo_qrg(text_or_html: str) -> dict[str, Any]:
     """
     plain = re.sub(r"<[^>]+>", " ", text_or_html or " ")
     plain = re.sub(r"\s+", " ", plain).strip()
-    if _claude_quality is not None:
-        try:
-            return _claude_quality.analyse(plain)
-        except Exception:
-            pass
-    tokens = re.findall(r"\b\w+\b", plain)
-    return {
-        "filler_score": 0,
-        "ai_pattern_score": 0,
-        "information_density": 0.5,
-        "repetition_score": 5,
-        "overall_quality": 92,
-        "flags": [],
-        "matches": {"filler": [], "ai_patterns": []},
-        "tokens": len(tokens),
-        "unique_tokens": len(set(t.lower() for t in tokens)),
-    }
+    if _claude_quality is None:
+        raise RuntimeError("Claude-SEO vendor subsystem content_quality is not available")
+    return _claude_quality.analyse(plain)
 
 
 # ==============================================================================
