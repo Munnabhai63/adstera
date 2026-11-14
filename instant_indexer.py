@@ -10,9 +10,11 @@ IndexNow Protocol:
 """
 
 from __future__ import annotations
-import os
+import asyncio
 import glob
 import json
+import logging
+import os
 import sqlite3
 import threading
 import xml.etree.ElementTree as ET
@@ -20,6 +22,8 @@ from datetime import datetime
 from typing import Any
 import httpx
 from network_registry import NETWORK_REGISTRY
+
+logger = logging.getLogger("instant_indexer")
 
 INDEXNOW_KEY = "adstera8291a0c7e5bf4182bdc6019a"
 INDEXNOW_ENDPOINTS = [
@@ -331,21 +335,61 @@ def submit_to_indexnow(clean_domain: str, url_list: list[str]) -> bool:
     return success
 
 
-def ping_google_sitemap(clean_domain: str) -> bool:
-    """Submit updated sitemap via Google Search Console Sitemaps API when configured."""
+def ping_google_sitemap(clean_domain: str, fallback_deprecated: bool = False) -> dict[str, Any]:
+    """
+    Submit updated sitemap via Google Search Console Sitemaps API when configured.
+    Never returns True/success without a verified outcome.
+
+    Returns a structured outcome dict:
+      - {"status": "submitted", "verified": True}
+      - {"status": "submitted", "verified": False, "reason": "deprecated endpoint"}
+      - {"status": "skipped", "reason": "no credentials"}
+      - {"status": "failed", "reason": "<actual error>"}
+    """
     sitemap_url = f"https://{clean_domain}/sitemap.xml"
+    is_configured = False
     try:
         from gsc_auth import GSCAuthManager
-        if GSCAuthManager().is_configured():
-            return True
-    except Exception:
-        pass
-    ping_url = f"https://www.google.com/ping?sitemap={sitemap_url}"
-    try:
-        r = httpx.get(ping_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        return r.status_code in (200, 202)
-    except Exception:
-        return False
+        is_configured = GSCAuthManager().is_configured()
+    except Exception as exc:
+        logger.debug("GSCAuthManager check exception for %s: %s", clean_domain, exc)
+
+    if is_configured:
+        try:
+            from gsc_submitter import GoogleIndexingSubmitter
+            sub = GoogleIndexingSubmitter()
+
+            async def _submit() -> bool:
+                return await sub.submit_sitemap(sitemap_url, mock_fallback=False)
+
+            try:
+                asyncio.get_running_loop()
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    ok = pool.submit(asyncio.run, _submit()).result(timeout=15)
+            except RuntimeError:
+                ok = asyncio.run(_submit())
+
+            if ok:
+                return {"status": "submitted", "verified": True}
+            else:
+                return {"status": "failed", "reason": "GSC Sitemaps API rejected or returned unverified status"}
+        except Exception as exc:
+            logger.warning("GSC Sitemaps API exception for %s: %s", clean_domain, exc)
+            return {"status": "failed", "reason": str(exc)}
+
+    # Unconfigured fallback path:
+    if fallback_deprecated:
+        ping_url = f"https://www.google.com/ping?sitemap={sitemap_url}"
+        try:
+            r = httpx.get(ping_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+            if r.status_code in (200, 202):
+                return {"status": "submitted", "verified": False, "reason": "deprecated endpoint"}
+            return {"status": "failed", "reason": f"Deprecated ping returned HTTP {r.status_code}"}
+        except Exception as exc:
+            return {"status": "failed", "reason": str(exc)}
+
+    return {"status": "skipped", "reason": "no credentials"}
 
 
 def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
@@ -370,7 +414,21 @@ def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
     ]
 
     indexnow_ok = submit_to_indexnow(clean_domain, urls)
-    google_ok = ping_google_sitemap(clean_domain)
+    google_res = ping_google_sitemap(clean_domain)
+    if isinstance(google_res, dict):
+        google_ok = bool(google_res.get("status") == "submitted" and google_res.get("verified"))
+        st = google_res.get("status")
+        if st == "skipped":
+            print(f"[GSC Sitemap Notice] Google sitemap submission skipped for {clean_domain}: {google_res.get('reason')}")
+        elif st == "submitted" and not google_res.get("verified"):
+            print(f"[GSC Sitemap Notice] Google sitemap attempted via deprecated endpoint for {clean_domain} (unverified)")
+        elif st == "submitted" and google_res.get("verified"):
+            print(f"[GSC Sitemap SUCCESS] Google sitemap verified and accepted via GSC API for {clean_domain}")
+        elif st == "failed":
+            print(f"[GSC Sitemap Warning] Google sitemap submission failed for {clean_domain}: {google_res.get('reason')}")
+    else:
+        google_ok = bool(google_res)
+
     try:
         from gsc_auth import GSCAuthManager
         if GSCAuthManager().is_configured():
@@ -443,7 +501,17 @@ def broadcast_all_network_sites() -> dict[str, int]:
         urls_to_submit = list(set(urls_to_submit))
         print(f"\n[Instant Indexer] Broadcasting {len(urls_to_submit)} URLs for {clean_domain}...")
         ok = submit_to_indexnow(clean_domain, urls_to_submit)
-        ping_google_sitemap(clean_domain)
+        google_res = ping_google_sitemap(clean_domain)
+        if isinstance(google_res, dict):
+            st = google_res.get("status")
+            if st == "skipped":
+                print(f"  [GSC Sitemap Notice] Google sitemap submission skipped for {clean_domain}: {google_res.get('reason')}")
+            elif st == "submitted" and not google_res.get("verified"):
+                print(f"  [GSC Sitemap Notice] Google sitemap attempted via deprecated endpoint for {clean_domain} (unverified)")
+            elif st == "submitted" and google_res.get("verified"):
+                print(f"  [GSC Sitemap SUCCESS] Google sitemap verified and accepted via GSC API for {clean_domain}")
+            elif st == "failed":
+                print(f"  [GSC Sitemap Warning] Google sitemap submission failed for {clean_domain}: {google_res.get('reason')}")
         results[clean_domain] = len(urls_to_submit) if ok else 0
 
     return results
