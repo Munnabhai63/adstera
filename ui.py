@@ -3484,17 +3484,27 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/telegram/status":
-            from alert_bot import TelegramAlertBot
-            bot = TelegramAlertBot()
-            alerts = db.get_recent_alerts(limit=15)
-            summary = db.get_alert_summary_today()
-            self._send_json({
-                "success": True,
-                "configured": bot.is_live_configured(),
-                "bot_username": bot.bot_username,
-                "summary": summary,
-                "recent_alerts": alerts,
-            })
+            try:
+                from alert_bot import TelegramAlertBot
+                bot = TelegramAlertBot()
+                alerts = db.get_recent_alerts(limit=15)
+                summary = db.get_alert_summary_today()
+                self._send_json({
+                    "success": True,
+                    "configured": bot.is_live_configured(),
+                    "bot_username": bot.bot_username,
+                    "summary": summary,
+                    "recent_alerts": alerts,
+                })
+            except Exception as e:
+                logger.warning("Telegram status query error: %s", e)
+                self._send_json({
+                    "success": False,
+                    "configured": False,
+                    "error": str(e),
+                    "summary": {"INFO": 0, "WARNING": 0, "CRITICAL": 0, "SUCCESS": 0, "total": 0},
+                    "recent_alerts": [],
+                }, 200)
             return
 
         if path == "/api/failover/status":
@@ -4400,6 +4410,10 @@ SERVER_INSTANCE: Optional[ThreadingHTTPServer] = None
 
 def start_server(port: int = 5050, host: str = "127.0.0.1") -> ThreadingHTTPServer:
     global SERVER_INSTANCE
+    try:
+        db.init()
+    except Exception as e:
+        logger.warning("db.init() during start_server warning: %s", e)
     server_address = (host, port)
     httpd = ThreadingHTTPServer(server_address, UIRequestHandler)
     SERVER_INSTANCE = httpd

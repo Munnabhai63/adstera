@@ -292,3 +292,17 @@ def test_live_ui_telegram_status_and_daily_report_button() -> None:
         html_body = resp.read().decode("utf-8", errors="replace")
         assert "btnTgDailyReport" in html_body
         assert "sendTelegramDailyReport" in html_body
+
+
+def test_live_ui_telegram_status_against_fresh_empty_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """DEFECT P-1: Telegram status route must return well-formed JSON even against an uninitialized empty DB."""
+    fresh_db = tmp_path / "fresh_empty_sessions.db"
+    monkeypatch.setattr(db, "_DB_PATH", fresh_db)
+
+    with urllib.request.urlopen("http://127.0.0.1:5050/api/telegram/status", timeout=8) as resp:
+        assert resp.status == 200
+        payload = json.loads(resp.read().decode("utf-8"))
+        assert "success" in payload
+        assert "summary" in payload
+        assert "recent_alerts" in payload
+        assert isinstance(payload["recent_alerts"], list)

@@ -1047,29 +1047,42 @@ def record_alert_log(
 
 def get_recent_alerts(limit: int = 25) -> list[dict]:
     """Retrieve recent alert notifications."""
-    with _conn() as con:
-        rows = con.execute(
-            """
-            SELECT * FROM alert_logs
-            ORDER BY id DESC LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
-    return [dict(r) for r in rows]
+    try:
+        with _conn() as con:
+            rows = con.execute(
+                """
+                SELECT * FROM alert_logs
+                ORDER BY id DESC LIMIT ?
+                """,
+                (limit,),
+            ).fetchall()
+        return [dict(r) for r in rows]
+    except sqlite3.OperationalError as e:
+        if "no such table: alert_logs" in str(e).lower():
+            init()
+            return []
+        raise
 
 
 def get_alert_summary_today() -> dict:
     """Return count of alerts by level for today."""
-    with _conn() as con:
-        rows = con.execute(
-            """
-            SELECT level, COUNT(*) as count
-            FROM alert_logs
-            WHERE date(ts) = date('now')
-            GROUP BY level
-            """
-        ).fetchall()
-    counts = {r["level"]: r["count"] for r in rows}
+    try:
+        with _conn() as con:
+            rows = con.execute(
+                """
+                SELECT level, COUNT(*) as count
+                FROM alert_logs
+                WHERE date(ts) = date('now')
+                GROUP BY level
+                """
+            ).fetchall()
+        counts = {r["level"]: r["count"] for r in rows}
+    except sqlite3.OperationalError as e:
+        if "no such table: alert_logs" in str(e).lower():
+            init()
+            counts = {}
+        else:
+            raise
     return {
         "INFO": counts.get("INFO", 0),
         "WARNING": counts.get("WARNING", 0),
