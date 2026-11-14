@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""
+scripts/expand_thin_articles.py — Expand Thin Articles to 1200+ Words
+
+Selects real articles currently under 600 visible words and regenerates their body
+through the existing generator path (autopublish_engine + ContentQualityFinishGate),
+raising them to 1200+ words with quality score 100 while preserving all slugs,
+titles, canonicals, templates, and sitemaps.
+
+Usage:
+  python scripts/expand_thin_articles.py --dry-run
+  python scripts/expand_thin_articles.py
+  python scripts/expand_thin_articles.py --domain tazarokda.com --limit 5
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime
+import html
+import json
+from pathlib import Path
+import re
+import sys
+from typing import Any
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from autopublish_engine import generate_claude_seo_article
+from content_quality_gate import ContentQualityFinishGate
+from network_registry import NETWORK_REGISTRY
+
+STATIC_SLUGS = {
+    "about-us",
+    "contact-us",
+    "disclaimer",
+    "privacy-policy",
+    "terms-and-conditions",
+    "calculator",
+    "emi-calculator",
+    "personal-loan-guide",
+    "credit-card-apply",
+}
+
+
+def count_visible_words(html_text: str) -> int:
+    """Calculate visible words in HTML text, ignoring scripts, styles, and tags."""
+    clean = re.sub(r"<script.*?</script>", "", html_text, flags=re.DOTALL | re.IGNORECASE)
+    clean = re.sub(r"<style.*?</style>", "", clean, flags=re.DOTALL | re.IGNORECASE)
+    clean = re.sub(r"<[^>]+>", " ", clean)
+    return len(clean.split())
+
+
+def update_sitemap_lastmod(sitemap_path: Path, domain: str, slug: str, date_str: str = "2026-11-14") -> bool:
+    """Update lastmod date for the target slug in sitemap.xml."""
+    if not sitemap_path.is_file():
+        return False
+    text = sitemap_path.read_text(encoding="utf-8")
+    target_loc = f"https://{domain}/{slug}"
+    pattern = rf"(<loc>\s*{re.escape(target_loc)}/?\s*</loc>\s*<lastmod>)(.*?)(</lastmod>)"
+    if re.search(pattern, text):
+        new_text = re.sub(pattern, rf"\g<1>{date_str}\g<3>", text)
+        sitemap_path.write_text(new_text, encoding="utf-8")
+        return True
+    return False
+
+
+def expand_single_article(
+    path: Path,
+    domain: str,
+    slug: str,
+    dry_run: bool = False,
+) -> tuple[int, int, float]:
+    """
+    Expands a single thin article to 1200+ words.
+    Returns (before_words, after_words, quality_score).
+    Refuses to write if quality score < 100.
+    """
+    text = path.read_text(encoding="utf-8", errors="ignore")
+    before_words = count_visible_words(text)
+    if before_words >= 600:
+        return before_words, before_words, 100.0
+
+    site_id = domain.split(".")[0]
+    site_info = NETWORK_REGISTRY.get(site_id)
+    if not site_info:
+        raise ValueError(f"Site ID '{site_id}' not found in NETWORK_REGISTRY")
+
+    # Extract H1 / title
+    h1_m = re.search(r"<h1[^>]*>(.*?)</h1>", text, flags=re.DOTALL | re.IGNORECASE)
+    h1 = re.sub(r"<[^>]+>", "", h1_m.group(1)).strip() if h1_m else slug.replace("-", " ").title()
+
+    # Extract Category
+    cat_m = re.search(r'<span class=[\'"]cat-badge[\'"]>(.*?)</span>', text, flags=re.IGNORECASE)
+    if not cat_m:
+        cat_m = re.search(r'<a href=[\'"]/category/[^\'"]*[\'"]>(.*?)</a>', text, flags=re.IGNORECASE)
+    cat = cat_m.group(1).strip() if cat_m else "Guide"
+
+    seo_brief = {
+        "primary_keyword": h1,
+        "category": cat,
+        "lsi_keywords": [slug.replace("-", " ")],
+    }
+
+    # Generate body via autopublish_engine
+    raw_content, faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+    sanitized = ContentQualityFinishGate.sanitize_raw_html(raw_content)
+    formatted_html, faqs, quality_meta = ContentQualityFinishGate.format_editorial_layout(
+        clean_html=sanitized,
+        title=h1,
+        domain_key=site_id,
+        primary_kw=h1,
+        category=cat,
+        site_name=site_info["name"],
+    )
+
+    score = quality_meta.get("score", 0.0)
+    if score < 100.0:
+        raise ValueError(f"Content quality gate refused article '{slug}' with score {score}/100.0 (required: 100.0)")
+
+    # Replace content inside HTML
+    if '<div class="post-content">' in text:
+        idx = text.find('<div class="post-content">')
+        # Look for closing tag before following card or figure
+        m_end = re.search(
+            r'</div>\s*(?:<div class="native-ad-card"|<div class="author-card"|<figure class="article-figure"|<div class="adsterra)',
+            text[idx:],
+            flags=re.DOTALL,
+        )
+        if m_end:
+            end_pos = idx + m_end.start() + len("</div>")
+            new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>' + text[end_pos - len("</div>"):]
+        else:
+            end_pos = text.find("</div>", idx + len('<div class="post-content">'))
+            new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>' + text[end_pos + len("</div>"):]
+    else:
+        # Wrap inside <article>
+        art_idx = text.find("<article")
+        art_end = text.find("</article>", art_idx)
+        h1_end = text.find("</h1>", art_idx)
+        if h1_end != -1:
+            top_ad_idx = text.find('id="top-ad"', h1_end)
+            if top_ad_idx != -1 and top_ad_idx < art_end:
+                top_ad_end = text.find("</div>", top_ad_idx)
+                ins_idx = text.find("</div>", top_ad_end + 1) if top_ad_end != -1 else h1_end + len("</h1>")
+                insert_pos = ins_idx + len("</div>")
+            else:
+                insert_pos = h1_end + len("</h1>")
+            new_text = text[:insert_pos] + f'\n<div class="post-content">\n{formatted_html}\n</div>\n' + text[art_end:]
+        else:
+            new_text = text
+
+    # Preserve any content figures that existed in the original article
+    fig_pattern = re.compile(r'<figure class=["\']article-figure["\'].*?</figure>', re.DOTALL)
+    old_figs = fig_pattern.findall(text)
+    missing_figs = []
+    for fig in old_figs:
+        src_m = re.search(r'src=["\']([^"\']+)["\']', fig)
+        if src_m and src_m.group(1) not in new_text:
+            missing_figs.append(fig)
+    if missing_figs:
+        art_end = new_text.find("</article>")
+        if art_end != -1:
+            new_text = new_text[:art_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[art_end:]
+
+    # Preserve featured post-img wrapper if originally present
+    post_img_m = re.search(r'<div[^>]*class=["\'][^"\']*post-img[^"\']*["\'][^>]*>\s*<img[^>]+>\s*</div>', text, re.DOTALL | re.IGNORECASE)
+    if post_img_m and post_img_m.group(0) not in new_text:
+        img_src_m = re.search(r'src=["\']([^"\']+)["\']', post_img_m.group(0))
+        if img_src_m and not re.search(rf'<img[^>]+{re.escape(img_src_m.group(1))}', new_text):
+            pc_idx = new_text.find('<div class="post-content">')
+            if pc_idx != -1:
+                new_text = new_text[:pc_idx] + post_img_m.group(0) + "\n" + new_text[pc_idx:]
+
+    # Update post-meta word count and fact check date if present
+    after_words = count_visible_words(new_text)
+    read_mins = max(6, round(after_words / 200))
+    new_text = re.sub(
+        r"<span>\d+\s+Words(?:\s*\(\d+\s*Min\s*Read\))?</span>",
+        f"<span>{after_words} Words ({read_mins} Min Read)</span>",
+        new_text,
+    )
+    new_text = re.sub(
+        r"<span>Last Fact-Checked:.*?</span>",
+        '<span>Last Fact-Checked: <time datetime="2026-11-14">November 14, 2026</time></span>',
+        new_text,
+    )
+
+    # Update dateModified in JSON-LD
+    new_text = re.sub(
+        r'"dateModified":\s*"[^"]*"',
+        '"dateModified": "2026-11-14T12:00:00+05:30"',
+        new_text,
+    )
+
+    if not dry_run:
+        path.write_text(new_text, encoding="utf-8")
+        sitemap_file = path.parents[1] / "sitemap.xml" if path.name == "index.html" else path.parent / "sitemap.xml"
+        update_sitemap_lastmod(sitemap_file, domain, slug, "2026-11-14")
+
+    return before_words, after_words, score
+
+
+def run_batch_expansion(
+    sites_dir: Path,
+    dry_run: bool = False,
+    limit: int | None = None,
+    domain_filter: str | None = None,
+) -> dict[str, Any]:
+    """Finds all articles <600 words and expands them."""
+    thin_articles: list[tuple[Path, str, str, int]] = []
+
+    for p in sites_dir.rglob("*.html"):
+        try:
+            rel = p.relative_to(sites_dir)
+        except ValueError:
+            continue
+
+        if any(x in rel.parts for x in ("layouts", "_default", "category")):
+            continue
+        if p.name.startswith("google") and p.name.endswith(".html"):
+            continue
+        if len(rel.parts) <= 2 and p.name == "index.html":
+            continue
+
+        slug = p.parent.name if p.name == "index.html" else p.stem
+        if slug in STATIC_SLUGS:
+            continue
+
+        domain = rel.parts[0]
+        if domain_filter and domain.lower() != domain_filter.lower():
+            continue
+
+        w = count_visible_words(p.read_text(encoding="utf-8", errors="ignore"))
+        if w < 600:
+            thin_articles.append((p, domain, slug, w))
+
+    per_domain: dict[str, dict[str, Any]] = {}
+    total_expanded = 0
+
+    for path, domain, slug, before_w in thin_articles:
+        if domain not in per_domain:
+            per_domain[domain] = {
+                "count": 0,
+                "before_words_sum": 0,
+                "after_words_sum": 0,
+            }
+
+        if limit is not None and total_expanded >= limit:
+            continue
+
+        before, after, score = expand_single_article(path, domain, slug, dry_run=dry_run)
+        per_domain[domain]["count"] += 1
+        per_domain[domain]["before_words_sum"] += before
+        per_domain[domain]["after_words_sum"] += after
+        total_expanded += 1
+
+    return {
+        "thin_count": len(thin_articles),
+        "total_expanded": total_expanded,
+        "per_domain": per_domain,
+        "dry_run": dry_run,
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Expand thin articles (<600 words) to 1200+ words.")
+    parser.add_argument("--dry-run", action="store_true", help="Calculate expansions without writing files")
+    parser.add_argument("--limit", type=int, default=None, help="Limit number of articles expanded")
+    parser.add_argument("--domain", type=str, default=None, help="Process single domain only")
+
+    args = parser.parse_args()
+    sites_dir = PROJECT_ROOT / "sites"
+
+    print("=" * 72)
+    print(" ARTICLE EXPANSION ENGINE — THIN CONTENT MITIGATION (<600 WORDS)")
+    print("=" * 72)
+    mode = "DRY RUN (no files modified)" if args.dry_run else "LIVE RUN (updating HTML files)"
+    print(f" Execution Mode: {mode}")
+    if args.domain:
+        print(f" Domain Filter:  {args.domain}")
+    if args.limit:
+        print(f" Article Limit:  {args.limit}")
+    print("-" * 72)
+
+    res = run_batch_expansion(sites_dir, dry_run=args.dry_run, limit=args.limit, domain_filter=args.domain)
+
+    print(f"{'Domain':<24} | {'Expanded':<8} | {'Avg Before':<12} | {'Avg After':<12}")
+    print("-" * 72)
+    tot_exp = 0
+    tot_before_sum = 0
+    tot_after_sum = 0
+    for dom, stats in sorted(res["per_domain"].items()):
+        c = stats["count"]
+        tot_exp += c
+        tot_before_sum += stats["before_words_sum"]
+        tot_after_sum += stats["after_words_sum"]
+        avg_b = stats["before_words_sum"] / c if c else 0
+        avg_a = stats["after_words_sum"] / c if c else 0
+        print(f"{dom:<24} | {c:<8} | {avg_b:<12.1f} | {avg_a:<12.1f}")
+
+    print("-" * 72)
+    overall_avg_b = tot_before_sum / tot_exp if tot_exp else 0
+    overall_avg_a = tot_after_sum / tot_exp if tot_exp else 0
+    print(f"{'TOTAL':<24} | {tot_exp:<8} | {overall_avg_b:<12.1f} | {overall_avg_a:<12.1f}")
+    print("=" * 72)
+    print(f" Successfully processed: {res['total_expanded']}/{res['thin_count']} thin articles")
+    print("=" * 72)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
