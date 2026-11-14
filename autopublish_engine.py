@@ -20,6 +20,11 @@ if hasattr(sys.stdout, "reconfigure"):
 from freellmapi_client import FreeLLMClient
 from content_quality_gate import ARTICLE_TARGET_MIN, ARTICLE_TARGET_MAX, ARTICLE_WORD_COUNT_FLOOR
 
+PART1_TARGET_MIN: int = 1900
+PART1_TARGET_MAX: int = 2100
+PART2_TARGET_MIN: int = 1500
+PART2_TARGET_MAX: int = 1700
+
 # 1. ANTI-AI DETECTION / HUMANIZER QUALITY GATE
 BANNED_AI_WORDS = [
     "delve", "testament", "beacon", "tapestry", "in conclusion",
@@ -233,10 +238,10 @@ CRITICAL CONSTRAINTS:
 4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary."""
 
     # Targets derived from unified 3000-4000 word band
-    part1_target_min = 1900
-    part1_target_max = 2100
-    part2_target_min = 1500
-    part2_target_max = 1700
+    part1_target_min = PART1_TARGET_MIN  # 1900
+    part1_target_max = PART1_TARGET_MAX  # 2100
+    part2_target_min = PART2_TARGET_MIN  # 1500
+    part2_target_max = PART2_TARGET_MAX  # 1700
     # Combined target: 3400 to 3800 words (comfortably within 3000-4000 band)
     part1_tokens = max(6000, int(part1_target_max * 1.5) + 2000)
     part2_tokens = max(5000, int(part2_target_max * 1.5) + 2000)
