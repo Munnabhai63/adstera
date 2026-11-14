@@ -10,9 +10,19 @@ from shingle_guard import (
     validate_text_quality,
     validate_domain_vocabulary,
     QualityPatternError,
-    JargonViolationError
+    JargonViolationError,
+    ShingleIndex,
+    SHINGLE_INDEX_PATH
 )
 from scripts.seo_onpage_audit import get_all_article_paths, PROJECT_ROOT
+
+# D11: Startup Guard — Ensure shingle index is not empty/missing before auditing
+shingle_idx = ShingleIndex(auto_build_if_empty=False)
+if not shingle_idx.index or len(shingle_idx.index) == 0:
+    raise RuntimeError(
+        "Fatal: Shingle index state/prose_shingles.json is missing or empty! "
+        "Run scripts/build_shingle_index.py to rebuild the index before auditing."
+    )
 
 sites_dir = PROJECT_ROOT / "sites"
 articles = get_all_article_paths(sites_dir)

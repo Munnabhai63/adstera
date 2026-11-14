@@ -164,10 +164,22 @@ def validate_domain_vocabulary(domain: str, text: str):
 
 
 class ShingleIndex:
-    def __init__(self, index_path: Path = SHINGLE_INDEX_PATH):
+    def __init__(self, index_path: Path = SHINGLE_INDEX_PATH, auto_build_if_empty: bool = True):
         self.index_path = index_path
+        self.auto_build_if_empty = auto_build_if_empty
         self.index: dict[str, dict[str, str]] = {}
         self.load()
+
+    def rebuild(self):
+        """Rebuild index from sites/ corpus."""
+        try:
+            from scripts.build_shingle_index import build_shingle_index
+            build_shingle_index(output_path=self.index_path)
+            if self.index_path.exists():
+                self.index = json.loads(self.index_path.read_text(encoding="utf-8"))
+        except Exception as e:
+            # Fallback if corpus cannot be parsed
+            pass
 
     def load(self):
         if self.index_path.exists():
@@ -176,8 +188,13 @@ class ShingleIndex:
             except Exception:
                 self.index = {}
         else:
-            self.index_path.parent.mkdir(parents=True, exist_ok=True)
-            self.save()
+            self.index = {}
+
+        if not self.index and self.auto_build_if_empty:
+            self.rebuild()
+            if not self.index:
+                self.index_path.parent.mkdir(parents=True, exist_ok=True)
+                self.save()
 
     def save(self):
         self.index_path.parent.mkdir(parents=True, exist_ok=True)

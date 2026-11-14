@@ -35,6 +35,11 @@ jobs:
         run: |
           playwright install chromium --with-deps
 
+      - name: Rebuild 12-Word Shingle Index
+        run: |
+          python scripts/build_shingle_index.py
+          python -m pytest tests/test_shingle_guard.py -v
+
       - name: Run Test Suite
         env:
           CI: "true"
