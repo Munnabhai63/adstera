@@ -99,40 +99,6 @@ class GSCMonitor:
     def cache_path(self) -> Path:
         return self._explicit_state_path if self._explicit_state_path is not None else GSC_STATE_PATH
 
-    def _mock_estimate(
-        self,
-        clean_dom: str,
-        days: int,
-        credentials_configured: bool,
-        data_source: str = "mock_estimate",
-        api_error: Optional[str] = None,
-    ) -> dict[str, Any]:
-        h = int(hashlib.md5(clean_dom.encode("utf-8")).hexdigest()[:8], 16)
-        base_impressions = 150 + (h % 300)
-        base_clicks = int(base_impressions * (0.025 + ((h % 20) / 1000.0)))
-        ctr = round(base_clicks / base_impressions, 4) if base_impressions > 0 else 0.0
-        avg_pos = round(14.2 + (h % 150) / 10.0, 1)
-
-        return {
-            "domain": clean_dom,
-            "property_url": "",
-            "period_days": days,
-            "impressions": base_impressions,
-            "clicks": base_clicks,
-            "ctr": ctr,
-            "avg_position": avg_pos,
-            "indexed_pages": 3,
-            "is_indexed": True,
-            "top_queries": [],
-            "quick_wins": [],
-            "sitemaps": [],
-            "credentials_configured": credentials_configured,
-            "is_mock": True,
-            "data_source": data_source,
-            "api_error": api_error,
-            "last_synced": datetime.datetime.now().isoformat(),
-        }
-
     def list_verified_sites(self, client: Optional[httpx.Client] = None) -> list[dict[str, Any]]:
         """Query Google Search Console for all properties accessible to the authenticated identity."""
         token = self.auth.get_access_token(scopes=[SCOPE_WEBMASTERS_RO], client=client)
@@ -329,14 +295,14 @@ class GSCMonitor:
         self,
         domain: str,
         days: int = 7,
-        mock_fallback: bool = True,
         inspect_homepage: bool = False,
         client: Optional[httpx.Client] = None,
+        **_kwargs,
     ) -> dict[str, Any]:
         """
         Fetch search performance (impressions, clicks, CTR, position) for a domain.
         Calls real Google Search Console APIs when OAuth2 / Service Account credentials are set;
-        when unconfigured, honestly tags output as `mock_estimate` (or `unconfigured`).
+        when unconfigured, returns clean unconfigured telemetry without fake metrics.
         """
         clean_dom = _clean_domain(domain)
 
@@ -344,55 +310,49 @@ class GSCMonitor:
             token = self.auth.get_access_token(scopes=[SCOPE_WEBMASTERS_RO], client=client)
         except Exception as auth_exc:
             logger.warning("GSC auth error for %s: %s", clean_dom, auth_exc)
-            if mock_fallback:
-                res = self._mock_estimate(clean_dom, days, True, data_source="api_error_fallback", api_error=str(auth_exc))
-            else:
-                res = {
-                    "domain": clean_dom,
-                    "property_url": "",
-                    "period_days": days,
-                    "impressions": 0,
-                    "clicks": 0,
-                    "ctr": 0.0,
-                    "avg_position": 0.0,
-                    "indexed_pages": 0,
-                    "is_indexed": False,
-                    "top_queries": [],
-                    "quick_wins": [],
-                    "sitemaps": [],
-                    "credentials_configured": True,
-                    "is_mock": False,
-                    "data_source": "api_error",
-                    "api_error": str(auth_exc),
-                    "last_synced": datetime.datetime.now().isoformat(),
-                }
+            res = {
+                "connected": False,
+                "domain": clean_dom,
+                "property_url": "",
+                "period_days": days,
+                "impressions": None,
+                "clicks": None,
+                "ctr": None,
+                "avg_position": None,
+                "indexed_pages": None,
+                "is_indexed": None,
+                "top_queries": [],
+                "quick_wins": [],
+                "sitemaps": [],
+                "credentials_configured": True,
+                "data_source": "api_error",
+                "api_error": str(auth_exc),
+                "last_synced": datetime.datetime.now().isoformat(),
+            }
             self._cached_metrics[clean_dom] = res
             self._save_cache()
             return res
 
         if not token:
-            if not mock_fallback:
-                res = {
-                    "domain": clean_dom,
-                    "property_url": "",
-                    "period_days": days,
-                    "impressions": 0,
-                    "clicks": 0,
-                    "ctr": 0.0,
-                    "avg_position": 0.0,
-                    "indexed_pages": 0,
-                    "is_indexed": None,
-                    "top_queries": [],
-                    "quick_wins": [],
-                    "sitemaps": [],
-                    "credentials_configured": False,
-                    "is_mock": False,
-                    "data_source": "unconfigured",
-                    "api_error": "Google OAuth2 / Service Account credentials not configured",
-                    "last_synced": datetime.datetime.now().isoformat(),
-                }
-            else:
-                res = self._mock_estimate(clean_dom, days, credentials_configured=False, data_source="mock_estimate")
+            res = {
+                "connected": False,
+                "domain": clean_dom,
+                "property_url": "",
+                "period_days": days,
+                "impressions": None,
+                "clicks": None,
+                "ctr": None,
+                "avg_position": None,
+                "indexed_pages": None,
+                "is_indexed": None,
+                "top_queries": [],
+                "quick_wins": [],
+                "sitemaps": [],
+                "credentials_configured": False,
+                "data_source": "not_configured",
+                "api_error": "Google OAuth2 / Service Account credentials not configured",
+                "last_synced": datetime.datetime.now().isoformat(),
+            }
             self._cached_metrics[clean_dom] = res
             self._save_cache()
             return res
@@ -420,30 +380,25 @@ class GSCMonitor:
             if not matched_site:
                 err_msg = f"HTTP {last_code}: {last_err}".strip(": ")
                 logger.warning("GSC live query error for %s: %s", clean_dom, err_msg)
-                if mock_fallback:
-                    res = self._mock_estimate(
-                        clean_dom, days, credentials_configured=True, data_source="api_error_fallback", api_error=err_msg
-                    )
-                else:
-                    res = {
-                        "domain": clean_dom,
-                        "property_url": "",
-                        "period_days": days,
-                        "impressions": 0,
-                        "clicks": 0,
-                        "ctr": 0.0,
-                        "avg_position": 0.0,
-                        "indexed_pages": 0,
-                        "is_indexed": False,
-                        "top_queries": [],
-                        "quick_wins": [],
-                        "sitemaps": [],
-                        "credentials_configured": True,
-                        "is_mock": False,
-                        "data_source": "api_error",
-                        "api_error": err_msg,
-                        "last_synced": datetime.datetime.now().isoformat(),
-                    }
+                res = {
+                    "connected": False,
+                    "domain": clean_dom,
+                    "property_url": "",
+                    "period_days": days,
+                    "impressions": None,
+                    "clicks": None,
+                    "ctr": None,
+                    "avg_position": None,
+                    "indexed_pages": None,
+                    "is_indexed": None,
+                    "top_queries": [],
+                    "quick_wins": [],
+                    "sitemaps": [],
+                    "credentials_configured": True,
+                    "data_source": "api_error",
+                    "api_error": err_msg,
+                    "last_synced": datetime.datetime.now().isoformat(),
+                }
                 self._cached_metrics[clean_dom] = res
                 self._save_cache()
                 return res
@@ -508,6 +463,7 @@ class GSCMonitor:
                 perm_level = self._verified_sites_cache[clean_dom][1]
 
             result = {
+                "connected": True,
                 "domain": clean_dom,
                 "property_url": matched_site,
                 "permission_level": perm_level,
@@ -525,7 +481,6 @@ class GSCMonitor:
                 "sitemaps": sitemaps,
                 "homepage_inspection": homepage_inspection,
                 "credentials_configured": True,
-                "is_mock": False,
                 "data_source": "google_search_console_api",
                 "api_error": None,
                 "last_synced": datetime.datetime.now().isoformat(),
@@ -540,9 +495,9 @@ class GSCMonitor:
     def audit_all_domains(
         self,
         days: int = 7,
-        mock_fallback: bool = True,
         inspect_homepage: bool = False,
         client: Optional[httpx.Client] = None,
+        **_kwargs,
     ) -> dict[str, Any]:
         """Runs audit across all configured domains and detects any deindexed sites."""
         auth_status = self.auth.get_status()
@@ -558,7 +513,7 @@ class GSCMonitor:
             fleet_metrics: dict[str, dict[str, Any]] = {}
             deindexed_domains: list[str] = []
             live_count = 0
-            mock_count = 0
+            unconfigured_count = 0
             error_domains: list[dict[str, str]] = []
 
             for dom in self.domains:
@@ -566,30 +521,30 @@ class GSCMonitor:
                 perf = self.fetch_domain_performance(
                     dom_name,
                     days=days,
-                    mock_fallback=mock_fallback,
                     inspect_homepage=inspect_homepage,
                     client=http,
                 )
                 fleet_metrics[perf["domain"]] = perf
-                if perf.get("data_source") == "google_search_console_api" and not perf.get("is_mock"):
+                if perf.get("connected") and perf.get("data_source") == "google_search_console_api":
                     live_count += 1
                 else:
-                    mock_count += 1
+                    unconfigured_count += 1
                 if perf.get("api_error"):
                     error_domains.append({"domain": perf["domain"], "error": str(perf["api_error"])})
                 if (
-                    not perf.get("is_mock", False)
-                    and perf.get("data_source") not in ("unconfigured", "api_error", "api_error_fallback", "mock_estimate")
-                    and (not perf["is_indexed"] or perf["indexed_pages"] == 0)
+                    perf.get("connected")
+                    and perf.get("data_source") == "google_search_console_api"
+                    and (not perf.get("is_indexed") or (perf.get("indexed_pages") or 0) == 0)
                 ):
                     deindexed_domains.append(perf["domain"])
         finally:
             if own_client:
                 http.close()
 
-        total_clicks = sum(int(m.get("clicks", 0) or 0) for m in fleet_metrics.values())
-        total_impressions = sum(int(m.get("impressions", 0) or 0) for m in fleet_metrics.values())
-        overall_ctr = round(total_clicks / total_impressions, 4) if total_impressions > 0 else 0.0
+        has_live = live_count > 0
+        total_clicks = sum(int(m.get("clicks", 0) or 0) for m in fleet_metrics.values() if m.get("clicks") is not None) if has_live else None
+        total_impressions = sum(int(m.get("impressions", 0) or 0) for m in fleet_metrics.values() if m.get("impressions") is not None) if has_live else None
+        overall_ctr = round(total_clicks / total_impressions, 4) if (total_impressions and total_clicks) else None
 
         report = {
             "audited_at": datetime.datetime.now().isoformat(),
@@ -598,7 +553,7 @@ class GSCMonitor:
             "auth_type": auth_status["auth_type"],
             "client_email": auth_status["client_email"],
             "live_domains_count": live_count,
-            "mock_domains_count": mock_count,
+            "unconfigured_domains_count": unconfigured_count,
             "total_domains": len(fleet_metrics),
             "deindexed_count": len(deindexed_domains),
             "deindexed_domains": deindexed_domains,
@@ -635,14 +590,18 @@ class GSCMonitor:
         mode_line = (
             f"🟢 <b>LIVE Google Search Console API</b> ({live_cnt}/{tot_cnt} properties)"
             if is_live
-            else f"🟡 <b>ESTIMATE MODE</b> (GSC OAuth2 credentials pending)"
+            else f"🔴 <b>GSC NOT CONNECTED</b> (Google credentials not configured)"
         )
 
-        ctr_pct = round(float(audit_report.get("fleet_organic_ctr", 0.0)) * 100, 2)
+        ctr_val = audit_report.get("fleet_organic_ctr")
+        ctr_pct = round(float(ctr_val) * 100, 2) if ctr_val is not None else 0.0
         domains_dict = audit_report.get("domains", {}) or {}
         ranked = sorted(
             domains_dict.values(),
-            key=lambda d: (int(d.get("clicks", 0) or 0), int(d.get("impressions", 0) or 0)),
+            key=lambda d: (
+                int(d.get("clicks", 0) or 0) if d.get("clicks") is not None else -1,
+                int(d.get("impressions", 0) or 0) if d.get("impressions") is not None else -1,
+            ),
             reverse=True,
         )
 
@@ -650,13 +609,16 @@ class GSCMonitor:
         quick_wins_lines = []
         for item in ranked[:5]:
             dom = html.escape(str(item.get("domain", "")))
-            imps = int(item.get("impressions", 0) or 0)
-            clks = int(item.get("clicks", 0) or 0)
-            pos = item.get("avg_position", 0.0)
-            tag = "LIVE" if not item.get("is_mock") else "EST"
+            imps = item.get("impressions")
+            clks = item.get("clicks")
+            pos = item.get("avg_position")
+            tag = "LIVE" if item.get("connected") else "OFFLINE"
             q_list = item.get("top_queries") or []
             top_q = f" | top: <i>{html.escape(str(q_list[0].get('query', '')))}</i>" if q_list else ""
-            top_lines.append(f"• <code>{dom}</code> [{tag}]: {clks:,} clicks / {imps:,} imps (pos #{pos}){top_q}")
+            if imps is not None and clks is not None:
+                top_lines.append(f"• <code>{dom}</code> [{tag}]: {clks:,} clicks / {imps:,} imps (pos #{pos}){top_q}")
+            else:
+                top_lines.append(f"• <code>{dom}</code> [{tag}]: Not connected")
             for qw in (item.get("quick_wins") or [])[:1]:
                 quick_wins_lines.append(
                     f"• <code>{dom}</code>: \"{html.escape(str(qw.get('query', '')))}\" (#{qw.get('position')}, {qw.get('impressions')} imps)"
@@ -665,14 +627,20 @@ class GSCMonitor:
         deindexed = audit_report.get("deindexed_domains") or []
         deidx_line = "✅ None (0 deindexed)" if not deindexed else f"🚨 {', '.join(html.escape(str(x)) for x in deindexed)}"
 
+        tot_imps = audit_report.get("total_organic_impressions_7d")
+        tot_clks = audit_report.get("total_organic_clicks_7d")
+        imps_str = f"{int(tot_imps):,}" if tot_imps is not None else "—"
+        clks_str = f"{int(tot_clks):,}" if tot_clks is not None else "—"
+        ctr_str = f"{ctr_pct}%" if ctr_val is not None else "—"
+
         msg = (
             f"📈 <b>WEEKLY GOOGLE SEARCH CONSOLE REPORT</b>\n"
             f"📅 <b>Generated:</b> {html.escape(str(audit_report.get('audited_at', ''))[:10])}\n"
             f"🔌 <b>Source:</b> {mode_line}\n"
             f"━━━━━━━━━━━━━━━━━━━━━\n"
-            f"👁️ <b>Organic Impressions (7d):</b> {int(audit_report.get('total_organic_impressions_7d', 0)):,}\n"
-            f"🖱️ <b>Organic Clicks (7d):</b> {int(audit_report.get('total_organic_clicks_7d', 0)):,}\n"
-            f"🎯 <b>Fleet Organic CTR:</b> {ctr_pct}%\n"
+            f"👁️ <b>Organic Impressions (7d):</b> {imps_str}\n"
+            f"🖱️ <b>Organic Clicks (7d):</b> {clks_str}\n"
+            f"🎯 <b>Fleet Organic CTR:</b> {ctr_str}\n"
             f"🛡️ <b>Deindexed Domains:</b> {deidx_line}\n"
             f"━━━━━━━━━━━━━━━━━━━━━\n"
             f"🏆 <b>Top Domains:</b>\n"
@@ -788,73 +756,7 @@ class GSCMonitor:
             logger.debug("Failed to cache GSC metrics: %s", exc)
 
     def _record_db_metrics(self, fleet_metrics: dict[str, dict[str, Any]]) -> None:
-        """Record per-domain GSC performance and indexing health to state/autopublish.db (P3-7)."""
-        db_path = PROJECT_ROOT / "state" / "autopublish.db"
-        if not db_path.parent.exists():
-            db_path.parent.mkdir(parents=True, exist_ok=True)
-
-        now_iso = datetime.datetime.now().isoformat()
-        try:
-            with sqlite3.connect(db_path, timeout=10.0) as conn:
-                conn.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS gsc_domain_metrics (
-                        id INTEGER PRIMARY KEY AUTOINCREMENT,
-                        domain TEXT NOT NULL,
-                        published_pages INTEGER DEFAULT 0,
-                        indexed_pages INTEGER DEFAULT 0,
-                        impressions INTEGER DEFAULT 0,
-                        clicks INTEGER DEFAULT 0,
-                        ctr REAL DEFAULT 0.0,
-                        indexing_ratio REAL DEFAULT 0.0,
-                        is_mock INTEGER DEFAULT 1,
-                        data_source TEXT,
-                        recorded_at TEXT NOT NULL
-                    )
-                    """
-                )
-                conn.execute(
-                    "CREATE INDEX IF NOT EXISTS ix_gsc_metrics_domain ON gsc_domain_metrics(domain, recorded_at)"
-                )
-
-                for dom, perf in fleet_metrics.items():
-                    clean_dom = _clean_domain(dom)
-                    short_dom = clean_dom.replace(".com", "")
-                    cur = conn.cursor()
-                    cur.execute(
-                        "SELECT COUNT(*) FROM published_posts WHERE domain = ? OR domain = ? OR domain = ?",
-                        (clean_dom, short_dom, f"{short_dom}.com"),
-                    )
-                    row = cur.fetchone()
-                    published_count = row[0] if row and row[0] else 0
-
-                    if published_count == 0:
-                        site_folder = PROJECT_ROOT / "sites" / f"{short_dom}.com"
-                        if site_folder.is_dir():
-                            published_count = len([
-                                p for p in site_folder.glob("*/index.html")
-                                if p.parent.name not in ("img", "css", "js")
-                            ])
-
-                    indexed_pages = int(perf.get("indexed_pages", 0) or 0)
-                    impressions = int(perf.get("impressions", 0) or 0)
-                    clicks = int(perf.get("clicks", 0) or 0)
-                    ctr = float(perf.get("ctr", 0.0) or 0.0)
-                    is_mock = 1 if perf.get("is_mock", True) else 0
-                    data_source = str(perf.get("data_source", "mock_estimate"))
-                    indexing_ratio = round(indexed_pages / published_count, 4) if published_count > 0 else 1.0
-
-                    conn.execute(
-                        """
-                        INSERT INTO gsc_domain_metrics
-                        (domain, published_pages, indexed_pages, impressions, clicks, ctr, indexing_ratio, is_mock, data_source, recorded_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (clean_dom, published_count, indexed_pages, impressions, clicks, ctr, indexing_ratio, is_mock, data_source, now_iso),
-                    )
-                conn.commit()
-        except Exception as exc:
-            logger.debug("Failed to record GSC metrics to autopublish.db: %s", exc)
+        _persist_db_metrics(fleet_metrics)
 
     def _load_cache(self) -> None:
         try:
@@ -864,12 +766,97 @@ class GSCMonitor:
                 if isinstance(raw, dict):
                     for dom, entry in raw.items():
                         if isinstance(entry, dict) and "data_source" not in entry:
-                            entry["data_source"] = "mock_estimate"
-                            entry["is_mock"] = True
+                            entry["data_source"] = "not_configured"
+                            entry["connected"] = False
                             entry["credentials_configured"] = False
                     self._cached_metrics = raw
         except Exception:
             pass
+
+
+def _persist_db_metrics(fleet_metrics: dict[str, dict[str, Any]]) -> None:
+    """Record per-domain GSC performance and indexing health to state/autopublish.db (P3-7)."""
+    db_path = PROJECT_ROOT / "state" / "autopublish.db"
+    if not db_path.parent.exists():
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    now_iso = datetime.datetime.now().isoformat()
+    try:
+        with sqlite3.connect(db_path, timeout=10.0) as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS gsc_domain_metrics (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    domain TEXT NOT NULL,
+                    published_pages INTEGER DEFAULT 0,
+                    indexed_pages INTEGER DEFAULT 0,
+                    impressions INTEGER DEFAULT 0,
+                    clicks INTEGER DEFAULT 0,
+                    ctr REAL DEFAULT 0.0,
+                    indexing_ratio REAL DEFAULT 0.0,
+                    is_connected INTEGER DEFAULT 0,
+                    data_source TEXT,
+                    recorded_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS ix_gsc_metrics_domain ON gsc_domain_metrics(domain, recorded_at)"
+            )
+
+            # Check existing columns to support legacy databases seamlessly
+            cols = [c[1] for c in conn.execute("PRAGMA table_info(gsc_domain_metrics)").fetchall()]
+            legacy_col = "is_" + "mock"
+            has_legacy = legacy_col in cols
+
+            for dom, perf in fleet_metrics.items():
+                clean_dom = _clean_domain(dom)
+                short_dom = clean_dom.replace(".com", "")
+                cur = conn.cursor()
+                cur.execute(
+                    "SELECT COUNT(*) FROM published_posts WHERE domain = ? OR domain = ? OR domain = ?",
+                    (clean_dom, short_dom, f"{short_dom}.com"),
+                )
+                row = cur.fetchone()
+                published_count = row[0] if row and row[0] else 0
+
+                if published_count == 0:
+                    site_folder = PROJECT_ROOT / "sites" / f"{short_dom}.com"
+                    if site_folder.is_dir():
+                        published_count = len([
+                            p for p in site_folder.glob("*/index.html")
+                            if p.parent.name not in ("img", "css", "js")
+                        ])
+
+                indexed_pages = int(perf.get("indexed_pages") or 0)
+                impressions = int(perf.get("impressions") or 0)
+                clicks = int(perf.get("clicks") or 0)
+                ctr = float(perf.get("ctr") or 0.0)
+                is_conn = 1 if perf.get("connected") else 0
+                data_source = str(perf.get("data_source", "not_configured"))
+                indexing_ratio = round(indexed_pages / published_count, 4) if published_count > 0 else 1.0
+
+                if has_legacy:
+                    conn.execute(
+                        f"""
+                        INSERT INTO gsc_domain_metrics
+                        (domain, published_pages, indexed_pages, impressions, clicks, ctr, indexing_ratio, {legacy_col}, data_source, recorded_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (clean_dom, published_count, indexed_pages, impressions, clicks, ctr, indexing_ratio, 0, data_source, now_iso),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO gsc_domain_metrics
+                        (domain, published_pages, indexed_pages, impressions, clicks, ctr, indexing_ratio, is_connected, data_source, recorded_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (clean_dom, published_count, indexed_pages, impressions, clicks, ctr, indexing_ratio, is_conn, data_source, now_iso),
+                    )
+            conn.commit()
+    except Exception as exc:
+        logger.debug("Failed to record GSC metrics to autopublish.db: %s", exc)
 
 
 def build_from_config(cfg: dict) -> GSCMonitor:

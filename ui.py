@@ -2462,19 +2462,20 @@ HTML_PAGE = """<!DOCTYPE html>
           badge.style.borderColor = 'rgba(56, 189, 248, 0.35)';
           badge.innerText = `🔵 Auth Ready — Click Sync GSC`;
         } else {
-          badge.style.background = 'rgba(250, 204, 21, 0.15)';
-          badge.style.color = '#facc15';
-          badge.style.borderColor = 'rgba(250, 204, 21, 0.35)';
-          badge.innerText = '🟡 Estimate Mode (OAuth Pending)';
+          badge.style.background = 'rgba(239, 68, 68, 0.15)';
+          badge.style.color = '#ef4444';
+          badge.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+          badge.innerText = '🔴 GSC NOT CONNECTED';
         }
       }
+      const isConnected = !!(auth.configured && sum.live_domains_count > 0);
       const liveEl = document.getElementById('gscLiveCount');
       const impEl = document.getElementById('gscTotalImps');
       const clkEl = document.getElementById('gscTotalClicks');
       const emailEl = document.getElementById('gscClientEmail');
-      if (liveEl) liveEl.innerText = `${sum.live_domains_count || 0} / ${sum.total_domains || 10}`;
-      if (impEl) impEl.innerText = (sum.total_impressions_7d || 0).toLocaleString();
-      if (clkEl) clkEl.innerText = (sum.total_clicks_7d || 0).toLocaleString();
+      if (liveEl) liveEl.innerText = isConnected ? `${sum.live_domains_count || 0} / ${sum.total_domains || 10}` : '—';
+      if (impEl) impEl.innerText = isConnected && sum.total_impressions_7d !== null ? (sum.total_impressions_7d || 0).toLocaleString() : '—';
+      if (clkEl) clkEl.innerText = isConnected && sum.total_clicks_7d !== null ? (sum.total_clicks_7d || 0).toLocaleString() : '—';
       if (emailEl) emailEl.innerText = auth.client_email || (auth.configured ? auth.auth_type : 'Not Configured');
 
       const tbody = document.getElementById('gscTbody');
@@ -2484,21 +2485,24 @@ HTML_PAGE = """<!DOCTYPE html>
           tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted);">Click "Sync GSC" to populate domain metrics.</td></tr>';
         } else {
           tbody.innerHTML = rows.map(d => {
-            const isLive = d.data_source === 'google_search_console_api' && !d.is_mock;
+            const isLive = d.connected && d.data_source === 'google_search_console_api';
             const srcBadge = isLive
               ? '<span class="status-badge status-ok">LIVE GSC</span>'
-              : '<span class="status-badge" style="background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.35);">ESTIMATE</span>';
+              : '<span class="status-badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.35);">GSC NOT CONNECTED</span>';
             const topQ = d.top_queries && d.top_queries.length > 0 ? escGsc(d.top_queries[0].query) : '—';
-            const ctrPct = ((d.ctr || 0) * 100).toFixed(2) + '%';
+            const impsText = d.impressions !== null && d.impressions !== undefined ? Number(d.impressions).toLocaleString() : '—';
+            const clicksText = d.clicks !== null && d.clicks !== undefined ? Number(d.clicks).toLocaleString() : '—';
+            const ctrPct = d.ctr !== null && d.ctr !== undefined ? ((d.ctr || 0) * 100).toFixed(2) + '%' : '—';
+            const posText = d.avg_position !== null && d.avg_position !== undefined ? '#' + Number(d.avg_position).toFixed(1) : '—';
             return `
               <tr>
                 <td><strong>${escGsc(d.domain)}</strong></td>
                 <td>${srcBadge}</td>
-                <td style="font-size: 11px; color: var(--muted);">${escGsc(d.property_url || 'pending')}</td>
-                <td>${Number(d.impressions || 0).toLocaleString()}</td>
-                <td>${Number(d.clicks || 0).toLocaleString()}</td>
+                <td style="font-size: 11px; color: var(--muted);">${escGsc(d.property_url || '—')}</td>
+                <td>${impsText}</td>
+                <td>${clicksText}</td>
                 <td>${ctrPct}</td>
-                <td>#${Number(d.avg_position || 0).toFixed(1)}</td>
+                <td>${posText}</td>
                 <td style="font-size: 11px; color: #cbd5e1;">${topQ}</td>
               </tr>
             `;
@@ -3542,12 +3546,24 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 dom_rows = []
                 for dom in mon.domains:
                     clean_dom = str(dom.get("domain", dom) if isinstance(dom, dict) else dom).lower().replace("https://", "").replace("http://", "").rstrip("/")
-                    entry = cached.get(clean_dom) or mon._mock_estimate(clean_dom, 7, auth_status["configured"], "mock_estimate")
+                    entry = cached.get(clean_dom) or {
+                        "connected": False,
+                        "domain": clean_dom,
+                        "property_url": "",
+                        "period_days": 7,
+                        "impressions": None,
+                        "clicks": None,
+                        "ctr": None,
+                        "avg_position": None,
+                        "top_queries": [],
+                        "data_source": "not_configured",
+                    }
                     dom_rows.append(entry)
-                live_cnt = sum(1 for r in dom_rows if r.get("data_source") == "google_search_console_api" and not r.get("is_mock"))
-                tot_imps = sum(int(r.get("impressions", 0) or 0) for r in dom_rows)
-                tot_clks = sum(int(r.get("clicks", 0) or 0) for r in dom_rows)
-                avg_pos = round(sum(float(r.get("avg_position", 0) or 0) for r in dom_rows) / max(1, len(dom_rows)), 1)
+                live_cnt = sum(1 for r in dom_rows if r.get("connected") and r.get("data_source") == "google_search_console_api")
+                has_live = live_cnt > 0
+                tot_imps = sum(int(r.get("impressions", 0) or 0) for r in dom_rows if r.get("impressions") is not None) if has_live else None
+                tot_clks = sum(int(r.get("clicks", 0) or 0) for r in dom_rows if r.get("clicks") is not None) if has_live else None
+                avg_pos = round(sum(float(r.get("avg_position", 0) or 0) for r in dom_rows if r.get("avg_position") is not None) / max(1, live_cnt), 1) if has_live else None
                 weekly_state = {}
                 if mon.weekly_state_path.is_file():
                     try:
@@ -3560,10 +3576,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                     "summary": {
                         "total_domains": len(dom_rows),
                         "live_domains_count": live_cnt,
-                        "mock_domains_count": len(dom_rows) - live_cnt,
+                        "unconfigured_domains_count": len(dom_rows) - live_cnt,
                         "total_impressions_7d": tot_imps,
                         "total_clicks_7d": tot_clks,
-                        "fleet_ctr": round(tot_clks / tot_imps, 4) if tot_imps > 0 else 0.0,
+                        "fleet_ctr": round(tot_clks / tot_imps, 4) if (tot_imps and tot_clks) else None,
                         "avg_position": avg_pos,
                     },
                     "domains": dom_rows,

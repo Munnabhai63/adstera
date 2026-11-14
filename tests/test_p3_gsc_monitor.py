@@ -11,7 +11,7 @@ def test_gsc_monitor_records_to_autopublish_db():
     mon = GSCMonitor()
     # Limit to 1 domain for instant test execution
     mon.domains = ["loanraaj.com"]
-    report = mon.audit_all_domains(days=7, mock_fallback=True)
+    report = mon.audit_all_domains(days=7)
     assert "domains" in report
     assert len(report["domains"]) > 0
 

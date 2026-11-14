@@ -261,14 +261,15 @@ def test_save_credentials_rejects_bad_json(tmp_path: Path) -> None:
 
 def test_gsc_monitor_honest_unconfigured_tags(tmp_path: Path) -> None:
     mon = GSCMonitor(cfg={"gsc": {"enabled": True}})
-    est = mon.fetch_domain_performance("loanraaj.com", mock_fallback=True)
-    assert est["is_mock"] is True
-    assert est["data_source"] == "mock_estimate"
-    assert est["credentials_configured"] is False
-
-    strict = mon.fetch_domain_performance("loanraaj.com", mock_fallback=False)
-    assert strict["data_source"] == "unconfigured"
-    assert strict["impressions"] == 0
+    perf = mon.fetch_domain_performance("loanraaj.com")
+    assert perf["connected"] is False
+    assert perf["data_source"] == "not_configured"
+    assert perf["credentials_configured"] is False
+    assert perf["impressions"] is None
+    assert perf["clicks"] is None
+    assert perf["ctr"] is None
+    assert perf["avg_position"] is None
+    assert perf["top_queries"] == []
 
 
 def test_gsc_monitor_live_search_console_apis(tmp_path: Path) -> None:
@@ -359,7 +360,7 @@ def test_gsc_monitor_live_search_console_apis(tmp_path: Path) -> None:
         perf = mon.fetch_domain_performance("loanraaj.com", days=7, inspect_homepage=True, client=client)
 
     assert perf["data_source"] == "google_search_console_api"
-    assert perf["is_mock"] is False
+    assert perf["connected"] is True
     assert perf["credentials_configured"] is True
     assert perf["property_url"] == "sc-domain:loanraaj.com"
     assert perf["impressions"] == 1940
@@ -382,10 +383,10 @@ def test_gsc_monitor_403_unverified_property_does_not_lie(tmp_path: Path) -> Non
 
     mon = GSCMonitor(cfg={"gsc": {}}, auth_manager=mgr)
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        strict = mon.fetch_domain_performance("loanraaj.com", mock_fallback=False, client=client)
+        strict = mon.fetch_domain_performance("loanraaj.com", client=client)
 
     assert strict["data_source"] == "api_error"
-    assert strict["is_mock"] is False
+    assert strict["connected"] is False
     assert "403" in str(strict["api_error"])
 
 
@@ -451,7 +452,7 @@ def test_weekly_gsc_report_generation_and_iso_week_dedup(tmp_path: Path) -> None
         assert res1["week"] == "2026-W46"
         assert Path(res1["report"]["txt_path"]).is_file()
         assert Path(res1["report"]["json_path"]).is_file()
-        assert "ESTIMATE MODE" in res1["report"]["message_html"]
+        assert "GSC NOT CONNECTED" in res1["report"]["message_html"]
         bot_inst.send_message.assert_called_once()
 
         # Second call within the same ISO week must deduplicate
