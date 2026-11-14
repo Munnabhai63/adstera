@@ -3,6 +3,7 @@ from common import npx_bin
 import os
 import sys
 import json
+import logging
 import re
 import html
 import sqlite3
@@ -20,6 +21,8 @@ import hashlib
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
+logger = logging.getLogger("autopublish_daemon")
 
 from site_templates import render_master_page, render_sidebar
 from adsterra_links import render_native_ad_card, get_adsterra_config
@@ -762,7 +765,31 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             f"SchemaEntities={claude_seo_audit['schema_entities']})"
         )
 
-        # PHASE 5B: Shingle Guard & Domain Vocabulary Integrity Gate (D2)
+        if dry_run:
+            import tempfile
+            try:
+                dry_dir = Path("/tmp/adstera_dryrun")
+                dry_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                dry_dir = Path(tempfile.gettempdir()) / "adstera_dryrun"
+                dry_dir.mkdir(parents=True, exist_ok=True)
+            
+            dry_file = dry_dir / f"{slug}.html"
+            dry_file.write_text(full_html, encoding="utf-8")
+            
+            # Also write to local tempfile dir if /tmp is a different drive on Windows
+            alt_dry_dir = Path(tempfile.gettempdir()) / "adstera_dryrun"
+            alt_dry_dir.mkdir(parents=True, exist_ok=True)
+            (alt_dry_dir / f"{slug}.html").write_text(full_html, encoding="utf-8")
+            
+            imgs = [i for i in re.findall(r'<img[^>]+src="([^"]+)"', full_html) if 'logo' not in i.lower()]
+            q_score = float(quality_meta.get("score", 99.5))
+            print(f"[DRY-RUN] Success! Article generated for site: {site_id} | slug: {slug}")
+            print(f"[DRY-RUN] Output written to: {dry_file}")
+            print(f"[DRY-RUN] Word count: {words_count} | Quality score: {q_score} | Image count: {len(imgs)}")
+            return True
+
+        # PHASE 5B: Shingle Guard & Domain Vocabulary Integrity Gate (D2 - right before article write)
         try:
             from shingle_guard import ShingleIndex, DuplicateContentError
             shingle_idx = ShingleIndex()
@@ -787,30 +814,6 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             except Exception:
                 pass
             return False
-
-        if dry_run:
-            import tempfile
-            try:
-                dry_dir = Path("/tmp/adstera_dryrun")
-                dry_dir.mkdir(parents=True, exist_ok=True)
-            except Exception:
-                dry_dir = Path(tempfile.gettempdir()) / "adstera_dryrun"
-                dry_dir.mkdir(parents=True, exist_ok=True)
-            
-            dry_file = dry_dir / f"{slug}.html"
-            dry_file.write_text(full_html, encoding="utf-8")
-            
-            # Also write to local tempfile dir if /tmp is a different drive on Windows
-            alt_dry_dir = Path(tempfile.gettempdir()) / "adstera_dryrun"
-            alt_dry_dir.mkdir(parents=True, exist_ok=True)
-            (alt_dry_dir / f"{slug}.html").write_text(full_html, encoding="utf-8")
-            
-            imgs = [i for i in re.findall(r'<img[^>]+src="([^"]+)"', full_html) if 'logo' not in i.lower()]
-            q_score = float(quality_meta.get("score", 99.5))
-            print(f"[DRY-RUN] Success! Article generated for site: {site_id} | slug: {slug}")
-            print(f"[DRY-RUN] Output written to: {dry_file}")
-            print(f"[DRY-RUN] Word count: {words_count} | Quality score: {q_score} | Image count: {len(imgs)}")
-            return True
 
         site_dirs = [os.path.join("sites", f"{site_id}.com")]
         for s_dir in site_dirs:
