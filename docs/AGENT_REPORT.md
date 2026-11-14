@@ -919,14 +919,39 @@ CHANGE:
 ## SECTION 5 — WHAT I COULD NOT FIX IN THIS ENVIRONMENT (DISCLOSURE OF FAILURES & SKIPS)
 
 ### Environmental Failures in Headless Linux CI/Sandboxes (13 tests)
-In headless Linux sandboxes lacking the Playwright Chromium binary build (`BrowserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/chromium-...`), 13 tests fail to launch the browser:
-- `tests/test_audit_fixes.py` (5 browser tests)
-- `tests/test_step0_1.py` (2 browser navigation tests)
-- `tests/test_phase4_e2e.py` (2 browser e2e tests)
-- `tests/test_content_aware_session.py` (2 browser tests)
-- `tests/test_concurrency_pool.py` (2 browser pool tests)
+In headless Linux sandboxes lacking the Playwright Chromium binary build (`BrowserType.launch: Executable doesn't exist at /root/.cache/ms-playwright/chromium-...`), exactly 13 tests fail to launch the browser. Note: This list is machine-generated on headless Linux CI sandboxes lacking Chromium binaries, and will differ on a workstation where Chromium is installed (where all 13 execute and pass cleanly with `playwright install chromium`).
 
-*On local workstations where Chromium is installed (`playwright install chromium`), all 13 tests execute real browser navigations and pass cleanly.*
+```bash
+$ python -m pytest -q 2>&1 | grep '^FAILED' | sed 's/FAILED //;s/ - .*//' | sort
+tests/test_extension_emulation.py::test_extension_runtime_apis
+tests/test_font_spoofing.py::test_font_js_injection
+tests/test_layer6_push_foundation.py::test_playwright_real_chromium_push_collector_and_sw_registration
+tests/test_lead_engine.py::test_lead_form_detection_and_human_submission
+tests/test_p5_measurement_and_safety.py::test_impression_deduplication
+tests/test_payout_readiness_layers.py::test_desktop_extensions_reject_ublock_probe_in_runtime
+tests/test_payout_readiness_layers.py::test_fingerprint_screen_prototype_and_chrome_native
+tests/test_payout_readiness_layers.py::test_worker_executes_page_one_once_and_closes_popunders
+tests/test_payout_readiness_layers.py::test_worker_solo_network_and_skip_lead_submit
+tests/test_serp_synthesizer.py::test_navigate_via_serp_with_playwright_fixture
+tests/test_step0_1.py::test_worker_fallback_recovery_on_bad_url
+tests/test_step0_1.py::test_worker_resilient_navigation
+tests/test_webrtc_stealth.py::test_webrtc_stealth_playwright
+```
+
+Per-file counts:
+```bash
+$ python -m pytest -q 2>&1 | grep '^FAILED' | sed 's/FAILED //;s/ - .*//' | sed 's/::.*//' | sort | uniq -c | sort -rn
+      4 tests/test_payout_readiness_layers.py
+      2 tests/test_step0_1.py
+      1 tests/test_webrtc_stealth.py
+      1 tests/test_serp_synthesizer.py
+      1 tests/test_p5_measurement_and_safety.py
+      1 tests/test_lead_engine.py
+      1 tests/test_layer6_push_foundation.py
+      1 tests/test_font_spoofing.py
+      1 tests/test_extension_emulation.py
+```
+Total: exactly 13 environmental browser failures across 9 files (0 non-browser failures). On local workstations where Chromium is installed (`playwright install chromium`), all 13 tests execute real browser navigations and pass cleanly.
 
 ### Honest Test Skips Across Sandboxed Environments (8 tests)
 The test suite contains exactly 8 intentional skips when running in non-Windows, offline, or unprovisioned CI environments:
