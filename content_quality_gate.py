@@ -52,9 +52,10 @@ def count_body_words(html_text: str) -> int:
 def count_prose_words(html_text: str) -> int:
     """
     Calculate prose words strictly:
-    Only text in <p> inside div.post-content or div.post-body (or article/body),
+    Text in <p> and substantive <li> (len >= 8 words) inside div.post-content or div.post-body (or article/body),
     excluding ad-slot, ad-label, nav, footer, breadcrumb, author-card, aside, figcaption,
     and subtracting the 19-word shared 'Our editorial team...' boilerplate line.
+    If no <p> tags are present in the container, falls back to counting all visible text.
     """
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html_text, "html.parser")
@@ -86,8 +87,14 @@ def count_prose_words(html_text: str) -> int:
     boilerplate_norm = re.sub(r"[^\w\s]", "", SHARED_BOILERPLATE_PROSE.lower()).split()
     boilerplate_len = len(boilerplate_norm)  # 19 words
 
+    p_tags = soup_pc.find_all("p")
+    # If container has no <p> tags, fallback to full container visible text
+    if not p_tags:
+        raw_text = soup_pc.get_text().strip()
+        return len(raw_text.split()) if raw_text else 0
+
     total_words = 0
-    for p in soup_pc.find_all("p"):
+    for p in p_tags:
         p_text = p.get_text().strip()
         if not p_text:
             continue
@@ -101,6 +108,13 @@ def count_prose_words(html_text: str) -> int:
                     w_count = max(0, w_count - boilerplate_len)
                     break
         total_words += w_count
+
+    # Include substantive prose list items (>= 8 words, excludes short nav/bullet items)
+    for li in soup_pc.find_all("li"):
+        li_text = li.get_text().strip()
+        words = li_text.split()
+        if len(words) >= 8:
+            total_words += len(words)
 
     return total_words
 

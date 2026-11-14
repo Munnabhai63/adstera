@@ -5,6 +5,7 @@ tests/test_expand_thin_articles.py — Unit Tests for scripts/expand_thin_articl
 from pathlib import Path
 import pytest
 from unittest.mock import patch
+import content_quality_gate
 
 from scripts.expand_thin_articles import (
     count_visible_words,
@@ -75,7 +76,9 @@ def _mock_claude_seo_article(site_id, site_info, seo_brief):
     return raw_html, faqs
 
 
-def test_expand_single_article_end_to_end(tmp_path: Path):
+def test_expand_single_article_end_to_end(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    # Monkeypatch floor to 1000: D7 legacy test was designed for 1000 floor; production floor is 3000.
+    monkeypatch.setattr(content_quality_gate, "ARTICLE_WORD_COUNT_FLOOR", 1000)
     site_dir = tmp_path / "sites" / "loanraaj.com"
     slug_dir = site_dir / "test-loan-guide"
     slug_dir.mkdir(parents=True)
@@ -138,7 +141,9 @@ def test_expand_single_article_end_to_end(tmp_path: Path):
     assert "<lastmod>2026-11-14</lastmod>" in updated_sitemap
 
 
-def test_expand_single_article_dry_run(tmp_path: Path):
+def test_expand_single_article_dry_run(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    # Monkeypatch floor to 1000: D7 legacy test was designed for 1000 floor; production floor is 3000.
+    monkeypatch.setattr(content_quality_gate, "ARTICLE_WORD_COUNT_FLOOR", 1000)
     site_dir = tmp_path / "sites" / "loanraaj.com"
     slug_dir = site_dir / "test-loan-guide"
     slug_dir.mkdir(parents=True)

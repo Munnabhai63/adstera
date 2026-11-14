@@ -200,7 +200,7 @@ def test_collect_article_snapshot_dynamic_tree(tmp_path: Path) -> None:
         {{"@type": "Article", "author": {{"name": "Editor"}}, "datePublished": "2026-01-01"}}
         </script>
       </head>
-      <body>{art_a_words}</body>
+      <body><p>{art_a_words}</p></body>
     </html>
     """
     (art_a_dir / "index.html").write_text(art_a_content, encoding="utf-8")
@@ -208,11 +208,11 @@ def test_collect_article_snapshot_dynamic_tree(tmp_path: Path) -> None:
     # 7. Real article B: <600 words, missing author & datePublished
     art_b_dir = domain_dir / "quick-credit-tips"
     art_b_dir.mkdir(parents=True)
-    (art_b_dir / "index.html").write_text("<html><body>Short article with only ten words for testing purposes.</body></html>", encoding="utf-8")
+    (art_b_dir / "index.html").write_text("<html><body><p>Short article with only ten words for testing purposes.</p></body></html>", encoding="utf-8")
 
     # 8. Real article C (flat layout): >600 words, author present but datePublished missing
     art_c_words = "banking " * 620
-    art_c_content = f"<html><head><meta name='author' content='Finance Team'></head><body>{art_c_words}</body></html>"
+    art_c_content = f"<html><head><meta name='author' content='Finance Team'></head><body><p>{art_c_words}</p></body></html>"
     (domain_dir / "flat-banking-overview.html").write_text(art_c_content, encoding="utf-8")
 
     snapshot = preflight_seo.collect_article_snapshot(sites_root=fake_sites)
