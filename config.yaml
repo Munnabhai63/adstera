@@ -394,7 +394,11 @@ freellm:
   url: https://loanraaj.com
   edge_url: https://loanraaj.com
   local_url: http://127.0.0.1:3001
-  model: Qwen2.5-VL-72B-Instruct
+  model: "auto"
+  fallback_models:
+    - "Qwen/Qwen2.5-72B-Instruct"
+    - "meta-llama/Llama-3.3-70B-Instruct"
+    - "mistralai/Mistral-Small-24B-Instruct-2501"
   timeout: 150.0
 gsc:
   enabled: true

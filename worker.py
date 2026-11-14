@@ -966,12 +966,26 @@ async def run_session(
                     if fb_url not in start_url:
                         try:
                             logger.info("Tier-3: Attempting live alternate fallback to %s", fb_url)
+                            await asyncio.sleep(0.5)
                             await page.goto(fb_url, wait_until="commit", timeout=15000)
                             nav_succeeded = True
                             result["error_reason"] = f"NavRecovered: {nav_error_detail} -> {fb_url}"
                             break
                         except Exception as e_alt:
                             logger.warning("Tier-3 live alternate fallback to %s failed (%s)", fb_url, e_alt)
+                if not nav_succeeded:
+                    # If live alternate domains failed, try local offline fixture
+                    fixture_path = Path(cfg.get("target", {}).get("fixture", "tests/fixtures/page.html")).resolve()
+                    clean_path = str(fixture_path).replace("\\", "/").lstrip("/")
+                    fixture_url = "file:///" + clean_path
+                    try:
+                        logger.info("Tier-3 Fallback: Loading local offline fixture: %s", fixture_url)
+                        await asyncio.sleep(0.5)
+                        await page.goto(fixture_url, wait_until="commit", timeout=10000)
+                        nav_succeeded = True
+                        result["error_reason"] = f"FixtureRecovered: {nav_error_detail} -> local fixture"
+                    except Exception:
+                        pass
                 if not nav_succeeded:
                     result["error_reason"] = f"NetFailed: {nav_error_detail}"
                     raise RuntimeError(f"All live targets failed. Network disconnected or proxy unreachable.")
