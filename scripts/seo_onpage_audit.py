@@ -92,13 +92,39 @@ def derive_focus_keyword(slug: str, h1: str) -> str:
     return slug.replace("-", " ").title()
 
 
-def audit_article(path: Path) -> dict[str, Any]:
-    """Run all on-page checks on a single article HTML file."""
-    text = path.read_text(encoding="utf-8", errors="ignore")
+def audit_article(path: Path | str) -> dict[str, Any]:
+    """Run all on-page checks on a single article HTML file.
+    Supports absolute paths, paths relative to PROJECT_ROOT, or paths relative to PROJECT_ROOT/sites.
+    """
+    if isinstance(path, str):
+        path = Path(path)
+
+    sites_root = (PROJECT_ROOT / "sites").resolve()
+
+    if path.is_absolute():
+        resolved_path = path.resolve()
+    elif (PROJECT_ROOT / path).exists():
+        resolved_path = (PROJECT_ROOT / path).resolve()
+    elif (sites_root / path).exists():
+        resolved_path = (sites_root / path).resolve()
+    else:
+        resolved_path = path.resolve()
+
+    text = resolved_path.read_text(encoding="utf-8", errors="ignore")
     soup = BeautifulSoup(text, "html.parser")
 
-    domain = path.relative_to(PROJECT_ROOT / "sites").parts[0]
-    slug = path.parent.name if path.name == "index.html" else path.stem
+    try:
+        rel_to_sites = resolved_path.relative_to(sites_root)
+        domain = rel_to_sites.parts[0]
+        slug = resolved_path.parent.name if resolved_path.name == "index.html" else resolved_path.stem
+    except ValueError:
+        parts = list(resolved_path.parts)
+        if "sites" in parts:
+            idx = parts.index("sites")
+            domain = parts[idx + 1] if len(parts) > idx + 1 else "unknown"
+        else:
+            domain = resolved_path.parent.name
+        slug = resolved_path.parent.name if resolved_path.name == "index.html" else resolved_path.stem
 
     # 1. Title
     t_el = soup.find("title")
