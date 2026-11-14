@@ -93,7 +93,7 @@ def extract_prose_paragraphs(html_text: str) -> list[str]:
     soup = BeautifulSoup(html_text, "html.parser")
     for tag in soup.find_all(["aside", "nav", "header", "footer"]):
         tag.decompose()
-    for tag in soup.find_all(class_=re.compile(r"widget|sidebar|author-card|eeat")):
+    for tag in soup.find_all(class_=re.compile(r"widget|sidebar|author-card|eeat|native-ad|ad-slot|summary-box|executive-summary")):
         tag.decompose()
     content = soup.find("div", class_="post-content") or soup.find("article") or soup.find("main")
     if not content:
