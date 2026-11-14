@@ -6,7 +6,6 @@ __pycache__/
 accounts.txt
 sessions.db*
 state/*
-!state/prose_shingles.json
 profiles/
 bin/
 .pytest_cache/
