@@ -776,20 +776,14 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
 
         if dry_run:
             import tempfile
-            try:
-                dry_dir = Path("/tmp/adstera_dryrun")
-                dry_dir.mkdir(parents=True, exist_ok=True)
-            except Exception:
-                dry_dir = Path(tempfile.gettempdir()) / "adstera_dryrun"
-                dry_dir.mkdir(parents=True, exist_ok=True)
-            
+            for proof_base in [Path("/tmp/round7_proof"), Path("C:/tmp/round7_proof"), Path(tempfile.gettempdir()) / "round7_proof"]:
+                try:
+                    proof_base.mkdir(parents=True, exist_ok=True)
+                    (proof_base / f"{slug}.html").write_text(full_html, encoding="utf-8")
+                except Exception:
+                    pass
+            dry_dir = Path("/tmp/round7_proof")
             dry_file = dry_dir / f"{slug}.html"
-            dry_file.write_text(full_html, encoding="utf-8")
-            
-            # Also write to local tempfile dir if /tmp is a different drive on Windows
-            alt_dry_dir = Path(tempfile.gettempdir()) / "adstera_dryrun"
-            alt_dry_dir.mkdir(parents=True, exist_ok=True)
-            (alt_dry_dir / f"{slug}.html").write_text(full_html, encoding="utf-8")
             
             imgs = [i for i in re.findall(r'<img[^>]+src="([^"]+)"', full_html) if 'logo' not in i.lower()]
             q_score = float(quality_meta.get("score", 99.5))
