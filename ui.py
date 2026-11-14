@@ -8,6 +8,7 @@ import collections
 import json
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -3142,13 +3143,31 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/autopublish/preview":
+            query = parse_qs(parsed.query)
+            dom = query.get("domain", ["loanraaj"])[0]
+            slug = query.get("slug", [""])[0]
+            safe_mode = query.get("safe", ["0"])[0] == "1"
+
+            # S-1 Security Hardening: Strict parameter validation and path traversal rejection
+            if not re.match(r"^[a-z0-9.-]{1,60}$", dom, re.IGNORECASE) or ".." in dom or "/" in dom or "\\" in dom:
+                self._send_json({"error": "Invalid domain parameter: illegal characters"}, 400)
+                return
+
+            if slug:
+                # Reject traversal characters, encoded slashes, or non-whitelisted characters
+                if (
+                    ".." in slug
+                    or "/" in slug
+                    or "\\" in slug
+                    or "%" in slug
+                    or not re.match(r"^[a-z0-9-]{1,120}$", slug, re.IGNORECASE)
+                ):
+                    self._send_json({"error": "Invalid slug parameter: path traversal or illegal characters detected"}, 400)
+                    return
+
             try:
                 import html as _html
                 import autopublish_service
-                query = parse_qs(parsed.query)
-                dom = query.get("domain", ["loanraaj"])[0]
-                slug = query.get("slug", [""])[0]
-                safe_mode = query.get("safe", ["0"])[0] == "1"
                 html_content = autopublish_service.get_preview_html(dom, slug, safe=safe_mode)
                 if html_content:
                     self._send_html(html_content)
@@ -3156,9 +3175,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                     self._send_html(
                         f"<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Preview Loading...</h2><p>Preview file for {_html.escape(dom)}/{_html.escape(slug)} not found or being generated.</p></div>"
                     )
+            except ValueError as ve:
+                self._send_json({"error": str(ve)}, 400)
             except Exception as e:
                 import html as _html
-                self._send_html(f"<h3>Preview Error: {_html.escape(str(e))}</h3>")
+                self._send_html(f"<h3>Preview Error: {_html.escape(str(e))}</h3>", 500)
             return
 
         DOMAIN_FOLDERS = {
@@ -3735,7 +3756,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 return
 
         # 1. Require CRM authentication for all POST endpoints outside _PUBLIC_API
-        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev", "/api/autopublish/preview"}
+        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev"}
         if path.startswith("/api/") and path not in _PUBLIC_API:
             if not self._require_crm_unlocked():
                 return

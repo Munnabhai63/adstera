@@ -210,3 +210,56 @@ def test_accounts_txt_gitignore_and_untracked():
     """Verify accounts.txt is in .gitignore and untracked in Git."""
     gitignore_text = Path(".gitignore").read_text(encoding="utf-8")
     assert "accounts.txt" in gitignore_text
+
+
+def test_s1_autopublish_preview_path_traversal_hardened():
+    """DEFECT S-1 Security Test: Path traversal attempts must return HTTP 400 Bad Request."""
+    import http.cookiejar
+    import urllib.error
+    import urllib.request
+    import autopublish_service
+
+    # 1. Direct service containment tests
+    with pytest.raises(ValueError, match="Path traversal"):
+        autopublish_service.get_preview_html("loanraaj", "../../../../tmp/sentinel/secret")
+
+    with pytest.raises(ValueError, match="Path traversal"):
+        autopublish_service.get_preview_html("loanraaj", "..%2f..%2fetc/passwd")
+
+    with pytest.raises(ValueError, match="Path traversal"):
+        autopublish_service.get_preview_html("../loanraaj", "test-slug")
+
+    # 2. Live HTTP endpoint tests against running server
+    traversal_urls = [
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=../../etc/passwd",
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=..%2f..%2fx",
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=../../../../tmp/sentinel/secret",
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=../loanraaj&slug=test",
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=bad%20chars!",
+    ]
+
+    for bad_url in traversal_urls:
+        try:
+            with urllib.request.urlopen(bad_url, timeout=5) as resp:
+                raise AssertionError(f"Expected HTTP 400 for {bad_url}, got {resp.status}")
+        except urllib.error.HTTPError as err:
+            assert err.code == 400, f"Expected HTTP 400 for {bad_url}, got {err.code}"
+
+    # 3. Legitimate slug returns HTTP 200
+    with urllib.request.urlopen("http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=", timeout=5) as resp:
+        assert resp.status == 200
+
+    # 4. POST to /api/autopublish/preview is NOT allowed without auth
+    post_req = urllib.request.Request(
+        "http://127.0.0.1:5050/api/autopublish/preview",
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    cj = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    try:
+        with opener.open(post_req, timeout=5) as resp:
+            raise AssertionError("POST /api/autopublish/preview unexpectedly succeeded")
+    except urllib.error.HTTPError as err:
+        assert err.code in (400, 401, 404, 405)
