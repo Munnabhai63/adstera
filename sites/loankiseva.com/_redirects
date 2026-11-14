@@ -2,3 +2,6 @@ https://www.loankiseva.com/* https://loankiseva.com/:splat 301
 http://www.loankiseva.com/* https://loankiseva.com/:splat 301
 http://loankiseva.com/* https://loankiseva.com/:splat 301
 /:slug.html /:slug 301
+/category/msme-schemes / 301
+/category/subsidies / 301
+/category/working-capital / 301
