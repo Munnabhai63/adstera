@@ -29,10 +29,21 @@ import phase3.tests.test_b1_client as b1_test_mod
 
 def test_farm_failed_taps_mark_session_failed_and_increment_counter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Failed live taps must raise RuntimeError, record failure, and never mark session as completed."""
+    from common.paths import atomic_write_json
     monkeypatch.setenv("PHASE3_LIVE_CONFIRM_TOKEN", "CONFIRM_LIVE_EXECUTION")
     
     cfg = load_phase3_config()
     cfg.phase3.db_path = str(tmp_path / "farm_tap_test.db")
+    cfg.phase3.state_dir = str(tmp_path / "state_phase3")
+
+    # T-1 Clean Clone Isolation: initialize safe_mode.json in tmp_path to avoid relying on gitignored files
+    safe_path = Path(cfg.phase3.state_dir) / "ai_engine" / "safe_mode.json"
+    atomic_write_json(
+        safe_path,
+        {"active": False, "entry_reason": "", "entry_ts": 0.0, "clean_window_count": 0},
+    )
+    monkeypatch.setenv("PHASE4_SAFE_MODE_PATH", str(safe_path))
+
     store = Phase3Store(cfg.phase3.db_path)
 
     from phase3.b2_farm.farm import DeviceFarm
