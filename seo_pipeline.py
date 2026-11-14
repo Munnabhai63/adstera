@@ -396,6 +396,51 @@ def get_cluster_internal_links(
     except Exception:
         pass
 
+    # 3. Scan filesystem sites/<domain>.com for published static articles
+    if len(links) < limit:
+        try:
+            site_dir = Path("sites") / f"{clean_domain}.com"
+            if site_dir.is_dir():
+                for p in site_dir.iterdir():
+                    if p.name.startswith(".") or p.name in ("index.html", "about-us", "contact", "privacy", "terms"):
+                        continue
+                    slug_cand = p.name if p.is_dir() else (p.stem if p.suffix == ".html" else "")
+                    if slug_cand and slug_cand not in seen_slugs:
+                        title_cand = slug_cand.replace("-", " ").title()
+                        if title_cand.lower() != excl_norm:
+                            seen_slugs.add(slug_cand)
+                            links.append({
+                                "url": f"/{slug_cand}",
+                                "title": title_cand,
+                                "category": category or "Guide",
+                            })
+                            if len(links) >= limit:
+                                return links
+        except Exception:
+            pass
+
+    # 4. Deterministic Category Pillar Links fallback from NETWORK_REGISTRY
+    if len(links) < limit:
+        try:
+            from network_registry import NETWORK_REGISTRY
+            site_info = NETWORK_REGISTRY.get(clean_domain, {})
+            cats = site_info.get("categories", {})
+            site_name = site_info.get("name", clean_domain.capitalize())
+            for c_name, c_meta in cats.items():
+                c_slug = c_meta.get("slug", c_name.lower().replace(" ", "-"))
+                pillar_slug = f"{c_slug}-guide"
+                if pillar_slug not in seen_slugs:
+                    seen_slugs.add(pillar_slug)
+                    links.append({
+                        "url": f"/{pillar_slug}",
+                        "title": f"{site_name} {c_name} Pillar Guide",
+                        "category": c_name,
+                    })
+                    if len(links) >= limit:
+                        return links
+        except Exception:
+            pass
+
     return links[:limit]
 
 

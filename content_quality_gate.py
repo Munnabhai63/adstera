@@ -232,9 +232,25 @@ class ContentQualityFinishGate:
         if "topic-cluster-box" not in html_out:
             try:
                 import seo_pipeline
-                related_links = cluster_links if cluster_links is not None else seo_pipeline.get_cluster_internal_links(clean_dom, category=category, exclude_title=title, limit=4)
+                related_links = cluster_links if (cluster_links is not None and len(cluster_links) > 0) else seo_pipeline.get_cluster_internal_links(clean_dom, category=category, exclude_title=title, limit=4)
             except Exception:
                 related_links = []
+
+            if not related_links:
+                # P-2 Guarantee: Deterministic fallback cluster links from domain registry
+                try:
+                    from network_registry import NETWORK_REGISTRY
+                    site_meta = NETWORK_REGISTRY.get(clean_dom, {})
+                    cats = site_meta.get("categories", {})
+                    s_name = site_meta.get("name", clean_dom.capitalize())
+                    related_links = [
+                        {"url": f"/{v.get('slug', k.lower())}-guide", "title": f"{s_name} {k} Comprehensive Guide", "category": k}
+                        for k, v in list(cats.items())[:4]
+                    ]
+                except Exception:
+                    related_links = [
+                        {"url": f"/{clean_dom}-overview-guide", "title": f"{pub_label} Overview & Guide", "category": "Guide"}
+                    ]
 
             if related_links:
                 items_html = "".join(
