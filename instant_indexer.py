@@ -15,6 +15,7 @@ import glob
 import json
 import logging
 import os
+from pathlib import Path
 import sqlite3
 import threading
 import xml.etree.ElementTree as ET
@@ -474,9 +475,30 @@ def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
     return indexnow_ok or google_ok
 
 
-def broadcast_all_network_sites() -> dict[str, int]:
-    """Broadcast all existing pages from all 10 sites to IndexNow for immediate indexing."""
-    provision_verification_keys()
+STATIC_SLUGS = {
+    "about-us",
+    "contact-us",
+    "disclaimer",
+    "privacy-policy",
+    "terms-and-conditions",
+    "calculator",
+    "emi-calculator",
+    "personal-loan-guide",
+    "credit-card-apply",
+}
+
+
+def broadcast_all_network_sites(limit: int | None = None, dry_run: bool = False) -> dict[str, int]:
+    """Broadcast all existing pages from all 10 sites to IndexNow for immediate indexing.
+    
+    Walks the directory tree to discover both:
+      - sites/<domain>/<slug>/index.html -> https://<domain>/<slug>/
+      - sites/<domain>/<slug>.html       -> https://<domain>/<slug>
+    Excludes domain root index.html, calculator.html, google*.html, and STATIC_SLUGS.
+    Deduplicates URLs and respects optional limit.
+    """
+    if not dry_run:
+        provision_verification_keys()
     results = {}
 
     for site_key, site_info in NETWORK_REGISTRY.items():
@@ -485,20 +507,53 @@ def broadcast_all_network_sites() -> dict[str, int]:
         
         urls_to_submit = [
             f"https://{clean_domain}/",
-            f"https://{clean_domain}/calculator",
             f"https://{clean_domain}/sitemap.xml",
         ]
 
-        # Scan HTML files
+        # Scan HTML files across directory tree
         if os.path.exists(site_dir):
-            for f in glob.glob(os.path.join(site_dir, "*.html")):
-                basename = os.path.basename(f)
-                if basename in ("index.html", "calculator.html"):
+            site_path = Path(site_dir)
+            for root, dirs, files in os.walk(site_dir):
+                root_path = Path(root)
+                if any(part in ("layouts", "_default") for part in root_path.parts):
                     continue
-                slug = basename.replace(".html", "")
-                urls_to_submit.append(f"https://{clean_domain}/{slug}")
+                for filename in files:
+                    if not filename.endswith(".html"):
+                        continue
+                    if filename.startswith("google"):
+                        continue
+                    if filename == "calculator.html":
+                        continue
+                    
+                    file_path = root_path / filename
+                    rel = file_path.relative_to(site_path)
+                    rel_parts = rel.parts
+                    
+                    if filename == "index.html":
+                        if len(rel_parts) == 1:
+                            # Skip domain root index.html (already included as https://clean_domain/)
+                            continue
+                        slug = "/".join(rel_parts[:-1])
+                        if slug in STATIC_SLUGS or any(part in STATIC_SLUGS for part in rel_parts[:-1]):
+                            continue
+                        urls_to_submit.append(f"https://{clean_domain}/{slug}/")
+                    else:
+                        slug = rel.with_suffix("").as_posix()
+                        if slug in STATIC_SLUGS or any(part in STATIC_SLUGS for part in rel_parts):
+                            continue
+                        urls_to_submit.append(f"https://{clean_domain}/{slug}")
 
-        urls_to_submit = list(set(urls_to_submit))
+        # Deduplicate URLs per domain preserving order
+        urls_to_submit = list(dict.fromkeys(urls_to_submit))
+
+        if limit is not None and limit > 0:
+            urls_to_submit = urls_to_submit[:limit]
+
+        if dry_run:
+            print(f"[Instant Indexer (Dry-Run)] Discovered {len(urls_to_submit)} URLs for {clean_domain}")
+            results[clean_domain] = len(urls_to_submit)
+            continue
+
         print(f"\n[Instant Indexer] Broadcasting {len(urls_to_submit)} URLs for {clean_domain}...")
         ok = submit_to_indexnow(clean_domain, urls_to_submit)
         google_res = ping_google_sitemap(clean_domain)
@@ -518,10 +573,18 @@ def broadcast_all_network_sites() -> dict[str, int]:
 
 
 if __name__ == "__main__":
-    print("="*60)
-    print("EXECUTING INSTANT INDEXER BROADCAST ACROSS ALL 10 SITES")
-    print("="*60)
-    res = broadcast_all_network_sites()
+    import argparse
+    parser = argparse.ArgumentParser(description="Instant Indexer Broadcast across publisher network")
+    parser.add_argument("--dry-run", action="store_true", help="Scan and print discovered URLs per domain without submitting")
+    parser.add_argument("--limit", type=int, default=None, help="Cap URLs discovered per domain")
+    args = parser.parse_args()
+
+    mode_str = "DRY-RUN SCAN" if args.dry_run else "BROADCAST ACROSS ALL 10 SITES"
+    print("=" * 60)
+    print(f"EXECUTING INSTANT INDEXER ({mode_str})")
+    print("=" * 60)
+    res = broadcast_all_network_sites(limit=args.limit, dry_run=args.dry_run)
     print("\nSummary of indexed submissions:")
     for dom, count in res.items():
-        print(f"  [OK] {dom}: {count} URLs submitted to IndexNow")
+        status_label = "URLs Discovered (Dry-Run)" if args.dry_run else "URLs submitted to IndexNow"
+        print(f"  [OK] {dom}: {count} {status_label}")
