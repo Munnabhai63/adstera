@@ -239,28 +239,38 @@ def check_token_presence(
         }
 
 
-def collect_article_snapshot() -> dict[str, Any]:
+def collect_article_snapshot(sites_root: Path | None = None) -> dict[str, Any]:
     """Scan and compute real-world article content metrics across sites/."""
-    sites_dir = PROJECT_ROOT / "sites"
+    sites_dir = sites_root if sites_root is not None else (PROJECT_ROOT / "sites")
     if not sites_dir.is_dir():
         return {
             "category": "Article Snapshot",
             "status": "UNVERIFIABLE",
-            "details": "sites/ directory not found",
+            "details": f"{sites_dir} directory not found",
             "total_articles": 0,
             "under_600_words": 0,
+            "pct_under_600": 0.0,
             "missing_metadata": 0,
+            "pct_missing_metadata": 0.0,
             "average_words": 0,
             "median_words": 0,
         }
 
     articles: list[Path] = []
     for p in sites_dir.rglob("*.html"):
-        if any(x in p.parts for x in ("layouts", "_default", "category")):
+        try:
+            rel = p.relative_to(sites_dir)
+        except ValueError:
             continue
-        if p.name == "google31976c4df01121b2.html":
+
+        # Exclude layouts, category listings, or _default
+        if any(x in rel.parts for x in ("layouts", "_default", "category")):
             continue
-        if len(p.parts) == 3 and p.name == "index.html":
+        # Exclude google verification files
+        if p.name.startswith("google") and p.name.endswith(".html"):
+            continue
+        # Exclude domain root homepages: rel.parts is (<domain>, 'index.html'), len is 2
+        if len(rel.parts) <= 2 and p.name == "index.html":
             continue
         slug = p.parent.name if p.name == "index.html" else p.stem
         if slug in STATIC_SLUGS:
@@ -272,10 +282,12 @@ def collect_article_snapshot() -> dict[str, Any]:
         return {
             "category": "Article Snapshot",
             "status": "UNVERIFIABLE",
-            "details": "0 articles found in sites/",
+            "details": f"0 articles found in {sites_dir}",
             "total_articles": 0,
             "under_600_words": 0,
+            "pct_under_600": 0.0,
             "missing_metadata": 0,
+            "pct_missing_metadata": 0.0,
             "average_words": 0,
             "median_words": 0,
         }
@@ -355,16 +367,18 @@ def main() -> int:
     env_path = PROJECT_ROOT / args.env
 
     exit_code, checks, snapshot = run_preflight(cfg_path, env_path)
+    effective_exit_code = 0 if args.allow_missing else exit_code
+    effective_status = "PASS" if effective_exit_code == 0 else "FAIL"
 
     if args.json:
         payload = {
-            "exit_code": exit_code if not args.allow_missing else 0,
-            "overall_status": "PASS" if exit_code == 0 else "FAIL",
+            "exit_code": effective_exit_code,
+            "overall_status": effective_status,
             "checks": checks,
             "article_snapshot": snapshot,
         }
         print(json.dumps(payload, indent=2))
-        return 0 if args.allow_missing else exit_code
+        return effective_exit_code
 
     print("=" * 72)
     print(" PRE-FLIGHT SEO & TRANSPORT READINESS REPORT")

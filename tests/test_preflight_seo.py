@@ -160,3 +160,86 @@ def test_docs_step1_owner_actions_exists_and_complete() -> None:
     assert "CLOUDFLARE_TUNNEL_TOKEN" in text
     assert "FREELLMAPI_TOKEN" in text
     assert "state/gsc_service_account.json" in text
+
+
+def test_collect_article_snapshot_dynamic_tree(tmp_path: Path) -> None:
+    """Test article snapshot logic against a dynamically built tree in tmp_path (no hardcoded counts)."""
+    fake_sites = tmp_path / "sites"
+    domain_dir = fake_sites / "testdomain.com"
+    domain_dir.mkdir(parents=True)
+
+    # 1. Homepage (must be excluded)
+    (domain_dir / "index.html").write_text("<html>Homepage Content</html>", encoding="utf-8")
+
+    # 2. Category page (must be excluded)
+    cat_dir = domain_dir / "category" / "loans"
+    cat_dir.mkdir(parents=True)
+    (cat_dir / "index.html").write_text("<html>Category listing</html>", encoding="utf-8")
+
+    # 3. Layout file (must be excluded)
+    layout_dir = domain_dir / "layouts" / "_default"
+    layout_dir.mkdir(parents=True)
+    (layout_dir / "single.html").write_text("<html>Layout template</html>", encoding="utf-8")
+
+    # 4. Google verification file (must be excluded)
+    (domain_dir / "google31976c4df01121b2.html").write_text("google-site-verification", encoding="utf-8")
+
+    # 5. Static page (must be excluded)
+    about_dir = domain_dir / "about-us"
+    about_dir.mkdir(parents=True)
+    (about_dir / "index.html").write_text("<html>About Us</html>", encoding="utf-8")
+
+    # 6. Real article A: >600 words with author and datePublished
+    art_a_dir = domain_dir / "guide-to-personal-finance"
+    art_a_dir.mkdir(parents=True)
+    art_a_words = "finance " * 650
+    art_a_content = f"""
+    <html>
+      <head>
+        <script type="application/ld+json">
+        {{"@type": "Article", "author": {{"name": "Editor"}}, "datePublished": "2026-01-01"}}
+        </script>
+      </head>
+      <body>{art_a_words}</body>
+    </html>
+    """
+    (art_a_dir / "index.html").write_text(art_a_content, encoding="utf-8")
+
+    # 7. Real article B: <600 words, missing author & datePublished
+    art_b_dir = domain_dir / "quick-credit-tips"
+    art_b_dir.mkdir(parents=True)
+    (art_b_dir / "index.html").write_text("<html><body>Short article with only ten words for testing purposes.</body></html>", encoding="utf-8")
+
+    # 8. Real article C (flat layout): >600 words, author present but datePublished missing
+    art_c_words = "banking " * 620
+    art_c_content = f"<html><head><meta name='author' content='Finance Team'></head><body>{art_c_words}</body></html>"
+    (domain_dir / "flat-banking-overview.html").write_text(art_c_content, encoding="utf-8")
+
+    snapshot = preflight_seo.collect_article_snapshot(sites_root=fake_sites)
+
+    assert snapshot["status"] == "INFO"
+    assert snapshot["total_articles"] == 3
+    assert snapshot["under_600_words"] == 1
+    assert snapshot["missing_metadata"] == 2
+    assert snapshot["average_words"] > 400
+
+
+def test_preflight_json_allow_missing_agreement(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    """When --allow-missing is set, --json output exit_code and overall_status must always agree."""
+    dummy_cfg = tmp_path / "config.yaml"
+    dummy_cfg.write_text("proxy:\n  file: missing_proxies.txt\n", encoding="utf-8")
+    dummy_env = tmp_path / ".env"
+    dummy_env.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(preflight_seo, "PROJECT_ROOT", tmp_path)
+    test_args = ["preflight_seo.py", "--config", str(dummy_cfg), "--env", str(dummy_env), "--json", "--allow-missing"]
+    monkeypatch.setattr(sys, "argv", test_args)
+
+    ret = preflight_seo.main()
+    assert ret == 0
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+    assert payload["exit_code"] == 0
+    assert payload["overall_status"] == "PASS"
+    assert payload["exit_code"] == 0 and payload["overall_status"] == "PASS"
