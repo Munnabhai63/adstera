@@ -33,6 +33,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from network_registry import NETWORK_REGISTRY
+from content_quality_gate import (
+    ARTICLE_WORD_COUNT_FLOOR,
+    count_body_words,
+    count_page_words,
+    count_prose_words,
+)
 
 
 STATIC_SLUGS = {
@@ -294,18 +300,36 @@ def collect_article_snapshot(sites_root: Path | None = None) -> dict[str, Any]:
 
     under_600 = 0
     missing_meta = 0
-    word_counts: list[int] = []
+    page_counts: list[int] = []
+    body_counts: list[int] = []
+    prose_counts: list[int] = []
+    articles_data: list[dict[str, Any]] = []
 
     for art in articles:
         try:
+            rel = art.relative_to(sites_dir)
+            domain = rel.parts[0]
+            slug = art.parent.name if art.name == "index.html" else art.stem
             text = art.read_text(encoding="utf-8", errors="ignore")
-            # Strip tags and script/style content to count words
-            clean = re.sub(r"<script.*?</script>", "", text, flags=re.DOTALL | re.IGNORECASE)
-            clean = re.sub(r"<style.*?</style>", "", clean, flags=re.DOTALL | re.IGNORECASE)
-            clean = re.sub(r"<[^>]+>", " ", clean)
-            words = len(clean.split())
-            word_counts.append(words)
-            if words < 600:
+
+            page_w = count_page_words(text)
+            body_w = count_body_words(text)
+            prose_w = count_prose_words(text)
+
+            page_counts.append(page_w)
+            body_counts.append(body_w)
+            prose_counts.append(prose_w)
+
+            articles_data.append({
+                "domain": domain,
+                "slug": slug,
+                "page_words": page_w,
+                "body_words": body_w,
+                "prose_words": prose_w,
+            })
+
+            # Base threshold and under_600 solely on prose_words
+            if prose_w < 600:
                 under_600 += 1
 
             # Check for author and datePublished in Schema.org or meta
@@ -316,22 +340,48 @@ def collect_article_snapshot(sites_root: Path | None = None) -> dict[str, Any]:
         except Exception:
             pass
 
-    word_counts.sort()
-    avg_words = sum(word_counts) / len(word_counts) if word_counts else 0
-    median_words = word_counts[len(word_counts) // 2] if word_counts else 0
+    prose_counts.sort()
+    page_counts.sort()
+    body_counts.sort()
+
+    avg_prose = sum(prose_counts) / len(prose_counts) if prose_counts else 0
+    median_prose = prose_counts[len(prose_counts) // 2] if prose_counts else 0
+
+    avg_page = sum(page_counts) / len(page_counts) if page_counts else 0
+    median_page = page_counts[len(page_counts) // 2] if page_counts else 0
+
+    avg_body = sum(body_counts) / len(body_counts) if body_counts else 0
+    median_body = body_counts[len(body_counts) // 2] if body_counts else 0
+
     pct_under_600 = (under_600 / total * 100) if total else 0
     pct_missing_meta = (missing_meta / total * 100) if total else 0
+
+    ge_1200 = sum(1 for w in prose_counts if w >= 1200)
+    ge_2000 = sum(1 for w in prose_counts if w >= 2000)
+    ge_3000 = sum(1 for w in prose_counts if w >= 3000)
 
     return {
         "category": "Article Snapshot",
         "status": "INFO",
         "total_articles": total,
+        "canonical_standard": "prose_words",
+        "floor_threshold": ARTICLE_WORD_COUNT_FLOOR,
         "under_600_words": under_600,
-        "pct_under_600": pct_under_600,
+        "pct_under_600": round(pct_under_600, 1),
         "missing_metadata": missing_meta,
-        "pct_missing_metadata": pct_missing_meta,
-        "average_words": round(avg_words, 1),
-        "median_words": median_words,
+        "pct_missing_metadata": round(pct_missing_meta, 1),
+        "average_words": round(avg_prose, 1),
+        "median_words": median_prose,
+        "average_prose_words": round(avg_prose, 1),
+        "median_prose_words": median_prose,
+        "average_page_words": round(avg_page, 1),
+        "median_page_words": median_page,
+        "average_body_words": round(avg_body, 1),
+        "median_body_words": median_body,
+        "prose_ge_1200": ge_1200,
+        "prose_ge_2000": ge_2000,
+        "prose_ge_3000": ge_3000,
+        "articles": articles_data,
     }
 
 
@@ -361,6 +411,7 @@ def main() -> int:
     parser.add_argument("--env", default=".env", help="Path to .env")
     parser.add_argument("--json", action="store_true", help="Output summary in JSON format")
     parser.add_argument("--allow-missing", action="store_true", help="Exit with 0 even if inputs are missing (advisory run)")
+    parser.add_argument("--table", action="store_true", help="Print table of all articles with page, body, prose words")
 
     args = parser.parse_args()
     cfg_path = PROJECT_ROOT / args.config
@@ -410,11 +461,36 @@ def main() -> int:
     mmeta_pct = snapshot.get("pct_missing_metadata", 0.0)
     avg_w = snapshot.get("average_words", 0)
     med_w = snapshot.get("median_words", 0)
+    avg_prose = snapshot.get("average_prose_words", avg_w)
+    med_prose = snapshot.get("median_prose_words", med_w)
+    avg_page = snapshot.get("average_page_words", 0)
+    avg_body = snapshot.get("average_body_words", 0)
+    ge_1200 = snapshot.get("prose_ge_1200", 0)
+    ge_2000 = snapshot.get("prose_ge_2000", 0)
+    ge_3000 = snapshot.get("prose_ge_3000", 0)
 
     print(f" [INFO   ] Article Readiness Snapshot: {tot} real articles across 10 domains")
-    print(f"           - Under 600 words: {u600}/{tot} ({u600_pct:.1f}%) [High Priority for Step 2 Expansion]")
+    print(f"           - Standard: prose_words (Floor: {ARTICLE_WORD_COUNT_FLOOR})")
+    print(f"           - Under 600 prose words: {u600}/{tot} ({u600_pct:.1f}%) [High Priority for Step 2 Expansion]")
     print(f"           - Missing author / datePublished: {mmeta}/{tot} ({mmeta_pct:.1f}%)")
-    print(f"           - Average length: {avg_w} words | Median length: {med_w} words")
+    print(f"           - Average: prose={avg_prose}w | body={avg_body}w | page={avg_page}w")
+    print(f"           - Median:  prose={med_prose}w | body={snapshot.get('median_body_words', 0)}w | page={snapshot.get('median_page_words', 0)}w")
+    print(f"           - Prose word tiers: >=1200: {ge_1200}/{tot} | >=2000: {ge_2000}/{tot} | >=3000: {ge_3000}/{tot}")
+
+    arts = snapshot.get("articles", [])
+    if arts:
+        display_arts = arts if args.table else arts[:20]
+        print("\n" + "-" * 78)
+        print(f" {'Domain':<18} | {'Slug':<34} | {'Page':>6} | {'Body':>6} | {'Prose':>6}")
+        print("-" * 78)
+        for row in display_arts:
+            slug_disp = (row['slug'][:31] + '...') if len(row['slug']) > 34 else row['slug']
+            print(f" {row['domain']:<18} | {slug_disp:<34} | {row['page_words']:>6} | {row['body_words']:>6} | {row['prose_words']:>6}")
+        if not args.table and len(arts) > 20:
+            print(f" ... ({len(arts) - 20} more articles omitted; pass --table to display all {len(arts)})")
+        print("-" * 78)
+        print(f" {'SUMMARY (AVG)':<18} | {f'{tot} articles':<34} | {round(avg_page):>6} | {round(avg_body):>6} | {round(avg_prose):>6}")
+        print("-" * 78)
     print("=" * 72)
 
     if exit_code == 0:

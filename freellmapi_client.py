@@ -117,10 +117,11 @@ def ensure_local_daemon_running(api_key: str = "") -> bool:
 class FreeLLMClient:
     """3-Layer 24x7 Client for Cloudflare Edge Gateway + Local Daemon + Direct Cloud Providers."""
 
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = "config.yaml", api_key: str = ""):
         self.config_path = Path(config_path)
         self.config = self._load_config()
-        self.api_url, self.api_key = self._resolve_credentials()
+        self.api_url, resolved_key = self._resolve_credentials()
+        self.api_key = api_key.strip() if api_key else resolved_key
         freellm_cfg = self.config.get("freellm", {}) or {}
         self.enabled = bool(freellm_cfg.get("enabled", True))
         self.timeout = float(freellm_cfg.get("timeout", 150.0))

@@ -48,6 +48,33 @@ def test_update_sitemap_lastmod(tmp_path: Path):
     assert "<lastmod>2026-11-14</lastmod>" in content
 
 
+def _mock_claude_seo_article(site_id, site_info, seo_brief):
+    faqs = [
+        {"q": f"What are the interest rates for {site_id} loans?", "a": "Interest rates range from 10.5% to 14.5% based on CIBIL verification score and underwriting guidelines."},
+        {"q": "What is the minimum CIBIL score required?", "a": "A minimum credit score of 750 is required for preferential interest rates and zero foreclosure fees."},
+        {"q": "Are there any hidden processing charges?", "a": "No, all processing fees and statutory GST charges are transparently listed in the Key Fact Statement."},
+        {"q": "How long does digital sanction take?", "a": "Paperless e-KYC approval via Aadhaar and DigiLocker takes between 15 and 45 minutes."},
+        {"q": "Can I prepay or foreclose early?", "a": "Under RBI guidelines, floating-rate personal credit facilities incur zero prepayment or foreclosure penalty."},
+    ]
+    paragraphs = []
+    for i in range(1, 14):
+        paragraphs.append(
+            f"<h2>Comprehensive Analysis Section {i}: Regulatory Framework and Financial Underwriting</h2>\n"
+            f"<p>Evaluating personal loan options requires careful assessment of statutory compliance, APR schedules, and total cost of credit. In 2026, Indian financial guidelines mandate transparent disclosure of all applicable charges, repayment tenures ranging from 12 to 84 months, and automated risk scoring mechanisms. Lenders must provide a standardized Key Fact Statement detailing annualized percentage rates before sanction.</p>\n"
+            f"<p>Prospective borrowers must also inspect prepayment flexibility, debt-to-income benchmarks, and digital verification norms to ensure financial security across all official channels. Credit risk committees evaluate debt obligations, historical repayment discipline, and CIBIL report disputes before approving unsecured facilities.</p>"
+        )
+    table = """
+    <div class="table-responsive">
+        <table class="article-table">
+            <thead><tr><th>Lender</th><th>APR</th><th>Tenure</th></tr></thead>
+            <tbody><tr><td>State Bank of India</td><td>10.30%</td><td>60 Months</td></tr></tbody>
+        </table>
+    </div>
+    """
+    raw_html = "\n\n".join(paragraphs) + "\n\n" + table
+    return raw_html, faqs
+
+
 def test_expand_single_article_end_to_end(tmp_path: Path):
     site_dir = tmp_path / "sites" / "loanraaj.com"
     slug_dir = site_dir / "test-loan-guide"
@@ -90,12 +117,13 @@ def test_expand_single_article_end_to_end(tmp_path: Path):
 </urlset>"""
     sitemap_path.write_text(sitemap_content, encoding="utf-8")
 
-    before, after, score = expand_single_article(
-        path=article_path,
-        domain="loanraaj.com",
-        slug="test-loan-guide",
-        dry_run=False,
-    )
+    with patch("scripts.expand_thin_articles.generate_claude_seo_article", side_effect=_mock_claude_seo_article):
+        before, after, score = expand_single_article(
+            path=article_path,
+            domain="loanraaj.com",
+            slug="test-loan-guide",
+            dry_run=False,
+        )
 
     assert before < 600
     assert after >= 1200
@@ -123,12 +151,13 @@ def test_expand_single_article_dry_run(tmp_path: Path):
 </article></body></html>"""
     article_path.write_text(original_text, encoding="utf-8")
 
-    before, after, score = expand_single_article(
-        path=article_path,
-        domain="loanraaj.com",
-        slug="test-loan-guide",
-        dry_run=True,
-    )
+    with patch("scripts.expand_thin_articles.generate_claude_seo_article", side_effect=_mock_claude_seo_article):
+        before, after, score = expand_single_article(
+            path=article_path,
+            domain="loanraaj.com",
+            slug="test-loan-guide",
+            dry_run=True,
+        )
     assert before < 600
     assert after >= 1200
     assert score == 100.0
@@ -145,11 +174,12 @@ def test_expand_single_article_refusal_when_score_low(tmp_path: Path):
     article_path.write_text("<!DOCTYPE html><html><body><article><h1>Test</h1><div class=\"post-content\"><p>Short.</p></div></article></body></html>", encoding="utf-8")
 
     fake_meta = {"score": 85.0, "reasons": ["Incomplete TOC"]}
-    with patch("scripts.expand_thin_articles.ContentQualityFinishGate.format_editorial_layout", return_value=("<p>body</p>", [], fake_meta)):
-        with pytest.raises(ValueError, match="Content quality gate refused article"):
-            expand_single_article(
-                path=article_path,
-                domain="loanraaj.com",
-                slug="test-loan-guide",
-                dry_run=False,
-            )
+    with patch("scripts.expand_thin_articles.generate_claude_seo_article", return_value=("<p>body</p>", [])):
+        with patch("scripts.expand_thin_articles.ContentQualityFinishGate.format_editorial_layout", return_value=("<p>body</p>", [], fake_meta)):
+            with pytest.raises(ValueError, match="Content quality gate refused article"):
+                expand_single_article(
+                    path=article_path,
+                    domain="loanraaj.com",
+                    slug="test-loan-guide",
+                    dry_run=False,
+                )

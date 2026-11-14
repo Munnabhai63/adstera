@@ -12,6 +12,73 @@ from typing import Any
 
 ARTICLE_WORD_COUNT_FLOOR: int = 1200
 
+
+def count_page_words(html_text: str) -> int:
+    """Calculate visible words in the whole HTML document, ignoring scripts, styles, and markup."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_text, "html.parser")
+    for tag in soup(["script", "style", "noscript", "svg"]):
+        tag.decompose()
+    return len(soup.get_text().split())
+
+
+def count_body_words(html_text: str) -> int:
+    """Calculate words inside div.post-content (or article, or body)."""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_text, "html.parser")
+    post_content = soup.find("div", class_="post-content") or soup.find("article") or soup.find("body") or soup
+    if not post_content:
+        return 0
+    soup_copy = BeautifulSoup(str(post_content), "html.parser")
+    for tag in soup_copy(["script", "style", "noscript", "svg"]):
+        tag.decompose()
+    return len(soup_copy.get_text().split())
+
+
+def count_prose_words(html_text: str) -> int:
+    """
+    Calculate prose words: text in <p> and substantive <li> inside div.post-content (or article),
+    excluding nav.article-toc, ol.toc-list, .summary-box, .executive-summary-box,
+    header, footer, aside, .sidebar, .widget, .author-card, figcaption, ad slots, and contents jump list.
+    If no wrapper is present (e.g. content snippet), falls back to body or root.
+    """
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_text, "html.parser")
+    post_content = soup.find("div", class_="post-content") or soup.find("article") or soup.find("body") or soup
+    if not post_content:
+        return 0
+
+    soup_pc = BeautifulSoup(str(post_content), "html.parser")
+    for tag in soup_pc(["script", "style", "noscript", "svg", "header", "footer", "aside", "figcaption"]):
+        tag.decompose()
+
+    excluded_selectors = [
+        "nav", "ol.toc-list", ".article-toc", ".summary-box", ".executive-summary-box",
+        ".sidebar", ".widget", ".author-card", "figcaption",
+        ".native-ad-card", ".adsterra-native-ad", "[class*='ad-']", "[id*='ad-']",
+        "[class*='native-ad']", "[id*='container-']"
+    ]
+    for sel in excluded_selectors:
+        for el in soup_pc.select(sel):
+            el.decompose()
+
+    prose_parts = []
+    for p in soup_pc.find_all("p"):
+        txt = p.get_text().strip()
+        if txt:
+            prose_parts.append(txt)
+    for li in soup_pc.find_all("li"):
+        txt = li.get_text().strip()
+        if len(txt.split()) >= 3:
+            prose_parts.append(txt)
+
+    if not prose_parts:
+        txt = soup_pc.get_text().strip()
+        if txt:
+            prose_parts.append(txt)
+
+    return sum(len(txt.split()) for txt in prose_parts)
+
 BANNED_LEAK_PHRASES = [
     "banned ai buzzwords",
     "geo-direct opening",
@@ -319,7 +386,10 @@ class ContentQualityFinishGate:
                 html_out = html_out + "\n" + native_slot_html
 
         # 9. Quality & Claude-SEO QRG Audit Scoring
-        word_count = len(re.findall(r"\b\w+\b", re.sub(r"<[^>]+>", " ", html_out)))
+        page_words = count_page_words(html_out)
+        body_words = count_body_words(html_out)
+        prose_words = count_prose_words(html_out)
+        word_count = prose_words
         has_table = "<table" in html_out
         has_summary = "executive-summary-box" in html_out
         has_toc = "article-toc" in html_out
@@ -338,11 +408,14 @@ class ContentQualityFinishGate:
         if not has_table: score -= 15.0
         if not has_faqs: score -= 15.0
         if not no_leaks: score -= 30.0
-        if word_count < ARTICLE_WORD_COUNT_FLOOR: score -= 20.0
+        if prose_words < ARTICLE_WORD_COUNT_FLOOR: score -= 20.0
 
         audit_meta = {
             "score": score,
-            "word_count": word_count,
+            "word_count": prose_words,
+            "page_words": page_words,
+            "body_words": body_words,
+            "prose_words": prose_words,
             "has_table": has_table,
             "has_summary": has_summary,
             "has_toc": has_toc,
