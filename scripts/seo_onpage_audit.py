@@ -264,11 +264,21 @@ def run_full_onpage_audit(sites_dir: Path | None = None) -> dict[str, Any]:
         "article_schema": sum(1 for r in results if not r["article_schema_ok"]),
         "breadcrumbs": sum(1 for r in results if not r["breadcrumbs_ok"]),
         "faq_h3_match": sum(1 for r in results if not r["faq_matches_ok"]),
+        "prose_floor": sum(1 for r in results if not r["prose_floor_ok"]),
+    }
+
+    prose_counts = [r["prose_words"] for r in results]
+    dist = {
+        "under_300": sum(1 for c in prose_counts if c < 300),
+        "300_1199": sum(1 for c in prose_counts if 300 <= c < 1200),
+        "1200_2999": sum(1 for c in prose_counts if 1200 <= c < 3000),
+        "ge_3000": sum(1 for c in prose_counts if c >= 3000),
     }
 
     return {
         "total_articles": total,
         "failures": fails,
+        "distribution": dist,
         "details": results,
     }
 
@@ -450,6 +460,7 @@ def print_audit_table(summary: dict[str, Any], label: str = "ON-PAGE AUDIT REPOR
         ("JSON-LD Article (headline, date, author)", fails["article_schema"]),
         ("JSON-LD BreadcrumbList taxonomy", fails["breadcrumbs"]),
         ("JSON-LD FAQPage matches on-page H3s", fails["faq_h3_match"]),
+        ("Prose length (>= 3000 words)", fails["prose_floor"]),
     ]
 
     for name, f_cnt in checks:
@@ -457,6 +468,23 @@ def print_audit_table(summary: dict[str, Any], label: str = "ON-PAGE AUDIT REPOR
         print(f" {name:<44} | {f_cnt:>7} | {pass_pct:>10.1f}%")
 
     print("=" * 72)
+
+    dist = summary.get("distribution")
+    if not dist and "details" in summary:
+        prose_counts = [r["prose_words"] for r in summary["details"]]
+        dist = {
+            "under_300": sum(1 for c in prose_counts if c < 300),
+            "300_1199": sum(1 for c in prose_counts if 300 <= c < 1200),
+            "1200_2999": sum(1 for c in prose_counts if 1200 <= c < 3000),
+            "ge_3000": sum(1 for c in prose_counts if c >= 3000),
+        }
+    if dist:
+        print("\n PROSE LENGTH DISTRIBUTION:")
+        print(f"   < 300 words:  {dist['under_300']:>5}")
+        print(f"   300-1199:     {dist['300_1199']:>5}")
+        print(f"   1200-2999:    {dist['1200_2999']:>5}")
+        print(f"   >= 3000:      {dist['ge_3000']:>5}")
+        print("=" * 72)
 
 
 def main() -> int:
