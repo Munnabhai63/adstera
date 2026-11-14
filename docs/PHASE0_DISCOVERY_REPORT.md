@@ -10,7 +10,7 @@
 | **0.2 .env Exists** | `True` | `Path('.env').is_file()` |
 | **0.2 FREELLMAPI Token Set** | `True` (found in `.env`) | `os.getenv('FREELLMAPI_TOKEN')` |
 | **0.2 Cloudflare Tunnel Token** | `True` (found in `.env`) | `os.getenv('CLOUDFLARE_TUNNEL_TOKEN')` |
-| **0.2 GSC Service Account** | `True` (`mahi-assistant@prosports-467807.iam.gserviceaccount.com`) | `gsc_auth.GSCAuthManager().is_configured()` |
+| **0.2 GSC Service Account** | `True` (`[REDACTED-SERVICE-ACCOUNT]@iam.gserviceaccount.com`) | `gsc_auth.GSCAuthManager().is_configured()` |
 | **0.2 proxies.txt Status** | Exists, 0 valid lines (clean placeholder) | `pool.validate_proxy_lines()` |
 | **0.2 vendor/claude_seo/** | `False` (not yet created) | `Path('vendor/claude_seo').is_dir()` |
 | **0.2 Claude-SEO Modules** | Present at `F:\UserData\Downloads\ai-power-tools\claude-seo\scripts` | `python -c "import seo_pipeline as s; ..."` |
