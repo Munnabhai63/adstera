@@ -751,6 +751,32 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             f"SchemaEntities={claude_seo_audit['schema_entities']})"
         )
 
+        # PHASE 5B: Shingle Guard & Domain Vocabulary Integrity Gate (D2)
+        try:
+            from shingle_guard import ShingleIndex, DuplicateContentError
+            shingle_idx = ShingleIndex()
+            shingle_idx.register_article(site_id, slug, full_html)
+            print(f"[{site_id}] Shingle Guard Verified: registered '{site_id}/{slug}' without duplicate collisions.")
+        except DuplicateContentError as dup_err:
+            logger.error("[%s] Shingle Guard REJECTED article '%s': %s", site_id, slug, dup_err)
+            print(f"[{site_id}] ABORT PUBLISHING: Duplicate prose shingle detected in '{slug}': {dup_err}")
+            _notify_pipeline_error("duplicate_shingle", f"Duplicate prose shingle: {dup_err}", domain=site_id)
+            _reset_topic_pending(q_id)
+            try:
+                topic_intelligence.update_pipeline_stage(
+                    domain=site_id,
+                    stage_num=4,
+                    stage_name="Shingle Guard Rejected",
+                    active_topic=topic,
+                    status_message=f"Duplicate content collision: {str(dup_err)[:180]}",
+                    words_written=words_count,
+                    anti_ai_score=0.0,
+                    db_path=DB_PATH,
+                )
+            except Exception:
+                pass
+            return False
+
         if dry_run:
             import tempfile
             try:

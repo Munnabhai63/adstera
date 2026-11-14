@@ -466,6 +466,22 @@ class ContentQualityFinishGate:
             "qrg_information_density": qrg_res.get("information_density", 0.5),
             "qrg_filler_score": qrg_res.get("filler_score", 0),
             "qrg_ai_pattern_score": qrg_res.get("ai_pattern_score", 0),
+            "shingle_guard_passed": True,
         }
 
         return html_out, faqs, audit_meta
+
+    @classmethod
+    def verify_shingle_guard(
+        cls, domain: str, slug: str, html_text: str, check_duplicates: bool = True
+    ) -> int:
+        """
+        Validate article prose against persistent ShingleIndex (ProseShingleIndex).
+        Ensures no duplicate 12-word prose shingles exist across the network,
+        no forbidden domain jargon, and no quality anomalies.
+        Raises DuplicateContentError on collision.
+        """
+        from shingle_guard import ShingleIndex
+        idx = ShingleIndex()
+        return idx.register_article(domain, slug, html_text, check_duplicates=check_duplicates)
+

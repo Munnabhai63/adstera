@@ -84,3 +84,35 @@ def test_quality_guard_rejects_lorem_ipsum_and_looping():
 
     with pytest.raises(QualityPatternError):
         validate_text_quality("instant loan approval fast instant loan approval fast instant loan approval fast for everyone.")
+
+
+def test_quality_gate_finish_gate_rejects_corpus_duplicate_paragraph(tmp_path, monkeypatch):
+    """NEGATIVE TEST: article containing an existing corpus paragraph is rejected by quality gate."""
+    import shingle_guard
+    from content_quality_gate import ContentQualityFinishGate
+
+    test_index = tmp_path / "test_prose_shingles.json"
+    monkeypatch.setattr(shingle_guard, "SHINGLE_INDEX_PATH", test_index)
+
+    # 1. Register an existing published article in the corpus
+    existing_html = """
+    <div class="post-content">
+        <p>Commercial vehicle owners must thoroughly examine bobtail insurance deductibles and comprehensive physical damage endorsements before signing annual fleet agreements.</p>
+        <p>Operating without verified non-trucking liability coverage exposes independent owner-operators to catastrophic personal liability during deadhead and bobtail transit.</p>
+    </div>
+    """
+    ContentQualityFinishGate.verify_shingle_guard("loanraaj.com", "bobtail-insurance-guide", existing_html)
+
+    # 2. Attempt to publish a new article that copies an exact 12-word paragraph from the corpus
+    new_incoming_html = """
+    <div class="post-content">
+        <p>Commercial vehicle owners must thoroughly examine bobtail insurance deductibles and comprehensive physical damage endorsements before signing annual fleet agreements.</p>
+        <p>A fresh unique section about statutory interstate licensing requirements under federal motor carrier guidelines.</p>
+    </div>
+    """
+    with pytest.raises(DuplicateContentError) as exc_info:
+        ContentQualityFinishGate.verify_shingle_guard("tazaloan.com", "new-fleet-guide", new_incoming_html)
+
+    assert "Duplicate 12-word shingle found in tazaloan.com/new-fleet-guide" in str(exc_info.value)
+    assert "already in loanraaj.com/bobtail-insurance-guide" in str(exc_info.value)
+

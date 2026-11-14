@@ -220,3 +220,8 @@ class ShingleIndex:
 
         self.save()
         return len(shingles)
+
+
+# Backward compatibility alias
+ProseShingleIndex = ShingleIndex
+
