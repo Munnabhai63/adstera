@@ -83,3 +83,18 @@ def test_proxies_example_file_structure() -> None:
     valid, malformed = validate_proxy_lines(lines)
     assert len(valid) == 4
     assert len(malformed) == 0
+
+
+def test_proxies_txt_not_tracked_in_git() -> None:
+    """DEFECT S2-B: proxies.txt must not be tracked in git index to prevent accidental secret leakage."""
+    import subprocess
+    repo_root = Path(__file__).parent.parent
+    res = subprocess.run(
+        ["git", "ls-files", "proxies.txt"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+    )
+    tracked = res.stdout.strip()
+    assert tracked == "", f"proxies.txt must not be tracked in git index, but git ls-files returned: {tracked!r}"
+
