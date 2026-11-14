@@ -10,7 +10,21 @@ import re
 import html
 from typing import Any
 
-ARTICLE_WORD_COUNT_FLOOR: int = 1200
+ARTICLE_TARGET_MIN: int = 3000
+ARTICLE_TARGET_MAX: int = 4000
+ARTICLE_WORD_COUNT_FLOOR: int = 3000
+
+SHARED_BOILERPLATE_PROSE: str = (
+    "Our editorial team conducts primary research, benchmarks statutory guidelines, "
+    "and cross-references regulatory mandates to deliver verified, transparent consumer guidance."
+)
+
+
+def check_word_count_floor(prose_words: int) -> tuple[bool, str]:
+    """Validate whether prose words meet the unified 3000-word target floor."""
+    if prose_words < ARTICLE_WORD_COUNT_FLOOR:
+        return False, f"prose {prose_words} < {ARTICLE_WORD_COUNT_FLOOR}, regeneration required"
+    return True, f"prose {prose_words} >= {ARTICLE_WORD_COUNT_FLOOR}, target met"
 
 
 def count_page_words(html_text: str) -> int:
@@ -37,47 +51,58 @@ def count_body_words(html_text: str) -> int:
 
 def count_prose_words(html_text: str) -> int:
     """
-    Calculate prose words: text in <p> and substantive <li> inside div.post-content (or article),
-    excluding nav.article-toc, ol.toc-list, .summary-box, .executive-summary-box,
-    header, footer, aside, .sidebar, .widget, .author-card, figcaption, ad slots, and contents jump list.
-    If no wrapper is present (e.g. content snippet), falls back to body or root.
+    Calculate prose words strictly:
+    Only text in <p> inside div.post-content or div.post-body (or article/body),
+    excluding ad-slot, ad-label, nav, footer, breadcrumb, author-card, aside, figcaption,
+    and subtracting the 19-word shared 'Our editorial team...' boilerplate line.
     """
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html_text, "html.parser")
-    post_content = soup.find("div", class_="post-content") or soup.find("article") or soup.find("body") or soup
+    post_content = (
+        soup.find("div", class_="post-content")
+        or soup.find("div", class_="post-body")
+        or soup.find("article")
+        or soup.find("body")
+        or soup
+    )
     if not post_content:
         return 0
 
     soup_pc = BeautifulSoup(str(post_content), "html.parser")
-    for tag in soup_pc(["script", "style", "noscript", "svg", "header", "footer", "aside", "figcaption"]):
+    for tag in soup_pc(["script", "style", "noscript", "svg", "header", "footer", "aside", "nav", "figcaption"]):
         tag.decompose()
 
     excluded_selectors = [
         "nav", "ol.toc-list", ".article-toc", ".summary-box", ".executive-summary-box",
-        ".sidebar", ".widget", ".author-card", "figcaption",
-        ".native-ad-card", ".adsterra-native-ad", "[class*='ad-']", "[id*='ad-']",
-        "[class*='native-ad']", "[id*='container-']"
+        ".sidebar", ".widget", ".author-card", "figcaption", ".breadcrumb",
+        ".native-ad-card", ".adsterra-native-ad", ".ad-slot", ".ad-label",
+        "[class*='ad-']", "[id*='ad-']", "[class*='native-ad']", "[id*='container-']",
+        "aside.eeat-note"
     ]
     for sel in excluded_selectors:
         for el in soup_pc.select(sel):
             el.decompose()
 
-    prose_parts = []
+    boilerplate_norm = re.sub(r"[^\w\s]", "", SHARED_BOILERPLATE_PROSE.lower()).split()
+    boilerplate_len = len(boilerplate_norm)  # 19 words
+
+    total_words = 0
     for p in soup_pc.find_all("p"):
-        txt = p.get_text().strip()
-        if txt:
-            prose_parts.append(txt)
-    for li in soup_pc.find_all("li"):
-        txt = li.get_text().strip()
-        if len(txt.split()) >= 3:
-            prose_parts.append(txt)
+        p_text = p.get_text().strip()
+        if not p_text:
+            continue
+        p_norm = re.sub(r"[^\w\s]", "", p_text.lower()).split()
+        w_count = len(p_text.split())
 
-    if not prose_parts:
-        txt = soup_pc.get_text().strip()
-        if txt:
-            prose_parts.append(txt)
+        # Subtract 19-word boilerplate line if present in paragraph
+        if boilerplate_len > 0 and len(p_norm) >= boilerplate_len:
+            for i in range(len(p_norm) - boilerplate_len + 1):
+                if p_norm[i : i + boilerplate_len] == boilerplate_norm:
+                    w_count = max(0, w_count - boilerplate_len)
+                    break
+        total_words += w_count
 
-    return sum(len(txt.split()) for txt in prose_parts)
+    return total_words
 
 BANNED_LEAK_PHRASES = [
     "banned ai buzzwords",
@@ -433,9 +458,11 @@ class ContentQualityFinishGate:
         # H2 count < 4: -15
         if h2_count < 4:
             score -= 15.0
+        warnings = []
         # prose_words < floor: -20
         if prose_words < ARTICLE_WORD_COUNT_FLOOR:
             score -= 20.0
+            warnings.append(f"prose {prose_words} < {ARTICLE_WORD_COUNT_FLOOR}, regeneration required")
         # no leaks: -30
         if not no_leaks:
             score -= 30.0
@@ -467,6 +494,9 @@ class ContentQualityFinishGate:
             "qrg_filler_score": qrg_res.get("filler_score", 0),
             "qrg_ai_pattern_score": qrg_res.get("ai_pattern_score", 0),
             "shingle_guard_passed": True,
+            "warnings": warnings,
+            "floor_message": warnings[0] if warnings else f"prose {prose_words} >= {ARTICLE_WORD_COUNT_FLOOR}, target met",
+            "passed_floor": prose_words >= ARTICLE_WORD_COUNT_FLOOR,
         }
 
         return html_out, faqs, audit_meta

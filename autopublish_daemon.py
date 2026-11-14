@@ -27,6 +27,13 @@ logger = logging.getLogger("autopublish_daemon")
 from site_templates import render_master_page, render_sidebar
 from adsterra_links import render_native_ad_card, get_adsterra_config
 from autopublish_engine import AntiAIDetectionGate, query_freellmapi, ping_search_engines, generate_claude_seo_article
+from content_quality_gate import (
+    ARTICLE_TARGET_MIN,
+    ARTICLE_TARGET_MAX,
+    ARTICLE_WORD_COUNT_FLOOR,
+    count_prose_words,
+    check_word_count_floor,
+)
 import seo_pipeline
 import topic_intelligence
 from common.paths import AUTOPUBLISH_DB_PATH, STATE_DIR
@@ -296,7 +303,7 @@ def recover_and_kick_stuck_domains(target_domains=None, fetch_live: bool = False
 def generate_article_content(site_id, site_info, category, topic):
     site_name = site_info["name"]
     system_prompt = f"""You are a senior investigative economic and technical journalist writing for {site_name}.
-Your mission is to produce an exhaustive, authoritative, deeply researched 1400-1800 word practical consumer guide.
+Your mission is to produce an exhaustive, authoritative, deeply researched {ARTICLE_TARGET_MIN}-{ARTICLE_TARGET_MAX} word practical consumer guide.
 
 CRITICAL RULES:
 1. Write 100% in English with professional, direct editorial clarity.
@@ -617,6 +624,8 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             site_name=name,
         )
         words_count = quality_meta["word_count"]
+        if words_count < ARTICLE_WORD_COUNT_FLOOR:
+            logger.warning(f"[{site_id}] prose {words_count} < {ARTICLE_WORD_COUNT_FLOOR}, regeneration required")
         print(
             f"[{site_id}] Content Quality Finish-Gate Score: {quality_meta['score']}/100 "
             f"| Claude-SEO QRG Quality: {quality_meta.get('qrg_overall_quality', 92)}/100 "

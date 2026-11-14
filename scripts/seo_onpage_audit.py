@@ -35,6 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from network_registry import NETWORK_REGISTRY
+from content_quality_gate import count_prose_words, ARTICLE_WORD_COUNT_FLOOR
 
 DANGLING_WORDS = {
     "for", "in", "with", "the", "a", "an", "on", "to",
@@ -221,6 +222,7 @@ def audit_article(path: Path | str) -> dict[str, Any]:
         except Exception:
             pass
 
+    prose_words = count_prose_words(text)
     return {
         "path": path,
         "domain": domain,
@@ -239,6 +241,8 @@ def audit_article(path: Path | str) -> dict[str, Any]:
         "article_schema_ok": has_article_schema,
         "breadcrumbs_ok": has_breadcrumbs,
         "faq_matches_ok": (faq_matches_h3 if has_faq_page else True),
+        "prose_words": prose_words,
+        "prose_floor_ok": prose_words >= ARTICLE_WORD_COUNT_FLOOR,
     }
 
 
