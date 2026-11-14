@@ -341,6 +341,15 @@ def test_dry_run_meets_length_floor(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     import subprocess
     from content_quality_gate import ARTICLE_WORD_COUNT_FLOOR
 
+    token = os.environ.get("FREELLMAPI_TOKEN", "")
+    if not token and Path(".env").exists():
+        for line in Path(".env").read_text(encoding="utf-8").splitlines():
+            if line.startswith("FREELLMAPI_TOKEN="):
+                token = line.split("=", 1)[1].strip()
+                break
+    if not token or token.startswith("dummy") or token.startswith("ci-"):
+        pytest.skip("live LLM token required for dry-run length floor verification")
+
     cmd = [sys.executable, "autopublish_daemon.py", "--dry-run", "--site", "loanraaj"]
     res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
     assert res.returncode == 0, f"Dry-run exited non-zero: {res.stdout}"
