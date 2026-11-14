@@ -139,10 +139,12 @@ class FreeLLMClient:
         return {}
 
     def _resolve_credentials(self) -> tuple[str, str]:
+        explicit_empty = ("FREELLMAPI_TOKEN" in os.environ and not os.environ["FREELLMAPI_TOKEN"].strip()) or \
+                         ("FREELLMAPI_KEY" in os.environ and not os.environ["FREELLMAPI_KEY"].strip())
         url = os.environ.get("FREELLMAPI_URL", "").strip()
         key = os.environ.get("FREELLMAPI_TOKEN", "").strip() or os.environ.get("FREELLMAPI_KEY", "").strip()
 
-        if not url or not key:
+        if not explicit_empty and (not url or not key):
             env_file = Path(".env")
             if env_file.exists():
                 try:

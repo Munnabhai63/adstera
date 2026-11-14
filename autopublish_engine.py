@@ -9,7 +9,10 @@ import urllib.error
 import subprocess
 import time
 import math
+import logging
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -137,7 +140,7 @@ def _get_client() -> FreeLLMClient:
     token = os.environ.get("FREELLMAPI_TOKEN") or os.environ.get("FREELLMAPI_KEY")
     if not token:
         raise ValueError("FREELLMAPI_TOKEN environment variable is not set")
-    if _CLIENT_SINGLETON is None:
+    if _CLIENT_SINGLETON is None or _CLIENT_SINGLETON.api_key != token:
         _CLIENT_SINGLETON = FreeLLMClient(api_key=token)
     return _CLIENT_SINGLETON
 
@@ -286,175 +289,36 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
     try:
         raw_part1 = query_freellmapi(part1_prompt, system_prompt, max_tokens=2800, timeout=150.0)
         raw_part2 = query_freellmapi(part2_prompt, system_prompt, max_tokens=2600, timeout=150.0)
-    except (ValueError, Exception) as llm_err:
-        raw_part1 = None
-        raw_part2 = None
+    except Exception as llm_err:
+        logger.error(f"[FreeLLMAPI] Generation failed for '{primary_kw}': {llm_err}")
+        raise RuntimeError(f"FreeLLMAPI generation failed for '{primary_kw}': {llm_err}") from llm_err
 
     clean_p1 = _strip_code_fences_and_preamble(raw_part1 or "")
     clean_p2 = _strip_code_fences_and_preamble(raw_part2 or "")
 
-    if len(clean_p1) >= 400 and len(clean_p2) >= 400:
-        raw_html = f"{clean_p1}\n\n{clean_p2}"
-    elif len(clean_p1) >= 400:
-        raw_html = clean_p1
-    elif len(clean_p2) >= 400:
-        raw_html = f"<p class='lead'>Comprehensive 2026 analysis and verified Indian regulatory benchmarks for <strong>{primary_kw}</strong>.</p>\n{clean_p2}"
-    else:
-        import seo_pipeline
-        citations = seo_pipeline.get_regulatory_citations(site_id)
-        c_items = "".join(f"<li><strong>{c.get('name', 'Regulatory Authority')}:</strong> Statutory framework governing {category.lower()} and consumer fair-practice mandates.</li>" for c in citations[:3])
-        raw_html = f"""
-<p class="lead">Navigating <strong>{primary_kw}</strong> requires thorough evaluation of regulatory compliance, interest rate schedules, and total cost of credit. In 2026, Indian financial guidelines mandate transparent disclosure of fees, repayment structures, and digital verification norms to ensure borrower security across all digital channels.</p>
+    if len(clean_p1) < 400 or len(clean_p2) < 400:
+        err_msg = (
+            f"FreeLLMAPI returned insufficient content for '{primary_kw}' "
+            f"(part1: {len(clean_p1)} chars, part2: {len(clean_p2)} chars; minimum required: 400 chars each)"
+        )
+        logger.error(f"[FreeLLMAPI] {err_msg}")
+        raise RuntimeError(err_msg)
 
-<div class="summary-box" style="background:#f8fafc; border-left:4px solid #2563eb; padding:16px 20px; margin:24px 0; border-radius:4px;">
-    <h3 style="margin-top:0; color:#1e293b;">Key Takeaways &amp; Critical Highlights</h3>
-    <ul>
-        <li><strong>Mandatory KFS Disclosure:</strong> All charges, processing fees (1.0% to 2.5%), and 18% GST must be transparently itemized upfront.</li>
-        <li><strong>CIBIL Benchmark:</strong> Credit scores above 750 secure preferential interest rate brackets with fee concessions up to 50%.</li>
-        <li><strong>Zero Foreclosure Penalty:</strong> RBI regulations prohibit prepayment charges on floating-rate individual credit facilities.</li>
-        <li><strong>Instant Digital e-KYC:</strong> Paperless approval via Aadhaar OTP and DigiLocker allows sanctions within 15 to 45 minutes.</li>
-    </ul>
-</div>
-
-<h2>Comprehensive Market Comparison: Top Lending Institutions 2026</h2>
-<p>Evaluating multiple institutional providers ensures borrowers identify competitive Annual Percentage Rates (APRs) while avoiding undisclosed servicing fees. Below is the comparative framework across primary public and private sector lenders.</p>
-
-<div class="table-responsive">
-    <table class="article-table" style="width:100%; border-collapse:collapse; margin:20px 0;">
-        <thead>
-            <tr style="background:#f1f5f9; border-bottom:2px solid #cbd5e1;">
-                <th style="padding:12px; text-align:left;">Lending Institution</th>
-                <th style="padding:12px; text-align:left;">Interest Rate (APR)</th>
-                <th style="padding:12px; text-align:left;">Processing Fee</th>
-                <th style="padding:12px; text-align:left;">Tenure Flexibility</th>
-                <th style="padding:12px; text-align:left;">Digital Sanction Time</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:12px;"><strong>State Bank of India (SBI)</strong></td>
-                <td style="padding:12px;">10.30% – 13.80% p.a.</td>
-                <td style="padding:12px;">1.00% (Min ₹1,000 + GST)</td>
-                <td style="padding:12px;">12 to 72 Months</td>
-                <td style="padding:12px;">2 to 4 Working Hours</td>
-            </tr>
-            <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:12px;"><strong>HDFC Bank</strong></td>
-                <td style="padding:12px;">10.50% – 14.50% p.a.</td>
-                <td style="padding:12px;">Up to ₹4,999 + GST</td>
-                <td style="padding:12px;">12 to 60 Months</td>
-                <td style="padding:12px;">10 to 30 Minutes</td>
-            </tr>
-            <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:12px;"><strong>ICICI Bank</strong></td>
-                <td style="padding:12px;">10.65% – 15.00% p.a.</td>
-                <td style="padding:12px;">1.25% to 2.00% + GST</td>
-                <td style="padding:12px;">12 to 60 Months</td>
-                <td style="padding:12px;">Instant via iMobile</td>
-            </tr>
-            <tr style="border-bottom:1px solid #e2e8f0;">
-                <td style="padding:12px;"><strong>Punjab National Bank</strong></td>
-                <td style="padding:12px;">10.40% – 13.95% p.a.</td>
-                <td style="padding:12px;">0.50% to 1.00% + GST</td>
-                <td style="padding:12px;">12 to 84 Months</td>
-                <td style="padding:12px;">1 to 2 Working Days</td>
-            </tr>
-            <tr>
-                <td style="padding:12px;"><strong>Bank of Baroda</strong></td>
-                <td style="padding:12px;">10.35% – 14.10% p.a.</td>
-                <td style="padding:12px;">1.00% to 1.50% + GST</td>
-                <td style="padding:12px;">12 to 60 Months</td>
-                <td style="padding:12px;">Same Day Disbursal</td>
-            </tr>
-        </tbody>
-    </table>
-</div>
-
-<h2>Eligibility Requirements &amp; Verification Documentation</h2>
-<p>Securing sanction for {primary_kw} necessitates meeting standard underwriting benchmarks established by credit risk committees. Underwriters assess debt-to-income ratios, ongoing obligations, and historical repayment discipline before granting formal approval.</p>
-
-<ul>
-    <li><strong>Age Thresholds:</strong> Minimum 21 years at application; maximum 60 years (salaried) or 65 years (self-employed) at loan maturity.</li>
-    <li><strong>Income Floor:</strong> Minimum net monthly income of ₹25,000 for tier-1 metropolitan cities, and ₹18,000 for non-metro jurisdictions.</li>
-    <li><strong>Credit Score Requirement:</strong> Minimum CIBIL score of 720; scores exceeding 780 qualify for prime rate slabs and instant processing.</li>
-    <li><strong>Mandatory Documentation:</strong> Identity proof (PAN Card), address proof via Aadhaar e-KYC, last 6 months bank statements with salary credit reflections, and latest Form 16 or Income Tax Returns.</li>
-</ul>
-
-<h2>Step-by-Step Digital Application Walkthrough</h2>
-<p>Modern banking architecture enables direct application through end-to-end digital pathways. Following the systematic protocol below minimizes documentation rejections and expedites instant disbursement directly into your verified bank account.</p>
-
-<ol>
-    <li><strong>Online Eligibility Check:</strong> Access the official portal, select your required funding quantum and repayment tenure, and enter primary demographic details.</li>
-    <li><strong>DigiLocker Paperless e-KYC:</strong> Authenticate through Aadhaar OTP to complete instant address and identity verification without physical document submission.</li>
-    <li><strong>Account Aggregator Integration:</strong> Grant consent via RBI-approved Account Aggregator framework to share digitally verified bank statements directly from your primary bank.</li>
-    <li><strong>Sanction Letter Review &amp; KFS Verification:</strong> Examine the Key Fact Statement, confirming the exact APR, monthly EMI outflow, processing fee deduction, and net disbursal amount.</li>
-    <li><strong>e-Mandate Setup &amp; Disbursal:</strong> Register an electronic NACH/e-Mandate via debit card or net banking for automated EMI servicing, triggering immediate fund transfer via NEFT/RTGS.</li>
-</ol>
-
-<h2>Empirical Case Analysis: Total Cost of Credit &amp; Strategic Prepayment</h2>
-<p>Understanding the long-term financial ramifications of <strong>{primary_kw}</strong> requires evaluating total outflow beyond nominal interest quotes. Under Reserve Bank of India (RBI) guidelines, institutions must calculate and disclose the Annual Percentage Rate (APR), which incorporates all upfront processing charges, documentation costs, and recurring servicing levies into a unified annual percentage.</p>
-<p>Consider an empirical scenario comparing two salaried professionals seeking a ₹3,00,000 credit facility across a 36-month tenure:</p>
-<ul class='checklist'>
-    <li><strong>Applicant A (Informed Comparison):</strong> Secures sanction at 10.50% APR with a 1.0% processing fee (₹3,000 + ₹540 GST). Over 36 months, total interest paid equals ₹50,937, yielding total net repayment of ₹354,477.</li>
-    <li><strong>Applicant B (Unverified Fast-Track):</strong> Accepts an expedited 14.25% facility carrying a 2.5% administrative deduction (₹7,500 + ₹1,350 GST) and bundled mandatory credit protection insurance costing ₹4,500. Total interest aggregates to ₹70,412, resulting in a gross expenditure of ₹383,762.</li>
-</ul>
-<p>By conducting rigorous institutional comparison and rejecting unmandated add-on products, Applicant A saves exactly ₹29,285 in statutory interest and upfront origination deductions. Furthermore, utilizing surplus liquidity to execute annual partial prepayments of ₹25,000 accelerates principal reduction, trimming an additional 4 months from the repayment schedule.</p>
-
-<h2>Critical Underwriting Pitfalls &amp; Bureau Protection Protocol</h2>
-<p>Prospective applicants frequently incur avoidable interest rate surcharges due to procedural errors during the initial application cycle. Adhering to the risk-mitigation benchmarks below preserves bureau standing and guarantees maximum pricing leverage:</p>
-<ol>
-    <li><strong>Avoid Simultaneous Multi-Lender Inquiries:</strong> Submitting formal applications to multiple banks concurrently triggers hard bureau pulls. Generating 4 or more hard inquiries within a 30-day window can diminish credit scores by 15 to 35 points, pushing applicants into sub-prime risk brackets.</li>
-    <li><strong>Reconcile Key Fact Statements (KFS):</strong> Before providing Aadhaar OTP consent for loan agreements, verify that the net credit to your account matches the sanction letter minus explicitly agreed origination fees. Any discrepancy exceeding standard 18% GST on processing charges indicates unapproved deductions.</li>
-    <li><strong>Verify Bureau Reporting Timelines:</strong> Regulated entities must report repayment status to credit bureaus (CIBIL, Experian, CRIF High Mark, Equifax) on a monthly cadence. Retain transaction confirmation IDs for every EMI payment for a minimum of 24 months to resolve potential clerical reporting anomalies promptly.</li>
-</ol>
-
-<h2>Statutory Framework &amp; Regulatory Protection</h2>
-<p>Consumers evaluating <strong>{primary_kw}</strong> within India's {category.lower()} sector are protected by statutory frameworks enforced across regulated financial institutions and digital platforms. Under applicable directives, transparent disclosure of terms, grievance escalation matrices, and statutory redressal timelines are strictly binding.</p>
-<ul class='checklist'>
-{c_items}
-</ul>
-<p>Maintaining documented records of sanction letters, tariff schedules, and transaction receipts ensures that Indian users can resolve any billing or compliance discrepancies directly through statutory ombudsman channels.</p>
-
-<h2>Frequently Asked Questions</h2>
-<h3>What is the exact eligibility requirement for {primary_kw} in 2026?</h3>
-<p>Applicants must be Indian citizens aged 21 to 60 years with a regular monthly income of at least ₹20,000 and a minimum credit bureau score of 720. Salaried individuals require at least 6 months continuous employment, while self-employed professionals must submit 2 years of filed Income Tax Returns.</p>
-
-<h3>How much money (in ₹) can I save by comparing {primary_kw} options?</h3>
-<p>Comparing institutional lenders across a ₹5,00,000 facility over a 36-month tenure can yield savings between ₹18,500 and ₹42,000 in overall interest outflows. Furthermore, negotiating processing fee waivers during promotional cycles provides immediate savings of ₹2,500 to ₹7,500.</p>
-
-<h3>What documents are mandatory for instant online approval?</h3>
-<p>Mandatory documentation includes your PAN card for tax identification, Aadhaar card for biometric e-KYC authentication, bank account statements for the preceding 6 months, and recent salary slips or ITR acknowledgments. All records can be shared electronically through DigiLocker.</p>
-
-<h3>Are there any hidden charges, GST, or foreclosure penalties?</h3>
-<p>Under RBI fair practices code, all applicable fees must be stated in the Key Fact Statement. Standard processing charges attract 18% Goods and Services Tax (GST). However, RBI explicitly prohibits foreclosure and part-prepayment penalties on floating-rate loans issued to individual borrowers.</p>
-
-<h3>How long does final verification and activation take?</h3>
-<p>Fully digital applications utilizing Account Aggregator data and DigiLocker verification typically achieve sanction within 15 to 45 minutes, with automated disbursal completing in under 2 hours. Traditional branch applications requiring manual underwriting require approximately 2 to 4 working days.</p>
-"""
+    raw_html = f"{clean_p1}\n\n{clean_p2}"
 
     # P3-2: Dynamic topic-specific expansion (never hardcoded network-wide filler)
     current_words = len(re.findall(r"\b\w+\b", raw_html))
-    if current_words < 1050 and clean_p1:
+    if current_words < 1050:
         expand_prompt = f"""Write an additional analytical section (300 to 450 words) on '{primary_kw}' ({category}) for Indian consumers in 2026.
 Focus on regulatory protections, grievance redressal, and cost optimization for this specific topic.
 Output only valid HTML with an <h2> heading and 2-3 detailed analytical paragraphs with ₹ figures."""
-        extra_content = query_freellmapi(expand_prompt, system_prompt, max_tokens=1200, timeout=60.0)
-        clean_extra = _strip_code_fences_and_preamble(extra_content or "")
-        if len(clean_extra) > 200:
-            raw_html = f"{raw_html}\n{clean_extra}"
-        else:
-            import seo_pipeline
-            citations = seo_pipeline.get_regulatory_citations(site_id)
-            c_items = "".join(f"<li><strong>{c['name']}:</strong> {c['authority']} circulars governing {category.lower()} and consumer fair-practice mandates.</li>" for c in citations[:3])
-            dyn_supp = f"""
-<h2>Statutory Framework & Compliance Standards for {primary_kw}</h2>
-<p>Consumers evaluating <strong>{primary_kw}</strong> within India's {category.lower()} sector are protected by statutory frameworks enforced across regulated financial institutions and digital platforms. Under applicable directives, transparent disclosure of terms, grievance escalation matrices, and statutory redressal timelines are strictly binding.</p>
-<ul class='checklist'>
-{c_items}
-</ul>
-<p>Maintaining documented records of sanction letters, tariff schedules, and transaction receipts ensures that Indian users can resolve any billing or compliance discrepancies directly through statutory ombudsman channels.</p>
-"""
-            raw_html = f"{raw_html}\n{dyn_supp}" if raw_html else dyn_supp
+        try:
+            extra_content = query_freellmapi(expand_prompt, system_prompt, max_tokens=1200, timeout=60.0)
+            clean_extra = _strip_code_fences_and_preamble(extra_content or "")
+            if len(clean_extra) > 200:
+                raw_html = f"{raw_html}\n{clean_extra}"
+        except Exception as exp_err:
+            logger.warning(f"[FreeLLMAPI] Optional expansion skipped: {exp_err}")
 
     clean_html = AntiAIDetectionGate.humanize(raw_html)
     clean_html = _strip_code_fences_and_preamble(clean_html)

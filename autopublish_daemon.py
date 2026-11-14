@@ -573,7 +573,22 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
         img_alt = dynamic_img["alt"]
 
         # PHASE 3: Claude-SEO Content Generation
-        raw_content_html, raw_faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+        try:
+            raw_content_html, raw_faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+        except Exception as gen_err:
+            print(f"[{site_id}] Article generation failed: {gen_err}")
+            _notify_pipeline_error("article_generation", f"LLM error for topic '{topic[:120]}': {gen_err}", domain=site_id)
+            topic_intelligence.update_pipeline_stage(
+                domain=site_id,
+                stage_num=2,
+                stage_name="Queued for Fast-Track Publish",
+                active_topic=topic,
+                status_message=f"Generation failed ({gen_err}); returned topic cleanly to pending queue",
+                db_path=DB_PATH,
+            )
+            _reset_topic_pending(q_id)
+            return False
+
         if not raw_content_html:
             _notify_pipeline_error("article_generation", f"Empty LLM output for topic: {topic[:120]}", domain=site_id)
             topic_intelligence.update_pipeline_stage(
@@ -584,6 +599,7 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
                 status_message="Generation empty; returned topic cleanly to pending queue",
                 db_path=DB_PATH,
             )
+            _reset_topic_pending(q_id)
             return False
 
         # PHASE 4: Anti-AI, Claude-SEO `content_humanize.py` + `content_quality.py` & Finish-Gate Audit
@@ -1031,7 +1047,10 @@ if __name__ == "__main__":
                 site_arg = sys.argv[idx + 1]
         seed_queue(fetch_live=False)
         print(f"Executing DRY-RUN 5-Stage deep auto-publish run (Site: {site_arg})...")
-        publish_next_post(specific_site=site_arg, discover_fresh_20=False, dry_run=True)
+        success = publish_next_post(specific_site=site_arg, discover_fresh_20=False, dry_run=True)
+        if not success:
+            print("[ERROR] Auto-publish dry-run failed. Exiting non-zero.")
+            sys.exit(1)
     elif len(sys.argv) > 1 and sys.argv[1] == "--kick-stuck":
         seed_queue(fetch_live=False)
         res = recover_and_kick_stuck_domains(fetch_live=False)
@@ -1045,6 +1064,9 @@ if __name__ == "__main__":
         seed_queue(fetch_live=False)
         site_arg = sys.argv[2] if len(sys.argv) > 2 else select_next_wave_domain(per_domain_cap=5)
         print(f"Executing single 5-Stage deep auto-publish run (Site: {site_arg or 'Next in Queue'})...")
-        publish_next_post(specific_site=site_arg, discover_fresh_20=True)
+        success = publish_next_post(specific_site=site_arg, discover_fresh_20=True)
+        if not success:
+            print("[ERROR] Auto-publish run failed. Exiting non-zero.")
+            sys.exit(1)
     else:
         run_daemon()
