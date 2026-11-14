@@ -54,10 +54,13 @@ KNOWN_ADSTERRA_DOMAINS: dict[str, str] = {
 }
 
 
-def load_local_adsterra_ZeroWaste_maps() -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+def load_local_adsterra_ZeroWaste_maps(
+    banner_file_path: Optional[str | Path] = None,
+) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
     """
     Load domain_id -> domain_name and placement_id -> {domain, unit, label}
-    from state/adsterra_banners.json + KNOWN_ADSTERRA_DOMAINS without extra HTTP calls.
+    from state/adsterra_banners.json (or tests/fixtures/adsterra_banners.json fallback)
+    + KNOWN_ADSTERRA_DOMAINS without extra HTTP calls.
     """
     import json
 
@@ -70,8 +73,20 @@ def load_local_adsterra_ZeroWaste_maps() -> tuple[dict[str, str], dict[str, dict
             "label": "smart-link-pool • Smartlink_1",
         }
     }
-    banner_file = Path(__file__).resolve().parent / "state" / "adsterra_banners.json"
-    if banner_file.exists():
+    if banner_file_path is not None:
+        banner_file = Path(banner_file_path)
+        if not banner_file.exists() or banner_file.stat().st_size == 0:
+            logger.warning("Adsterra banners file not found (%s); using fallback map", banner_file)
+    else:
+        banner_file = Path(__file__).resolve().parent / "state" / "adsterra_banners.json"
+        if not banner_file.exists() or banner_file.stat().st_size == 0:
+            fixture_fallback = Path(__file__).resolve().parent / "tests" / "fixtures" / "adsterra_banners.json"
+            if fixture_fallback.exists() and fixture_fallback.stat().st_size > 0:
+                banner_file = fixture_fallback
+            else:
+                logger.warning("Adsterra banners file not found (%s); using fallback map", banner_file)
+
+    if banner_file.exists() and banner_file.stat().st_size > 0:
         try:
             raw = json.loads(banner_file.read_text(encoding="utf-8"))
             for short, entry in (raw.get("domains") or {}).items():
@@ -99,7 +114,7 @@ def load_local_adsterra_ZeroWaste_maps() -> tuple[dict[str, str], dict[str, dict
                             "label": f"{dom_name} • {otitle}",
                         }
         except Exception as e:
-            logger.debug("Notice reading state/adsterra_banners.json: %s", e)
+            logger.debug("Notice reading %s: %s", banner_file, e)
     return dom_map, placement_map
 
 

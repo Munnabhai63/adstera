@@ -1,0 +1,436 @@
+{
+  "domains": {
+    "rechargetak": {
+      "domain": "rechargetak.com",
+      "adsterra_domain_id": 6190678,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32200850,
+          "title": "NativeBanner_1",
+          "zone_key": "65d56d25dab0c59a0903ae9786585b4c",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/65d56d25dab0c59a0903ae9786585b4c\"></script>\n<div id=\"container-65d56d25dab0c59a0903ae9786585b4c\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:42:49.990935+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201348,
+          "title": "300x250_1",
+          "zone_key": "a4a46b08664334f8cdc1f0fa1e467ef6",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'a4a46b08664334f8cdc1f0fa1e467ef6',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/a4a46b08664334f8cdc1f0fa1e467ef6\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:42:49.990935+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201349,
+          "title": "728x90_1",
+          "zone_key": "8ffb806b83baecf30f83c4d0ea5a204f",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '8ffb806b83baecf30f83c4d0ea5a204f',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/8ffb806b83baecf30f83c4d0ea5a204f\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:42:50.083230+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32200846
+        },
+        "Smartlink_1": {
+          "placement_id": 32200848,
+          "direct_url": "https://araplhn.org/4/36def2a0119696fb23e3fe034ccfcbc6"
+        },
+        "SocialBar_1": {
+          "placement_id": 32200849
+        }
+      },
+      "csv_verified": true
+    },
+    "tazaloan": {
+      "domain": "tazaloan.com",
+      "adsterra_domain_id": 6190721,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201121,
+          "title": "NativeBanner_1",
+          "zone_key": "2b004cef6c82a03751ba4bb276760ce5",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/2b004cef6c82a03751ba4bb276760ce5\"></script>\n<div id=\"container-2b004cef6c82a03751ba4bb276760ce5\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:46:11.843764+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201356,
+          "title": "300x250_1",
+          "zone_key": "da91141a305640bdfc7cd8c1c1de031b",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'da91141a305640bdfc7cd8c1c1de031b',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/da91141a305640bdfc7cd8c1c1de031b\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:46:11.845913+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201357,
+          "title": "728x90_1",
+          "zone_key": "79c36204669b7d9377f89c5a14a90350",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '79c36204669b7d9377f89c5a14a90350',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/79c36204669b7d9377f89c5a14a90350\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:46:11.954092+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201120
+        },
+        "SocialBar_1": {
+          "placement_id": 32201122
+        },
+        "Smartlink_1": {
+          "placement_id": 32201123,
+          "direct_url": "https://araplhn.org/4/b85c5d24beb88d58bfb4e161e1f74dd9"
+        }
+      },
+      "csv_verified": true
+    },
+    "tazabhav": {
+      "domain": "tazabhav.com",
+      "adsterra_domain_id": 6190711,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201068,
+          "title": "NativeBanner_1",
+          "zone_key": "220bccfd0e3045a17d6a281c0efde838",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/220bccfd0e3045a17d6a281c0efde838\"></script>\n<div id=\"container-220bccfd0e3045a17d6a281c0efde838\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:44:21.918688+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201352,
+          "title": "300x250_1",
+          "zone_key": "bd149349d413d037357cdd343b948760",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'bd149349d413d037357cdd343b948760',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/bd149349d413d037357cdd343b948760\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:44:21.919701+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201353,
+          "title": "728x90_1",
+          "zone_key": "3d91b793f04316eceeb12cc78a065cd9",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '3d91b793f04316eceeb12cc78a065cd9',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/3d91b793f04316eceeb12cc78a065cd9\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:44:22.004410+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201067
+        },
+        "Smartlink_1": {
+          "placement_id": 32201069,
+          "direct_url": "https://araplhn.org/4/ca5b06c43def4844f857da9379d3229d"
+        },
+        "SocialBar_1": {
+          "placement_id": 32201070
+        }
+      },
+      "csv_verified": true
+    },
+    "rechargepur": {
+      "domain": "rechargepur.com",
+      "adsterra_domain_id": 6190720,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201118,
+          "title": "NativeBanner_1",
+          "zone_key": "a073ede27f853ba4e8c73e36c352ace9",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/a073ede27f853ba4e8c73e36c352ace9\"></script>\n<div id=\"container-a073ede27f853ba4e8c73e36c352ace9\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:41:07.592315+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201342,
+          "title": "300x250_1",
+          "zone_key": "43695db041af811e8085ea2f8bbf0aec",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '43695db041af811e8085ea2f8bbf0aec',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/43695db041af811e8085ea2f8bbf0aec\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:41:07.592315+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201343,
+          "title": "728x90_1",
+          "zone_key": "44184e49c829352f5452550eb970777d",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '44184e49c829352f5452550eb970777d',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/44184e49c829352f5452550eb970777d\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:41:07.645501+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201115
+        },
+        "SocialBar_1": {
+          "placement_id": 32201116
+        },
+        "Smartlink_1": {
+          "placement_id": 32201117,
+          "direct_url": "https://araplhn.org/4/efed43a0653e93bd1dc62b74d42e4c6a"
+        }
+      },
+      "csv_verified": true
+    },
+    "loankiseva": {
+      "domain": "loankiseva.com",
+      "adsterra_domain_id": 6190722,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201128,
+          "title": "NativeBanner_1",
+          "zone_key": "cf64968e6c2abb59fc2c281d8f69c09d",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/cf64968e6c2abb59fc2c281d8f69c09d\"></script>\n<div id=\"container-cf64968e6c2abb59fc2c281d8f69c09d\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:19:32.586892+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201309,
+          "title": "300x250_1",
+          "zone_key": "3017eac3c3b5bd3182b0692930a1b63f",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '3017eac3c3b5bd3182b0692930a1b63f',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/3017eac3c3b5bd3182b0692930a1b63f\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:19:32.587898+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201310,
+          "title": "728x90_1",
+          "zone_key": "e084f5e23fbd652ed5599ac34d939603",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'e084f5e23fbd652ed5599ac34d939603',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/e084f5e23fbd652ed5599ac34d939603\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:19:32.590047+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201125
+        },
+        "SocialBar_1": {
+          "placement_id": 32201126
+        },
+        "Smartlink_1": {
+          "placement_id": 32201127,
+          "direct_url": "https://araplhn.org/4/2caa4b8918499ce7fd21fc1b92ec94aa"
+        }
+      },
+      "csv_verified": true
+    },
+    "loanraaj": {
+      "domain": "loanraaj.com",
+      "adsterra_domain_id": 6190726,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201156,
+          "title": "NativeBanner_1",
+          "zone_key": "fd610c6b79ca4945bbf77a1c91d93526",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/fd610c6b79ca4945bbf77a1c91d93526\"></script>\n<div id=\"container-fd610c6b79ca4945bbf77a1c91d93526\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:22:02.885833+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201324,
+          "title": "300x250_1",
+          "zone_key": "648b880d1aa801e2b67f0c5ec9be1df3",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '648b880d1aa801e2b67f0c5ec9be1df3',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/648b880d1aa801e2b67f0c5ec9be1df3\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:22:02.885833+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201325,
+          "title": "728x90_1",
+          "zone_key": "b30f7009c31d4b43c0e1f924df97dade",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'b30f7009c31d4b43c0e1f924df97dade',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/b30f7009c31d4b43c0e1f924df97dade\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:22:02.896869+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201153
+        },
+        "SocialBar_1": {
+          "placement_id": 32201154
+        },
+        "Smartlink_1": {
+          "placement_id": 32201155,
+          "direct_url": "https://araplhn.org/4/17dc693c036f3b211f48887d232add4b"
+        }
+      },
+      "csv_verified": true
+    },
+    "karzseva": {
+      "domain": "karzseva.com",
+      "adsterra_domain_id": 6190727,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201161,
+          "title": "NativeBanner_1",
+          "zone_key": "e65ed9c0018f6dea39c230236902a0ac",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/e65ed9c0018f6dea39c230236902a0ac\"></script>\n<div id=\"container-e65ed9c0018f6dea39c230236902a0ac\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:13:18.065028+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201293,
+          "title": "300x250_1",
+          "zone_key": "fd120a51273a62fcd03a413667e0e8a6",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'fd120a51273a62fcd03a413667e0e8a6',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/fd120a51273a62fcd03a413667e0e8a6\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:13:18.065028+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201294,
+          "title": "728x90_1",
+          "zone_key": "c42e66dbfb443577a3192a0fbc1964c3",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'c42e66dbfb443577a3192a0fbc1964c3',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/c42e66dbfb443577a3192a0fbc1964c3\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:13:18.065028+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201158
+        },
+        "SocialBar_1": {
+          "placement_id": 32201159
+        },
+        "Smartlink_1": {
+          "placement_id": 32201160,
+          "direct_url": "https://araplhn.org/4/8b6f18f361f42dc7c2c708b4ce5f6f28"
+        }
+      },
+      "csv_verified": true
+    },
+    "loantau": {
+      "domain": "loantau.com",
+      "adsterra_domain_id": 6190729,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201166,
+          "title": "NativeBanner_1",
+          "zone_key": "c838adb83d72c08c4a4af3a42f358e56",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/c838adb83d72c08c4a4af3a42f358e56\"></script>\n<div id=\"container-c838adb83d72c08c4a4af3a42f358e56\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:24:33.952159+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201329,
+          "title": "300x250_1",
+          "zone_key": "93d1793adf9512529c69bddd47032a50",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '93d1793adf9512529c69bddd47032a50',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/93d1793adf9512529c69bddd47032a50\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:24:33.953129+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201330,
+          "title": "728x90_1",
+          "zone_key": "b979ee0c11b22b0d43214425ee6920ba",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'b979ee0c11b22b0d43214425ee6920ba',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/b979ee0c11b22b0d43214425ee6920ba\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:24:33.962096+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201165
+        },
+        "SocialBar_1": {
+          "placement_id": 32201167
+        },
+        "Smartlink_1": {
+          "placement_id": 32201168,
+          "direct_url": "https://araplhn.org/4/5758e39593ed52767a2328758c2683da"
+        }
+      },
+      "csv_verified": true
+    },
+    "tazarokda": {
+      "domain": "tazarokda.com",
+      "adsterra_domain_id": 6190730,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201172,
+          "title": "NativeBanner_1",
+          "zone_key": "894017a70c2bcabde9009fa64b227b31",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/894017a70c2bcabde9009fa64b227b31\"></script>\n<div id=\"container-894017a70c2bcabde9009fa64b227b31\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:47:44.483361+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201360,
+          "title": "300x250_1",
+          "zone_key": "e1619f25904280ee22834820aaa4f382",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'e1619f25904280ee22834820aaa4f382',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/e1619f25904280ee22834820aaa4f382\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:47:44.485427+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201361,
+          "title": "728x90_1",
+          "zone_key": "972f952d11e7e215f6f1d7e815ccf5a3",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '972f952d11e7e215f6f1d7e815ccf5a3',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/972f952d11e7e215f6f1d7e815ccf5a3\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:47:44.595432+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201171
+        },
+        "SocialBar_1": {
+          "placement_id": 32201173
+        },
+        "Smartlink_1": {
+          "placement_id": 32201174,
+          "direct_url": "https://araplhn.org/4/683357397a7ae6ec26a028b4100a876c"
+        }
+      },
+      "csv_verified": true
+    },
+    "rechargekar": {
+      "domain": "rechargekar.com",
+      "adsterra_domain_id": 6190733,
+      "slots": {
+        "native_banner": {
+          "placement_id": 32201202,
+          "title": "NativeBanner_1",
+          "zone_key": "cf2f56a941d1cbbd6aca3e2722310736",
+          "snippet": "<script async=\"async\" data-cfasync=\"false\" src=\"https://bauval.org/21/cf2f56a941d1cbbd6aca3e2722310736\"></script>\n<div id=\"container-cf2f56a941d1cbbd6aca3e2722310736\"></div>",
+          "verified": true,
+          "added_at": "2026-11-11T13:26:11.880370+00:00"
+        },
+        "banner_300x250": {
+          "placement_id": 32201333,
+          "title": "300x250_1",
+          "zone_key": "4e920617b1a84b04f47fb196a18cde37",
+          "snippet": "<script>\n  atOptions = {\n    'key' : '4e920617b1a84b04f47fb196a18cde37',\n    'format' : 'iframe',\n    'height' : 250,\n    'width' : 300,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/4e920617b1a84b04f47fb196a18cde37\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:26:11.880370+00:00"
+        },
+        "banner_728x90": {
+          "placement_id": 32201334,
+          "title": "728x90_1",
+          "zone_key": "a07dfb5363d4d08dd7b2d6cc3e431d32",
+          "snippet": "<script>\n  atOptions = {\n    'key' : 'a07dfb5363d4d08dd7b2d6cc3e431d32',\n    'format' : 'iframe',\n    'height' : 90,\n    'width' : 728,\n    'params' : {}\n  };\n</script>\n<script src=\"https://bauval.org/22/a07dfb5363d4d08dd7b2d6cc3e431d32\"></script>",
+          "verified": true,
+          "added_at": "2026-11-11T13:26:11.930216+00:00"
+        }
+      },
+      "other_placements": {
+        "Popunder_1": {
+          "placement_id": 32201199
+        },
+        "SocialBar_1": {
+          "placement_id": 32201200
+        },
+        "Smartlink_1": {
+          "placement_id": 32201201,
+          "direct_url": "https://araplhn.org/4/7a123d148c127cf4f54df5374d59a985"
+        }
+      },
+      "csv_verified": true
+    }
+  },
+  "last_api_sync": "2026-11-11T00:00:58.874989+00:00",
+  "updated_at": "2026-11-11T13:47:44.703601+00:00"
+}
