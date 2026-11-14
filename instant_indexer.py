@@ -538,6 +538,10 @@ def broadcast_all_network_sites(limit: int | None = None, dry_run: bool = False)
                             continue
                         urls_to_submit.append(f"https://{clean_domain}/{slug}/")
                     else:
+                        # Skip flat <slug>.html file if sibling directory <slug>/index.html exists
+                        sibling_dir = file_path.with_suffix("")
+                        if (sibling_dir / "index.html").exists():
+                            continue
                         slug = rel.with_suffix("").as_posix()
                         if slug in STATIC_SLUGS or any(part in STATIC_SLUGS for part in rel_parts):
                             continue
