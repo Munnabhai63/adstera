@@ -8,12 +8,13 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from content_quality_gate import ARTICLE_WORD_COUNT_FLOOR
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 os.chdir(str(REPO_ROOT))
+
+from content_quality_gate import ARTICLE_WORD_COUNT_FLOOR
 
 
 def run(cmd: list[str]) -> tuple[int, str]:
@@ -54,10 +55,17 @@ def main():
         summ_passed = 26
 
     rc_live, out_live = run([py, "tests/audit.py"])
-    c2b_msg = "PASS (live transport verified)" if rc_live == 0 else "SKIPPED (no transport configured)"
+    if not c2a:
+        c2_status = "FAIL"
+        c2_detail = f"Failed: {out_ci.strip()[:80]}"
+    elif rc_live == 0:
+        c2_status = "PASS"
+        c2_detail = f"CI: {summ_passed}/{summ_checks} passed; Transport: PASS (live transport verified)"
+    else:
+        c2_status = "PARTIAL"
+        c2_detail = f"CI: {summ_passed}/{summ_checks} passed; Transport: SKIPPED (no transport configured)"
 
-    c2 = c2a
-    results.append(("2. Pre-flight Audit (26 checks)", c2, f"CI: {summ_passed}/{summ_checks} passed; Transport: {c2b_msg}" if c2 else f"Failed: {out_ci.strip()[:80]}"))
+    results.append(("2. Pre-flight Audit (26 checks)", c2_status, c2_detail))
 
     # Check 3: Autopublish daemon dry-run
     rc, out = run([py, "autopublish_daemon.py", "--dry-run", "--site", "loanraaj"])
@@ -230,16 +238,28 @@ with tempfile.TemporaryDirectory() as tmpdir:
     results.append(("10. Pytest Suite Integrity", c10, detail_msg if c10 else f"Failed integrity: {detail_msg}"))
 
     print("\n" + "-" * 70)
-    all_passed = True
+    pass_cnt = 0
+    partial_cnt = 0
+    fail_cnt = 0
     for name, status, detail in results:
-        status_str = "[PASS]" if status else "[FAIL]"
-        print(f"{status_str:7} | {name:<32} | {detail}")
-        if not status:
-            all_passed = False
+        if status is True or status == "PASS":
+            status_str = "[PASS]"
+            pass_cnt += 1
+        elif status == "PARTIAL":
+            status_str = "[PARTIAL]"
+            partial_cnt += 1
+        else:
+            status_str = "[FAIL]"
+            fail_cnt += 1
+        print(f"{status_str:9} | {name:<32} | {detail}")
     print("-" * 70)
 
-    if all_passed:
+    print(f"\nFinal Summary: {pass_cnt}/10 PASS, {partial_cnt}/10 PARTIAL, {fail_cnt}/10 FAIL")
+    if pass_cnt == 10 and fail_cnt == 0:
         print("\nALL 10 ACCEPTANCE CHECKS PASSED PERFECTLY [OK]")
+        return 0
+    elif fail_cnt == 0 and partial_cnt > 0:
+        print(f"\nACCEPTANCE CHECKS: {pass_cnt}/10 PASS, {partial_cnt}/10 PARTIAL (NO HARD FAILURES)")
         return 0
     else:
         print("\nSOME CHECKS FAILED [ERR]")
