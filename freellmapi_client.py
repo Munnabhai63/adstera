@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 CLOUDFLARE_EDGE_URL = "https://loanraaj.com"
 LOCAL_DAEMON_URL = "http://127.0.0.1:3001"
 DEFAULT_API_URL = CLOUDFLARE_EDGE_URL
-DEFAULT_MODEL = "Qwen2.5-VL-72B-Instruct"
+DEFAULT_MODEL = "Qwen/Qwen2.5-72B-Instruct"
 FREELLMAPI_SERVER_DIR = Path(r"F:\UserData\Downloads\ai-power-tools\freellmapi\server")
 
 FAST_INSTRUCT_CHAIN: List[Dict[str, str]] = [
@@ -129,12 +129,16 @@ class FreeLLMClient:
         freellm_cfg = self.config.get("freellm", {}) or {}
         self.enabled = bool(freellm_cfg.get("enabled", True))
         self.timeout = float(freellm_cfg.get("timeout", 150.0))
-        self.default_model = str(freellm_cfg.get("model", DEFAULT_MODEL))
         self.fallback_models: List[str] = list(freellm_cfg.get("fallback_models") or [
             "Qwen/Qwen2.5-72B-Instruct",
             "meta-llama/Llama-3.3-70B-Instruct",
             "mistralai/Mistral-Small-24B-Instruct-2501",
         ])
+        cfg_model = str(freellm_cfg.get("model", "auto")).strip()
+        if cfg_model in ("auto", "fusion", "claude-sonnet-4-5", "") and self.fallback_models:
+            self.default_model = self.fallback_models[0]
+        else:
+            self.default_model = cfg_model or (self.fallback_models[0] if self.fallback_models else DEFAULT_MODEL)
         self.edge_url = str(freellm_cfg.get("edge_url", CLOUDFLARE_EDGE_URL)).rstrip("/")
         self.local_url = str(freellm_cfg.get("local_url", LOCAL_DAEMON_URL)).rstrip("/")
 
@@ -239,12 +243,18 @@ class FreeLLMClient:
             "Content-Type": "application/json",
         }
 
-        # Build ordered list of models to try
+        # Build ordered list of models to try from config
+        effective_fallbacks = [fb for fb in self.fallback_models if fb not in ("auto", "fusion", "claude-sonnet-4-5")]
+        primary_fallback = effective_fallbacks[0] if effective_fallbacks else DEFAULT_MODEL
+
         models_to_try: List[str] = []
         primary_candidate = model or self.default_model
+        if primary_candidate in ("auto", "fusion", "claude-sonnet-4-5", ""):
+            primary_candidate = primary_fallback
+
         if primary_candidate:
             models_to_try.append(primary_candidate)
-        for fb in self.fallback_models:
+        for fb in effective_fallbacks:
             if fb and fb not in models_to_try:
                 models_to_try.append(fb)
 
@@ -259,7 +269,7 @@ class FreeLLMClient:
         for idx, candidate_model in enumerate(models_to_try):
             chosen_model = candidate_model
             if chosen_model in ("claude-sonnet-4-5", "auto", "fusion"):
-                chosen_model = DEFAULT_MODEL
+                chosen_model = primary_fallback
 
             last_failure_reason = None
 
