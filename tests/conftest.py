@@ -25,13 +25,24 @@ def isolate_test_environment() -> Generator[None, None, None]:
 
 @pytest.fixture(scope="session", autouse=True)
 def live_ui_server() -> Generator[str, None, None]:
-    """Start ui.start_server(port=5050) for dashboard tests and tear down at session end."""
+    """Start ui.start_server(port=5050) for dashboard tests and tear down at session end.
+    Isolates CRM state to a temporary directory so real state/admin_profile.json is NEVER mutated.
+    """
+    import shutil
+    import tempfile
     import ui
     from admin_ui import profile_auth
 
+    real_profile_path = Path("state/admin_profile.json")
+    temp_state = Path(tempfile.mkdtemp(prefix="test_crm_state_"))
+    if real_profile_path.exists():
+        shutil.copy2(real_profile_path, temp_state / "admin_profile.json")
+    os.environ["ADMIN_PROFILE_STATE_DIR"] = str(temp_state)
+    profile_auth.DEFAULT_STATE_DIR = temp_state
+
     os.environ["PHASE4_ALLOW_DEV_UNLOCK"] = "1"
     try:
-        profile_auth.unlock_without_password()
+        profile_auth.unlock_without_password(state_dir=temp_state)
     except Exception:
         pass
 
@@ -66,3 +77,7 @@ def live_ui_server() -> Generator[str, None, None]:
             ui.stop_server()
         except Exception:
             pass
+    try:
+        shutil.rmtree(temp_state, ignore_errors=True)
+    except Exception:
+        pass

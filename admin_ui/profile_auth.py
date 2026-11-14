@@ -17,7 +17,7 @@ from typing import Any
 import db
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_STATE_DIR = BASE_DIR / "state"
+DEFAULT_STATE_DIR = Path(os.environ.get("ADMIN_PROFILE_STATE_DIR") or (BASE_DIR / "state"))
 COOKIE_NAME = "adsterra_crm_session"
 PBKDF2_ITERATIONS = 200_000
 

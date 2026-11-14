@@ -274,3 +274,12 @@ def test_s1_autopublish_preview_path_traversal_hardened():
             raise AssertionError("POST /api/autopublish/preview unexpectedly succeeded")
     except urllib.error.HTTPError as err:
         assert err.code in (400, 401, 404, 405)
+
+
+def test_admin_profile_state_unmutated_after_test_suite():
+    """DEFECT W-1: state/admin_profile.json must remain locked and unmutated by test fixtures."""
+    profile_path = Path("state/admin_profile.json")
+    assert profile_path.exists(), "state/admin_profile.json must exist"
+    data = json.loads(profile_path.read_text(encoding="utf-8"))
+    auth = data.get("auth", {})
+    assert auth.get("locked_now") is True, "Real state/admin_profile.json must remain locked_now=True"
