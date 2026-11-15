@@ -26,7 +26,8 @@ def test_render_301_stub_matches_on_disk_bytes():
 
     assert generated == disk_bytes, "Generated stub bytes must match on-disk file byte-for-byte"
     assert b"\r\n" not in generated, "Generated stub contains Windows CRLF line endings"
-    assert generated.count(b"\n") == 6, f"Expected 6 LF line endings, found {generated.count(b'\n')}"
+    lf_count = generated.count(b"\n")
+    assert lf_count == 6, f"Expected 6 LF line endings, found {lf_count}"
     assert len(generated) == 405, f"Expected exactly 405 bytes, got {len(generated)}"
     assert hashlib.sha256(generated).hexdigest() == EXPECTED_STUB_SHA256
 
