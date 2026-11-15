@@ -348,7 +348,7 @@ def merge_duplicate_sections(html_text: str) -> str:
 def count_structural_units(html_text: str) -> dict[str, int]:
     """Count structural units (<p>, <table>, <figure>, <img>, <ol>/<ul>) and prose words in <p>."""
     soup = BeautifulSoup(html_text, "html.parser")
-    root = soup.find("div", class_="post-content") or soup.find("article") or soup
+    root = soup.find("article") or soup.find("div", class_="post-content") or soup
     p_tags = root.find_all("p")
     p_words = sum(len(p.get_text().split()) for p in p_tags)
     return {

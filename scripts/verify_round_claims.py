@@ -114,9 +114,10 @@ def verify_claim_6_word_count_floor_expansion() -> tuple[bool, str]:
         ge_3000 = sum(1 for c in prose_counts if c >= 3000)
     else:
         ge_3000 = summary.get("distribution", {}).get("ge_3000", 0)
-    if ge_3000 < 12:
-        return False, f"Claim 6 FAILED: Expected >= 12 articles >= 3000 words, found {ge_3000}"
-    return True, f"Claim 6: on-page audit >= 3000 word articles == {ge_3000} (>= 12 target verified)"
+    target = 38
+    if ge_3000 < target:
+        return False, f"Claim 6 FAILED: Expected >= {target} articles >= 3000 words, found {ge_3000}"
+    return True, f"Claim 6: on-page audit >= 3000 word articles == {ge_3000} (>= {target} target verified)"
 
 
 def verify_claim_7_duplicate_headings_count() -> tuple[bool, str]:
@@ -200,6 +201,20 @@ def verify_claim_9_domain_distribution_at_least_two() -> tuple[bool, str]:
     return True, f"Claim 9: all 10 domains have >= 2 at-floor articles (verified live: {domain_counts})"
 
 
+def verify_claim_10_bug_suite_passes() -> tuple[bool, str]:
+    import glob
+    bug_files = sorted(glob.glob(str(PROJECT_ROOT / "tests" / "test_bug*.py")))
+    if not bug_files:
+        return False, "Claim 10 FAILED: No test_bug*.py files found"
+    cmd = [sys.executable, "-m", "pytest", *bug_files, "-q"]
+    proc = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+    if proc.returncode != 0:
+        return False, f"Claim 10 FAILED: pytest tests/test_bug*.py returned code {proc.returncode}\n{proc.stderr}\n{proc.stdout}"
+    if "28 passed" not in proc.stdout:
+        return False, f"Claim 10 FAILED: Expected '28 passed', got:\n{proc.stdout}"
+    return True, f"Claim 10: direct pytest bug suite == 28 passed (exit 0)"
+
+
 def main() -> int:
     print("--- Running scripts/verify_round_claims.py ---")
     claims = [
@@ -212,6 +227,7 @@ def main() -> int:
         ("claim_7_duplicate_headings_count", verify_claim_7_duplicate_headings_count),
         ("claim_8_ten_slugs_strictly_increasing", verify_claim_8_ten_slugs_unique_and_strictly_increasing),
         ("claim_9_domain_distribution_at_least_two", verify_claim_9_domain_distribution_at_least_two),
+        ("claim_10_bug_suite_passes", verify_claim_10_bug_suite_passes),
     ]
 
     for name, func in claims:

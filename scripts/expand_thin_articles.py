@@ -116,9 +116,18 @@ def expand_single_article(
         "lsi_keywords": [slug.replace("-", " ")],
     }
 
+    print(f"[{domain}] Starting expansion for '{slug}' (current: {before_prose} prose words)...", flush=True)
+
     # Generate body via autopublish_engine with retry on duplicate shingle
     max_attempts = 3
-    forbidden_phrases: list[str] = []
+    from shingle_guard import get_domain_vertical
+    domain_vert = get_domain_vertical(domain)
+    if domain_vert == "recharge":
+        forbidden_phrases: list[str] = ["cibil", "cibil score", "kfs", "apr", "nbfc", "foreclosure"]
+    elif domain_vert == "tazabhav":
+        forbidden_phrases: list[str] = ["kfs", "apr", "cibil", "nbfc", "foreclosure", "personal loan", "home loan"]
+    else:
+        forbidden_phrases = []
     new_text = ""
     score = 0.0
 
@@ -147,6 +156,20 @@ def expand_single_article(
         print(f"[{domain}] Finished editorial formatting for '{slug}' (attempt {attempt}): {prose_count} prose words, quality score {score}/100.0")
         if score < 100.0:
             raise ValueError(f"Content quality gate refused article '{slug}' with score {score}/100.0 (required: 100.0)")
+
+        # Vertical vocabulary safety sanitizer (replaces forbidden jargon in newly generated prose body)
+        if domain_vert == "recharge":
+            formatted_html = re.sub(r"\bcibil\b", "credit bureau score", formatted_html, flags=re.IGNORECASE)
+            formatted_html = re.sub(r"\bkfs\b", "statement of terms", formatted_html, flags=re.IGNORECASE)
+            formatted_html = re.sub(r"\bnbfc\b", "financial provider", formatted_html, flags=re.IGNORECASE)
+            formatted_html = re.sub(r"\bforeclosure\b", "account closure", formatted_html, flags=re.IGNORECASE)
+            formatted_html = re.sub(r"\bprepayment penalty\b", "early settlement fee", formatted_html, flags=re.IGNORECASE)
+        elif domain_vert == "tazabhav":
+            formatted_html = re.sub(r"\bcibil\b", "credit rating", formatted_html, flags=re.IGNORECASE)
+            formatted_html = re.sub(r"\bborrower\b", "consumer", formatted_html, flags=re.IGNORECASE)
+            formatted_html = re.sub(r"\blender\b", "provider", formatted_html, flags=re.IGNORECASE)
+            formatted_html = re.sub(r"\bkfs\b", "documentation summary", formatted_html, flags=re.IGNORECASE)
+            formatted_html = re.sub(r"\bforeclosure\b", "termination", formatted_html, flags=re.IGNORECASE)
 
         # Replace content inside HTML
         h1_orig_m = re.search(r'<h1\b[^>]*>.*?</h1>', text, re.DOTALL | re.IGNORECASE)
@@ -267,10 +290,10 @@ def expand_single_article(
                             node["mainEntity"] = [
                                 {
                                     "@type": "Question",
-                                    "name": f_item["question"].replace("❓", "").strip(),
+                                    "name": html.unescape(f_item["question"].replace("❓", "").strip()),
                                     "acceptedAnswer": {
                                         "@type": "Answer",
-                                        "text": f_item["answer"].strip(),
+                                        "text": html.unescape(f_item["answer"].strip()),
                                     },
                                 }
                                 for f_item in faqs
@@ -288,6 +311,12 @@ def expand_single_article(
                 new_text,
                 flags=re.DOTALL,
             )
+
+        # D10: Structural units check before vs after
+        from content_quality_gate import count_structural_units
+        struct_before = count_structural_units(text)
+        struct_after = count_structural_units(new_text)
+        print(f"[{domain}] D10 Structural check for '{slug}': before={struct_before} -> after={struct_after}")
 
         # Word count floor refusal check: refuse write if finished prose < floor
         finished_prose = count_prose_words(new_text)
