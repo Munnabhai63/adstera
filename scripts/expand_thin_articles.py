@@ -487,6 +487,9 @@ def run_batch_expansion(
         if w < cutoff:
             thin_articles.append((p, domain, slug, w))
 
+    # Prioritize 1200-2999 mid-tier band first, then remaining thin articles
+    thin_articles.sort(key=lambda item: (0 if 1200 <= item[3] < cutoff else 1, -item[3], str(item[0])))
+
     per_domain: dict[str, dict[str, Any]] = {}
     attempted = 0
     succeeded = 0

@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 import html
 from typing import Any
+from bs4 import BeautifulSoup
 
 ARTICLE_TARGET_MIN: int = 3000
 ARTICLE_TARGET_MAX: int = 4000
@@ -598,19 +599,16 @@ class ContentQualityFinishGate:
         # 5. Auto-Number H2 Anchors & Inject Linked Table of Contents (`seo-content` 1,500+ word requirement)
         print("[DEBUG Step 4]", "<table" in html_out)
         toc_items: list[tuple[str, str]] = []
+        soup_h2 = BeautifulSoup(html_out, "html.parser")
         sec_idx = 0
-
-        def _add_h2_id(match: re.Match) -> str:
-            nonlocal sec_idx
+        for h in soup_h2.find_all("h2"):
             sec_idx += 1
-            inner = match.group(1)
-            plain_h2 = re.sub(r"<[^>]+>", "", inner).strip()
-            sec_id = f"section-{sec_idx}"
+            sec_id = h.get("id") or f"section-{sec_idx}"
+            h["id"] = sec_id
+            plain_h2 = re.sub(r"\s+", " ", h.get_text()).strip()
             if plain_h2:
                 toc_items.append((sec_id, plain_h2))
-            return f'<h2 id="{sec_id}">{inner}</h2>'
-
-        html_out = re.sub(r"<h2(?![^>]*\bid=)[^>]*>(.*?)</h2>", _add_h2_id, html_out, flags=re.DOTALL)
+        html_out = str(soup_h2)
 
         if toc_items and "article-toc" not in html_out:
             toc_links_html = "".join(
