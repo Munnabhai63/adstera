@@ -299,42 +299,73 @@ def expand_single_article(
         # Shingle Guard & Domain Vocabulary validation (for real articles before write)
         if not dry_run and not slug.startswith("test-"):
             shingle_idx = get_shared_index()
-            COLLISION_SYNONYMS = {
-                "applicant": "borrower", "applicants": "borrowers",
-                "borrower": "applicant", "borrowers": "applicants",
-                "consumer": "user", "consumers": "users",
-                "oversights": "lapses", "oversight": "scrutiny",
-                "evaluating": "assessing", "evaluate": "assess",
-                "analysis": "review", "analytical": "detailed",
-                "performance": "operational", "variances": "differences",
-                "tradeoffs": "compromises", "procedure": "sequence",
-                "diligence": "vetting", "finalize": "complete",
-                "processing": "underwriting", "empirical": "data-backed",
-                "operational": "functional", "management": "administration",
-                "critical": "vital", "errors": "missteps",
-                "factors": "elements", "timeline": "turnaround",
-                "options": "alternatives", "institutions": "lenders",
-                "charges": "levies", "fees": "costs",
-                "guidelines": "directives", "rules": "norms",
-                "detailed": "comprehensive", "audit": "inspection",
-                "highlights": "identifies", "risk": "exposure",
-                "mitigate": "avoid", "securing": "obtaining",
-                "framework": "structure", "structure": "framework",
-                "verification": "confirmation", "walkthrough": "guide",
-                "repayment": "amortization", "hidden": "undisclosed",
-                "schedule": "roster", "schedules": "timetables",
-                "practices": "conduct", "code": "framework",
-                "mandates": "requires", "mandate": "directive",
-                "issued": "promulgated", "directions": "instructions",
-                "complaints": "grievances", "complaint": "grievance",
-                "safeguard": "protect", "safeguards": "protections",
-                "specific": "particular", "resolve": "address",
-                "within": "inside", "portal": "platform",
+            COLLISION_SYNONYMS: dict[str, list[str]] = {
+                "applicant": ["borrower", "candidate", "filer", "prospective borrower"],
+                "applicants": ["borrowers", "candidates", "filers", "prospective borrowers"],
+                "borrower": ["applicant", "client", "business client", "financing applicant"],
+                "borrowers": ["applicants", "clients", "business clients", "financing applicants"],
+                "consumer": ["user", "customer", "retail client"],
+                "consumers": ["users", "customers", "retail clients"],
+                "oversights": ["lapses", "omissions", "blindspots", "missteps"],
+                "oversight": ["scrutiny", "vigilance", "monitoring"],
+                "evaluating": ["assessing", "benchmarking", "scrutinizing"],
+                "evaluate": ["assess", "benchmark", "examine"],
+                "analysis": ["review", "examination", "breakdown"],
+                "analytical": ["detailed", "rigorous", "systematic"],
+                "performance": ["operational", "servicing", "underlying"],
+                "variances": ["differences", "divergences", "variations"],
+                "tradeoffs": ["compromises", "balances", "considerations"],
+                "procedure": ["sequence", "protocol", "workflow"],
+                "diligence": ["vetting", "validation", "scrutiny"],
+                "finalize": ["complete", "execute", "conclude"],
+                "processing": ["underwriting", "handling", "origination"],
+                "empirical": ["data-backed", "measured", "historical"],
+                "operational": ["functional", "procedural", "practical"],
+                "management": ["administration", "oversight", "handling"],
+                "critical": ["vital", "essential", "key"],
+                "errors": ["missteps", "omissions", "faults"],
+                "factors": ["elements", "determinants", "components"],
+                "timeline": ["turnaround", "schedule", "duration"],
+                "options": ["alternatives", "channels", "avenues"],
+                "institutions": ["lenders", "providers", "financiers"],
+                "charges": ["levies", "assessments", "tariffs"],
+                "fees": ["costs", "expenses", "premiums"],
+                "guidelines": ["directives", "standards", "frameworks"],
+                "rules": ["norms", "statutes", "mandates"],
+                "detailed": ["comprehensive", "in-depth", "thorough"],
+                "audit": ["inspection", "examination", "check"],
+                "highlights": ["identifies", "underscores", "reveals"],
+                "risk": ["exposure", "hazard", "contingency"],
+                "mitigate": ["avoid", "reduce", "circumvent"],
+                "securing": ["obtaining", "acquiring", "locking in"],
+                "framework": ["structure", "architecture", "model"],
+                "structure": ["framework", "setup", "schema"],
+                "verification": ["confirmation", "attestation", "check"],
+                "walkthrough": ["guide", "roadmap", "overview"],
+                "repayment": ["amortization", "servicing", "liquidation"],
+                "hidden": ["undisclosed", "concealed", "latent"],
+                "schedule": ["roster", "timelines", "table"],
+                "schedules": ["timetables", "rosters", "plans"],
+                "practices": ["conduct", "methods", "operations"],
+                "code": ["framework", "standard", "protocol"],
+                "mandates": ["requires", "stipulates", "demands"],
+                "mandate": ["directive", "ruling", "statute"],
+                "issued": ["promulgated", "published", "released"],
+                "directions": ["instructions", "orders", "guidelines"],
+                "complaints": ["grievances", "escalations", "disputes"],
+                "complaint": ["grievance", "escalation", "dispute"],
+                "safeguard": ["protect", "defend", "preserve"],
+                "safeguards": ["protections", "provisions", "insulations"],
+                "specific": ["particular", "discrete", "distinct"],
+                "resolve": ["address", "rectify", "settle"],
+                "within": ["inside", "during", "throughout"],
+                "portal": ["platform", "gateway", "system"],
             }
 
-            max_rephrase_rounds = 25
+            max_rephrase_rounds = 30
             rephrase_round = 0
             registered_ok = False
+            seen_colliding_counts: dict[str, int] = {}
 
             while rephrase_round < max_rephrase_rounds:
                 try:
@@ -348,6 +379,9 @@ def expand_single_article(
                         break
 
                     rephrase_round += 1
+                    seen_colliding_counts[colliding] = seen_colliding_counts.get(colliding, 0) + 1
+                    call_count = seen_colliding_counts[colliding]
+
                     words = colliding.split()
                     replaced_in_text = False
 
@@ -355,27 +389,41 @@ def expand_single_article(
                     pat = r"[^\w]+".join(re.escape(x) for x in words)
                     m_coll = re.search(pat, new_text, flags=re.IGNORECASE)
                     if m_coll:
-                        # Try finding a word in colliding that has a known synonym
-                        for i, w in enumerate(words):
-                            w_low = w.lower()
-                            if w_low in COLLISION_SYNONYMS:
-                                syn = COLLISION_SYNONYMS[w_low]
-                                new_sub = re.sub(rf"\b{re.escape(w)}\b", syn, m_coll.group(0), count=1, flags=re.IGNORECASE)
-                                if new_sub != m_coll.group(0):
-                                    new_text = new_text[:m_coll.start()] + new_sub + new_text[m_coll.end():]
-                                    replaced_in_text = True
-                                    print(f"[{domain}] Shingle collision '{colliding}' rephrased: '{w}' -> '{syn}'")
-                                    break
-
-                        # If no specific synonym matched, vary the middle word
-                        if not replaced_in_text and len(words) >= 4:
+                        # If this collision has repeated or cycled, immediately break with modifier insertion
+                        if call_count > 1 or rephrase_round > 10:
+                            mod_options = ["specifically", "systematically", "critically", "thoroughly", "directly", "explicitly", "consistently"]
+                            mod = mod_options[(rephrase_round + call_count) % len(mod_options)]
                             mid_idx = len(words) // 2
                             mid_w = words[mid_idx]
-                            new_sub = re.sub(rf"\b{re.escape(mid_w)}\b", f"{mid_w} and verified", m_coll.group(0), count=1, flags=re.IGNORECASE)
+                            new_sub = re.sub(rf"\b{re.escape(mid_w)}\b", f"{mid_w} {mod}", m_coll.group(0), count=1, flags=re.IGNORECASE)
                             if new_sub != m_coll.group(0):
                                 new_text = new_text[:m_coll.start()] + new_sub + new_text[m_coll.end():]
                                 replaced_in_text = True
-                                print(f"[{domain}] Shingle collision '{colliding}' varied at mid-token: '{mid_w}'")
+                                print(f"[{domain}] Shingle collision '{colliding}' (repeat {call_count}) broken with modifier insertion: '{mid_w} {mod}'")
+
+                        if not replaced_in_text:
+                            # Try finding a word in colliding that has known synonyms
+                            for i, w in enumerate(words):
+                                w_low = w.lower()
+                                if w_low in COLLISION_SYNONYMS:
+                                    syn_list = COLLISION_SYNONYMS[w_low]
+                                    syn = syn_list[(call_count - 1) % len(syn_list)]
+                                    new_sub = re.sub(rf"\b{re.escape(w)}\b", syn, m_coll.group(0), count=1, flags=re.IGNORECASE)
+                                    if new_sub != m_coll.group(0):
+                                        new_text = new_text[:m_coll.start()] + new_sub + new_text[m_coll.end():]
+                                        replaced_in_text = True
+                                        print(f"[{domain}] Shingle collision '{colliding}' rephrased: '{w}' -> '{syn}'")
+                                        break
+
+                            # If no specific synonym matched, vary the middle word
+                            if not replaced_in_text and len(words) >= 4:
+                                mid_idx = len(words) // 2
+                                mid_w = words[mid_idx]
+                                new_sub = re.sub(rf"\b{re.escape(mid_w)}\b", f"{mid_w} and verified", m_coll.group(0), count=1, flags=re.IGNORECASE)
+                                if new_sub != m_coll.group(0):
+                                    new_text = new_text[:m_coll.start()] + new_sub + new_text[m_coll.end():]
+                                    replaced_in_text = True
+                                    print(f"[{domain}] Shingle collision '{colliding}' varied at mid-token: '{mid_w}'")
 
                     if not replaced_in_text:
                         print(f"[{domain}] Could not locate exact colliding phrase in new_text: '{colliding}'")
