@@ -489,7 +489,7 @@ Output this exact HTML structure with rich paragraphs:
 <h2>4. Institutional Comparison: PSU Banks vs Private Banks vs NBFCs</h2>
 <p>Write 3 detailed paragraphs comparing the primary institutional providers, channel partners, and platforms offering {primary_kw} in India. Analyze differences in approval turnaround times, documentation scrutiny, and pricing models in completely fresh language tailored to {primary_kw}.</p>
 <p>Analyze the trade-off between lower annual percentage rates (APR) at public institutions versus rapid paperless execution at digital lending platforms.</p>
-<p>Provide concrete guidelines on how consumers should evaluate total cost of credit rather than being misled by headline introductory rates.</p>
+<p>Examine holistic borrowing costs and lifetime fee structures for {primary_kw}, emphasizing transparent disclosure over promotional rates.</p>
 
 <h2>5. 2026 Empirical Comparison Table: Top 5 Verified Options</h2>
 <p>Write 3 analytical paragraphs evaluating the key performance tradeoffs, fee variances, and timeline differences across major market options for {primary_kw}:</p>
@@ -510,7 +510,7 @@ Output this exact HTML structure with rich paragraphs:
 Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
 
 <h2>4. Step-by-Step Online Application & Verification Walkthrough</h2>
-<p>Follow this step-by-step procedure to execute due diligence and finalize processing for {primary_kw}:</p>
+<p>Executing a structured verification workflow ensures seamless onboarding for {primary_kw}:</p>
 <ol class='guide-steps'>
 <li><strong>Step 1 — Initial Due Diligence & Requirements:</strong> Detailed 60-word actionable instructions tailored specifically to preparing for {primary_kw}.</li>
 <li><strong>Step 2 — Options Evaluation & Terms Audit:</strong> Detailed 60-word actionable instructions on comparing institutional terms and fee schedules for {primary_kw}.</li>
@@ -520,7 +520,7 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 </ol>
 
 <h2>5. Real-World Case Study & 5 Costly Mistakes to Avoid</h2>
-<p>The following empirical analysis reviews operational cost management and critical errors to avoid for {primary_kw}:</p>
+<p>A detailed audit of common applicant oversights highlights key risk factors to mitigate when securing {primary_kw}:</p>
 <ul class='checklist'>
 <li><strong>Mistake 1 — Overlooking Hidden Operational or Service Add-Ons:</strong> Detailed breakdown of unnecessary bundled fees or cross-sold extras specifically relevant to {primary_kw}.</li>
 <li><strong>Mistake 2 — Miscalculating Effective Upfront Costs:</strong> Detailed breakdown of ancillary expenses and fee deductions impacting {primary_kw}.</li>

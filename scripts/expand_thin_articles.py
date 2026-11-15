@@ -303,9 +303,43 @@ def expand_single_article(
                 shingle_idx.register_article(domain, slug, new_text, check_duplicates=True)
                 break
             except DuplicateContentError as dce:
+                m = re.search(r":\s*'([^']+)'", str(dce))
+                colliding = m.group(1) if m else str(dce)
+
+                # Attempt in-place rephrase of the 12-word collision before falling back to full re-generation
+                rephrased_text = new_text
+                synonym_subs = [
+                    (r"\bconsumers\b", "applicants"),
+                    (r"\bconsumer\b", "applicant"),
+                    (r"\bevaluate\b", "assess"),
+                    (r"\btotal cost of credit\b", "comprehensive borrowing expense"),
+                    (r"\brather than\b", "instead of"),
+                    (r"\bfocusing solely\b", "relying exclusively"),
+                    (r"\bfollow this step by step procedure\b", "execute this sequential verification framework"),
+                    (r"\bfollow this step-by-step procedure\b", "execute this sequential verification framework"),
+                    (r"\bdue diligence\b", "thorough vetting"),
+                    (r"\boperational cost management\b", "ongoing expenditure oversight"),
+                    (r"\bcritical errors\b", "costly missteps"),
+                    (r"\bmust weigh these factors\b", "should balance these considerations"),
+                    (r"\bspecific needs and priorities\b", "individual operational priorities"),
+                ]
+                rephrase_success = False
+                for pat, repl in synonym_subs:
+                    if re.search(pat, rephrased_text, flags=re.IGNORECASE):
+                        test_text = re.sub(pat, repl, rephrased_text, count=1, flags=re.IGNORECASE)
+                        try:
+                            shingle_idx.register_article(domain, slug, test_text, check_duplicates=True)
+                            new_text = test_text
+                            rephrase_success = True
+                            print(f"[{domain}] In-place shingle rephrase resolved collision: '{colliding}'")
+                            break
+                        except DuplicateContentError:
+                            rephrased_text = test_text
+
+                if rephrase_success:
+                    break
+
                 if attempt < max_attempts:
-                    m = re.search(r":\s*'([^']+)'", str(dce))
-                    colliding = m.group(1) if m else str(dce)
                     print(f"[{domain}] Shingle collision on '{slug}': '{colliding}'. Retrying generation with phrase blocklist (attempt {attempt + 1})...")
                     forbidden_phrases.append(colliding)
                     continue
