@@ -18,7 +18,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from freellmapi_client import FreeLLMClient
-from content_quality_gate import ARTICLE_TARGET_MIN, ARTICLE_TARGET_MAX, ARTICLE_WORD_COUNT_FLOOR
+from content_quality_gate import ARTICLE_TARGET_MIN, ARTICLE_TARGET_MAX, ARTICLE_WORD_COUNT_FLOOR, count_prose_words
 
 PART1_TARGET_MIN: int = 1900
 PART1_TARGET_MAX: int = 2100
@@ -151,15 +151,16 @@ def _get_client() -> FreeLLMClient:
     return _CLIENT_SINGLETON
 
 
-def query_freellmapi(prompt, system_prompt, model="Qwen2.5-VL-72B-Instruct", max_tokens=2800, timeout=150.0):
+def query_freellmapi(prompt, system_prompt, model="Qwen/Qwen2.5-72B-Instruct", max_tokens=6000, timeout=180.0):
     """Query the 3-Layer 24x7 FreeLLMAPI Gateway (Cloudflare Edge -> Cloud Failover -> Local Watchdog)."""
     client = _get_client()
+    target_model = model or getattr(client, "default_model", "Qwen/Qwen2.5-72B-Instruct")
     result = client.generate_completion(
         prompt=prompt,
         system_prompt=system_prompt,
         max_tokens=max_tokens,
         temperature=0.7,
-        model=model,
+        model=target_model,
         timeout=timeout,
     )
     if result:
@@ -231,11 +232,12 @@ def generate_claude_seo_article(site_id: str, site_info: dict, seo_brief: dict) 
 
     system_prompt = f"""You are the Principal Financial & Consumer Research Editor at {site_name}.
 You follow Google Search Central E-E-A-T and Generative Engine Optimization (GEO) standards.
-CRITICAL CONSTRAINTS:
+EDITORIAL STANDARDS:
 1. NEVER use AI clichés: delve, testament, beacon, vital, crucial, in conclusion, robust, dive deep, foster, elevate, holistic, seamless, plethora, myriad, paramount, pivotal, cornerstone.
 2. Vary sentence length naturally (combine short 6-word factual statements with detailed 22-word analytical sentences).
 3. Cite real Indian figures in ₹, exact % rates, and official institutions (RBI, SBI, HDFC, ICICI, TRAI, NPCI, SEBI, NABARD).
-4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary."""
+4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary.
+5. ZERO BOILERPLATE REUSE: Output 100% original, unique prose. Never reuse stock boilerplate phrases (e.g. 'RBI mandates zero-foreclosure penalties under floating-rate loans' or 'Review all charges before applying'). Express every fact in distinctive phrasing."""
 
     # Targets derived from unified 3000-4000 word band
     part1_target_min = PART1_TARGET_MIN  # 1900
@@ -249,14 +251,32 @@ CRITICAL CONSTRAINTS:
     part1_prompt = f"""Write PART 1 ({part1_target_min} to {part1_target_max} words) of the authoritative 2026 consumer guide on: '{primary_kw}'.
 Category: {category} | Secondary Keywords: {lsi_kws}
 
-Output this exact HTML structure with deep, specific, multi-paragraph analysis in every section:
+Requirement: Output exhaustive, long-form reference content. Do not summarize. You MUST provide extensive, multi-paragraph analysis under every single heading to produce a comprehensive 2,000-word treatise.
+Output this exact HTML structure with rich paragraphs:
 <p class='lead'>Start with a direct 45-word definition of {primary_kw}, explaining the exact ₹ cost or savings impact and who qualifies in India in 2026.</p>
-<h2>1. Core Mechanics, Regulatory Rules & 2026 Eligibility Criteria</h2>
-<p>Write 3 detailed paragraphs explaining how {primary_kw} works in practice, citing RBI/TRAI/NPCI/SEBI rules, minimum eligibility scores, age/income thresholds, and real ₹ examples.</p>
-<h2>2. Interest Rate Math, Fee Slabs & Hidden Charges Breakdown</h2>
-<p>Write 3 detailed paragraphs with worked-out ₹ calculations (for example on ₹50,000, ₹2,00,000, or monthly tariff slabs), processing fee percentages, GST impact, and effective annual yield/APR.</p>
-<h2>3. 2026 Empirical Comparison Table: Top 5 Verified Options</h2>
-<p>Introduce the benchmark comparison across India's leading providers/banks/plans:</p>
+
+<h2>1. Core Mechanics, Statutory Architecture & 2026 Regulatory Rules</h2>
+<p>Write 3 detailed analytical paragraphs explaining how {primary_kw} operates under current RBI, TRAI, NPCI, and SEBI circulars. Detail statutory licensing frameworks, non-banking financial company (NBFC) classifications, and master directions governing digital operations.</p>
+<p>Detail consumer rights, mandatory disclosure standards, fair practices code guidelines, and official institutional supervisory oversight.</p>
+<p>Provide real ₹ figures, baseline interest spreads, and statutory reserve benchmarks that consumers must evaluate before submitting applications.</p>
+
+<h2>2. Borrower & Consumer Eligibility Criteria & Bureau Benchmarks</h2>
+<p>Write 3 detailed paragraphs detailing eligibility benchmarks: age brackets (21 to 60 years), minimum income thresholds for salaried vs self-employed applicants (₹25,000/month baseline), and bureau score tiers across CIBIL, Experian, and CRIF High Mark.</p>
+<p>Explain fixed obligation to income ratio (FOIR) and debt-to-income (DTI) caps (40% to 50% max allowable ceiling), demonstrating how existing liabilities constrain sanction limits.</p>
+<p>Detail mandatory statutory documentation under PMLA guidelines, including Aadhaar DigiLocker e-KYC, PAN card validation, 6-month automated bank statement extraction, and utility bill address proofs.</p>
+
+<h2>3. Interest Rate Math, Fee Slabs & Hidden Charges Breakdown</h2>
+<p>Write 3 detailed paragraphs with step-by-step ₹ calculations comparing reducing balance interest rates against flat rate models across ₹50,000, ₹2,00,000, and ₹5,00,000 borrowing amounts.</p>
+<p>Detail all upfront and backend costs: processing fee slabs (0.5% to 2.5%), mandatory 18% GST on all administrative fees, stamp duty charges, and credit assessment expenses.</p>
+<p>Explain statutory prepayment and foreclosure protections under RBI circulars (zero foreclosure penalties on floating-rate individual facilities), along with bounce charges (₹450 to ₹800) and penal interest calculation rules.</p>
+
+<h2>4. Institutional Comparison: PSU Banks vs Private Banks vs NBFCs</h2>
+<p>Write 3 detailed paragraphs contrasting underwriting philosophy, processing turnaround times (TAT), and risk premiums across Public Sector Undertakings (State Bank of India, Punjab National Bank), Private Banks (HDFC, ICICI, Axis), and Digital NBFCs/fintech aggregators.</p>
+<p>Analyze the trade-off between lower annual percentage rates (APR) at public institutions versus rapid paperless execution at digital lending platforms.</p>
+<p>Provide concrete guidelines on how consumers should evaluate total cost of credit rather than being misled by headline introductory rates.</p>
+
+<h2>5. 2026 Empirical Comparison Table: Top 5 Verified Options</h2>
+<p>Introduce the benchmark comparison across India's leading market offerings in 2026 with 3 analytical paragraphs on rate spreads, TAT, and tenure tradeoffs:</p>
 <div class='table-responsive'>
 <table class='article-table'>
 <thead><tr><th>Feature / Option</th><th>Rate / Cost (₹ & %)</th><th>Processing / Tenure</th><th>Key Advantage</th></tr></thead>
@@ -272,44 +292,80 @@ Output this exact HTML structure with deep, specific, multi-paragraph analysis i
 
     part2_prompt = f"""Write PART 2 ({part2_target_min} to {part2_target_max} words) continuing the 2026 guide on: '{primary_kw}' ({category}).
 Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
+
 <h2>4. Step-by-Step Online Application & Verification Walkthrough</h2>
-<p>Explain the exact online verification workflow and mandatory KYC checklist:</p>
+<p>Explain the exact online verification workflow and mandatory KYC checklist across 5 detailed steps:</p>
 <ol class='guide-steps'>
-<li><strong>Step 1 — Eligibility & Document Readiness:</strong> Detailed 50-word instructions with PAN, Aadhaar, and bank statement specifics.</li>
-<li><strong>Step 2 — Portal Selection & Rate Comparison:</strong> Detailed 50-word instructions on comparing Key Fact Statements (KFS) and APR.</li>
-<li><strong>Step 3 — Digital KYC & Mandate Setup:</strong> Detailed 50-word instructions on Video KYC, e-NACH/UPI autopay, and sanction letter audit.</li>
-<li><strong>Step 4 — Disbursal / Activation & Receipt Audit:</strong> Detailed 50-word instructions on verifying net credit, GST invoice, and schedule of charges.</li>
-<li><strong>Step 5 — Ongoing Monitoring & Pre-Closure Strategy:</strong> Detailed 50-word instructions on avoiding late penalties and optimizing repayment.</li>
+<li><strong>Step 1 — Eligibility & Document Readiness:</strong> Detailed 60-word instructions with PAN, Aadhaar DigiLocker, and 6-month Account Aggregator statement retrieval.</li>
+<li><strong>Step 2 — Portal Selection & Rate Comparison:</strong> Detailed 60-word instructions on auditing Key Fact Statements (KFS) and annualized percentage rates (APR).</li>
+<li><strong>Step 3 — Video KYC (V-KYC) & Underwriting Verification:</strong> Detailed 60-word instructions on live geotagged video verification with official banking agent and real-time biometric matching.</li>
+<li><strong>Step 4 — Digital Mandate Setup via e-NACH / UPI Autopay:</strong> Detailed 60-word instructions on automated repayment mandate setup via NetBanking with zero paper physical visit.</li>
+<li><strong>Step 5 — Disbursal / Activation & Receipt Audit:</strong> Detailed 60-word instructions on verifying net disbursal, fee invoice with 18% GST, and downloading repayment schedule.</li>
 </ol>
+
 <h2>5. Real-World Case Study & 5 Costly Mistakes to Avoid</h2>
-<p>Provide a concrete 2-paragraph Indian case study comparing two borrowers/consumers (e.g., Ramesh vs Priya) saving ₹12,400+ using smart selection.</p>
+<p>Provide a concrete 3-paragraph Indian case study comparing two consumers (e.g., Ramesh from Pune vs Priya from Bengaluru) saving ₹14,800+ across 36 months using smart APR selection.</p>
 <ul class='checklist'>
-<li><strong>Mistake 1:</strong> Detailed explanation with ₹ penalty impact.</li>
-<li><strong>Mistake 2:</strong> Detailed explanation of ignoring processing fee + 18% GST.</li>
-<li><strong>Mistake 3:</strong> Detailed explanation of multiple simultaneous applications hurting CIBIL/bureau score.</li>
-<li><strong>Mistake 4:</strong> Detailed explanation of missing prepayment/foreclosure lock-in clauses.</li>
+<li><strong>Mistake 1 — Bundled Insurance & Credit Shield Cross-Selling:</strong> Detailed breakdown of forced single-premium credit health/life insurance and how to decline under IRDAI/RBI rules.</li>
+<li><strong>Mistake 2 — Ignoring Processing Fee Slabs & 18% GST:</strong> Detailed breakdown of upfront fee deductions eroding net loan disbursal.</li>
+<li><strong>Mistake 3 — Multiple Simultaneous Hard Bureau Pulls:</strong> Detailed breakdown of 4+ inquiries in 14 days causing a 25–40 point CIBIL score drop.</li>
+<li><strong>Mistake 4 — Reset Clauses & Floating Spread Revisions:</strong> Detailed breakdown of quiet tenure elongation without upfront borrower alert.</li>
+<li><strong>Mistake 5 — Missing Prepayment & Foreclosure Lock-In Clauses:</strong> Detailed breakdown of minimum lock-in periods and statutory zero-penalty enforcement.</li>
 </ul>
+
 <h2>Frequently Asked Questions</h2>
-<h3>What is the exact eligibility requirement for {primary_kw} in 2026?</h3>
-<p>Write a detailed 3-sentence factual answer with exact numbers, CIBIL/income thresholds, and RBI/TRAI references.</p>
-<h3>How much money (in ₹) can I save by comparing {primary_kw} options?</h3>
-<p>Write a detailed 3-sentence factual answer showing exact ₹ savings across 12 to 36 months.</p>
-<h3>What documents are mandatory for instant online approval?</h3>
-<p>Write a detailed 3-sentence factual answer listing Aadhaar e-KYC, PAN, bank statements, and income proofs.</p>
-<h3>Are there any hidden charges, GST, or foreclosure penalties?</h3>
-<p>Write a detailed 3-sentence factual answer explaining processing fees, 18% GST on fees, and RBI floating-rate zero-foreclosure rules.</p>
-<h3>How long does final verification and activation take?</h3>
-<p>Write a detailed 3-sentence factual answer comparing instant digital channels (15 mins - 4 hours) vs branch processing (2 - 4 working days).</p>"""
+<h3>What is the primary evaluation factor for {primary_kw} in 2026?</h3>
+<p>Write a detailed 4-sentence factual answer tailored specifically to {primary_kw}, citing exact parameters, technical specifications, or compliance standards in India.</p>
+<h3>How should consumers calculate total investment and operational costs for {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer analyzing capital expenditure, operating costs, and savings specific to {primary_kw}.</p>
+<h3>What statutory approvals and documentation apply to {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer listing the exact KYC, commercial licenses, or registration norms governing {primary_kw}.</p>
+<h3>How can buyers avoid defective terms or hidden charges with {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer outlining supplier due diligence, warranty terms, and fee transparency for {primary_kw}.</p>
+<h3>What is the typical deployment timeline and operational onboarding for {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer comparing digital fast-track setup against conventional delivery cycles for {primary_kw}.</p>"""
 
     try:
         raw_part1 = query_freellmapi(part1_prompt, system_prompt, max_tokens=part1_tokens, timeout=180.0)
+        clean_p1 = _strip_code_fences_and_preamble(raw_part1 or "")
+        p1_words = len(re.findall(r"\b\w+\b", clean_p1))
+        p1_min_threshold = int(part1_target_min * 0.75)
+        if p1_words < p1_min_threshold:
+            logger.warning(f"[FreeLLMAPI] Part 1 returned {p1_words} words (< {p1_min_threshold}). Requesting continuation...")
+            continuation_p1_prompt = f"""You previously wrote {p1_words} words for PART 1 on '{primary_kw}'.
+Continue immediately without repeating previous headings. Output the remaining detailed analytical sections (including Fee Slabs breakdown, Institutional Comparisons, and the Empirical Comparison Table) to reach the required {part1_target_min} words.
+Output only clean semantic HTML tags."""
+            raw_cont = query_freellmapi(continuation_p1_prompt, system_prompt, max_tokens=part1_tokens, timeout=180.0)
+            clean_cont = _strip_code_fences_and_preamble(raw_cont or "")
+            if clean_cont:
+                clean_p1 = f"{clean_p1}\n\n{clean_cont}"
+                p1_words = len(re.findall(r"\b\w+\b", clean_p1))
+            if p1_words < p1_min_threshold:
+                raise RuntimeError(
+                    f"FreeLLMAPI Part 1 generation truncated ({p1_words} words < {p1_min_threshold} minimum target) for '{primary_kw}' after continuation."
+                )
+
         raw_part2 = query_freellmapi(part2_prompt, system_prompt, max_tokens=part2_tokens, timeout=180.0)
+        clean_p2 = _strip_code_fences_and_preamble(raw_part2 or "")
+        p2_words = len(re.findall(r"\b\w+\b", clean_p2))
+        p2_min_threshold = int(part2_target_min * 0.75)
+        if p2_words < p2_min_threshold:
+            logger.warning(f"[FreeLLMAPI] Part 2 returned {p2_words} words (< {p2_min_threshold}). Requesting continuation...")
+            continuation_p2_prompt = f"""You previously wrote {p2_words} words for PART 2 on '{primary_kw}'.
+Continue immediately without repeating previous sections. Output the remaining comprehensive guide sections (including the Case Study calculations, common mistakes checklist, dispute resolution, and all 5 FAQs) to reach {part2_target_min} words.
+Output only clean semantic HTML tags."""
+            raw_cont = query_freellmapi(continuation_p2_prompt, system_prompt, max_tokens=part2_tokens, timeout=180.0)
+            clean_cont = _strip_code_fences_and_preamble(raw_cont or "")
+            if clean_cont:
+                clean_p2 = f"{clean_p2}\n\n{clean_cont}"
+                p2_words = len(re.findall(r"\b\w+\b", clean_p2))
+            if p2_words < p2_min_threshold:
+                raise RuntimeError(
+                    f"FreeLLMAPI Part 2 generation truncated ({p2_words} words < {p2_min_threshold} minimum target) for '{primary_kw}' after continuation."
+                )
     except Exception as llm_err:
         logger.error(f"[FreeLLMAPI] Generation failed for '{primary_kw}': {llm_err}")
         raise RuntimeError(f"FreeLLMAPI generation failed for '{primary_kw}': {llm_err}") from llm_err
-
-    clean_p1 = _strip_code_fences_and_preamble(raw_part1 or "")
-    clean_p2 = _strip_code_fences_and_preamble(raw_part2 or "")
 
     if len(clean_p1) < 400 or len(clean_p2) < 400:
         err_msg = (
@@ -321,21 +377,52 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 
     raw_html = f"{clean_p1}\n\n{clean_p2}"
 
-    # P3-2: Dynamic topic-specific expansion tied to ARTICLE_TARGET_MIN floor (3000 words)
-    current_words = len(re.findall(r"\b\w+\b", raw_html))
-    if current_words < ARTICLE_TARGET_MIN:
-        needed_words = max(500, ARTICLE_TARGET_MIN - current_words)
-        expand_tokens = max(2500, int(needed_words * 1.6))
-        expand_prompt = f"""Write an additional analytical section ({needed_words} to {needed_words + 300} words) on '{primary_kw}' ({category}) for Indian consumers in 2026.
-Focus on regulatory protections, grievance redressal, and cost optimization for this specific topic.
-Output only valid HTML with an <h2> heading and 3-4 detailed analytical paragraphs with ₹ figures."""
+    # Dynamic topic-specific expansion tied to ARTICLE_TARGET_MIN floor (3000 words)
+    current_prose = count_prose_words(raw_html)
+    print(f"[DEBUG Engine] After parts 1 & 2: p1={p1_words}, p2={p2_words}, raw prose={current_prose}")
+    attempts = 0
+    while attempts < 6:
         try:
-            extra_content = query_freellmapi(expand_prompt, system_prompt, max_tokens=expand_tokens, timeout=90.0)
+            from content_quality_gate import ContentQualityFinishGate
+            test_san = ContentQualityFinishGate.sanitize_raw_html(raw_html)
+            _, _, test_meta = ContentQualityFinishGate.format_editorial_layout(
+                clean_html=test_san,
+                title=primary_kw,
+                domain_key=site_id,
+                primary_kw=primary_kw,
+                category=category,
+                site_name=site_name,
+            )
+            fmt_prose = test_meta.get("word_count", 0)
+        except Exception:
+            fmt_prose = count_prose_words(raw_html)
+
+        print(f"[DEBUG Engine] Layout prose check: raw_prose={current_prose}, fmt_prose={fmt_prose}")
+        if fmt_prose >= 3100:
+            break
+
+        attempts += 1
+        needed_words = max(600, 3150 - fmt_prose + 300)
+        expand_tokens = max(3000, int(needed_words * 1.6) + 1200)
+        print(f"[DEBUG Engine] Attempt {attempts}: fmt_prose={fmt_prose} < 3100, requesting {needed_words} words (tokens: {expand_tokens})")
+        expand_prompt = f"""Write an additional in-depth analytical section ({needed_words} to {needed_words + 300} words) for the 2026 consumer guide on: '{primary_kw}' ({category}).
+Topic: Statutory Grievance Redressal, Regulatory Risk Factors, and Long-Term Financial Optimization for Indian consumers.
+Provide at least 5 detailed, multi-sentence analytical paragraphs packed with concrete ₹ numbers, exact percentages, and regulatory references.
+Output only valid HTML with an <h2> heading and <p> paragraphs. Do not echo prompt instructions or meta commentary."""
+        try:
+            extra_content = query_freellmapi(expand_prompt, system_prompt, max_tokens=expand_tokens, timeout=150.0)
             clean_extra = _strip_code_fences_and_preamble(extra_content or "")
+            print(f"[DEBUG Engine] Extra content chars={len(clean_extra)}")
             if len(clean_extra) > 200:
                 raw_html = f"{raw_html}\n{clean_extra}"
+                current_prose = count_prose_words(raw_html)
+                print(f"[DEBUG Engine] Expansion attempt {attempts}: added section, total raw prose now {current_prose}")
         except Exception as exp_err:
             logger.warning(f"[FreeLLMAPI] Optional expansion skipped: {exp_err}")
+            print(f"[DEBUG Engine] Expansion exception: {exp_err}")
+            break
+
+    print(f"[DEBUG Engine] Final raw_html prose words: {current_prose}")
 
     clean_html = AntiAIDetectionGate.humanize(raw_html)
     clean_html = _strip_code_fences_and_preamble(clean_html)

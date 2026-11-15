@@ -153,7 +153,7 @@ Sitemap: https://{domain}/sitemap.xml
 const GATEWAY_TOKEN = env.GATEWAY_TOKEN || "__GATEWAY_TOKEN__";
 
 const UPSTREAM_ROUTES = [
-  { provider: "ovh", model: "Qwen2.5-VL-72B-Instruct", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
+  { provider: "ovh", model: "Qwen/Qwen2.5-VL-72B-Instruct", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
   { provider: "ovh", model: "Mistral-Small-3.2-24B-Instruct-2506", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
   { provider: "ovh", model: "gpt-oss-120b", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
   { provider: "kilo", model: "cohere/north-mini-code:free", url: "https://api.kilo.ai/api/gateway/v1/chat/completions" },

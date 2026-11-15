@@ -188,3 +188,66 @@ def test_expand_single_article_refusal_when_score_low(tmp_path: Path):
                     slug="test-loan-guide",
                     dry_run=False,
                 )
+
+
+def test_expand_single_article_refusal_when_prose_below_floor(tmp_path: Path):
+    site_dir = tmp_path / "sites" / "loanraaj.com"
+    slug_dir = site_dir / "test-loan-guide"
+    slug_dir.mkdir(parents=True)
+    article_path = slug_dir / "index.html"
+
+    original_text = "<!DOCTYPE html><html><body><article><h1>Test</h1><div class=\"post-content\"><p>Short.</p></div></article></body></html>"
+    article_path.write_text(original_text, encoding="utf-8")
+
+    short_content = "<h2>1. Heading</h2><p>Very short content that only has a few words.</p>"
+    short_faqs = []
+    fake_meta = {"score": 100.0, "reasons": []}
+    with patch("scripts.expand_thin_articles.generate_claude_seo_article", return_value=(short_content, short_faqs)):
+        with patch("scripts.expand_thin_articles.ContentQualityFinishGate.format_editorial_layout", return_value=(short_content, short_faqs, fake_meta)):
+            with pytest.raises(ValueError, match="is below ARTICLE_WORD_COUNT_FLOOR"):
+                expand_single_article(
+                    path=article_path,
+                    domain="loanraaj.com",
+                    slug="test-loan-guide",
+                    dry_run=False,
+                )
+    # Ensure file was not written, leaving disk byte-identical
+    assert article_path.read_text(encoding="utf-8") == original_text
+
+
+def test_run_batch_expansion_selects_articles_in_gap(tmp_path: Path):
+    from scripts.expand_thin_articles import run_batch_expansion
+    sites_dir = tmp_path / "sites"
+    dom_dir = sites_dir / "loanraaj.com"
+
+    # Article 1: 300 words (thin)
+    a1_dir = dom_dir / "a1-thin"
+    a1_dir.mkdir(parents=True)
+    (a1_dir / "index.html").write_text(
+        "<!DOCTYPE html><html><body><article><h1>A1</h1><div class='post-content'><p>" + " ".join(["word"] * 300) + "</p></div></article></body></html>",
+        encoding="utf-8",
+    )
+
+    # Article 2: 1200 words (in the 600-2999 gap)
+    a2_dir = dom_dir / "a2-gap"
+    a2_dir.mkdir(parents=True)
+    (a2_dir / "index.html").write_text(
+        "<!DOCTYPE html><html><body><article><h1>A2</h1><div class='post-content'><p>" + " ".join(["word"] * 1200) + "</p></div></article></body></html>",
+        encoding="utf-8",
+    )
+
+    # Article 3: 3500 words (above floor)
+    a3_dir = dom_dir / "a3-thick"
+    a3_dir.mkdir(parents=True)
+    (a3_dir / "index.html").write_text(
+        "<!DOCTYPE html><html><body><article><h1>A3</h1><div class='post-content'><p>" + " ".join(["word"] * 3500) + "</p></div></article></body></html>",
+        encoding="utf-8",
+    )
+
+    # With default threshold=3000, both a1 (300) and a2 (1200) must be selected (thin_count == 2)
+    res = run_batch_expansion(sites_dir=sites_dir, dry_run=True, limit=0, threshold=3000)
+    assert res["thin_count"] == 2
+
+    # With threshold=600, only a1 (300) is selected
+    res_600 = run_batch_expansion(sites_dir=sites_dir, dry_run=True, limit=0, threshold=600)
+    assert res_600["thin_count"] == 1

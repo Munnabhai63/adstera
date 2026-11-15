@@ -38,7 +38,7 @@ FREELLMAPI_SERVER_DIR = Path(r"F:\UserData\Downloads\ai-power-tools\freellmapi\s
 FAST_INSTRUCT_CHAIN: List[Dict[str, str]] = [
     {
         "provider": "ovh",
-        "model": "Qwen2.5-VL-72B-Instruct",
+        "model": "Qwen/Qwen2.5-VL-72B-Instruct",
         "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
     },
     {

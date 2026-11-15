@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-scripts/expand_thin_articles.py — Expand Thin Articles to 1200+ Words
+scripts/expand_thin_articles.py — Expand Thin Articles to 3000-4000 Words (Floor: 3000)
 
-Selects real articles currently under 600 visible words and regenerates their body
+Selects real articles currently under ARTICLE_WORD_COUNT_FLOOR (3000 words) and regenerates their body
 through the existing generator path (autopublish_engine + ContentQualityFinishGate),
-raising them to 1200+ words with quality score 100 while preserving all slugs,
+raising them to 3000-4000 words with quality score 100 while preserving all slugs,
 titles, canonicals, templates, and sitemaps.
 
 Usage:
@@ -29,8 +29,14 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from autopublish_engine import generate_claude_seo_article
-from content_quality_gate import ContentQualityFinishGate
+import content_quality_gate
+from content_quality_gate import (
+    ARTICLE_WORD_COUNT_FLOOR,
+    ContentQualityFinishGate,
+    count_prose_words,
+)
 from network_registry import NETWORK_REGISTRY
+from shingle_guard import get_shared_index, DuplicateContentError
 
 STATIC_SLUGS = {
     "about-us",
@@ -72,15 +78,20 @@ def expand_single_article(
     domain: str,
     slug: str,
     dry_run: bool = False,
+    threshold: int | None = None,
 ) -> tuple[int, int, float]:
     """
-    Expands a single thin article to 1200+ words.
+    Expands a single thin article to 3000-4000 words (floor: ARTICLE_WORD_COUNT_FLOOR).
     Returns (before_words, after_words, quality_score).
-    Refuses to write if quality score < 100.
+    Refuses to write if quality score < 100 or if finished prose < ARTICLE_WORD_COUNT_FLOOR.
     """
+    effective_floor = getattr(content_quality_gate, "ARTICLE_WORD_COUNT_FLOOR", ARTICLE_WORD_COUNT_FLOOR)
+    cutoff = threshold if threshold is not None else effective_floor
+
     text = path.read_text(encoding="utf-8", errors="ignore")
     before_words = count_visible_words(text)
-    if before_words >= 600:
+    before_prose = count_prose_words(text)
+    if before_prose >= cutoff:
         return before_words, before_words, 100.0
 
     site_id = domain.split(".")[0]
@@ -117,6 +128,8 @@ def expand_single_article(
     )
 
     score = quality_meta.get("score", 0.0)
+    prose_count = quality_meta.get("word_count", 0)
+    print(f"[{domain}] Finished editorial formatting for '{slug}': {prose_count} prose words, quality score {score}/100.0")
     if score < 100.0:
         raise ValueError(f"Content quality gate refused article '{slug}' with score {score}/100.0 (required: 100.0)")
 
@@ -195,6 +208,18 @@ def expand_single_article(
         new_text,
     )
 
+    # Word count floor refusal check: refuse write if finished prose < floor
+    finished_prose = count_prose_words(new_text)
+    if finished_prose < effective_floor:
+        raise ValueError(
+            f"Finished prose count {finished_prose} is below ARTICLE_WORD_COUNT_FLOOR ({effective_floor}) for '{domain}/{slug}'. Refusing to write."
+        )
+
+    # Shingle Guard & Domain Vocabulary validation (for real articles before write)
+    if not dry_run and not slug.startswith("test-"):
+        shingle_idx = get_shared_index()
+        shingle_idx.register_article(domain, slug, new_text, check_duplicates=True)
+
     if not dry_run:
         path.write_text(new_text, encoding="utf-8")
         sitemap_file = path.parents[1] / "sitemap.xml" if path.name == "index.html" else path.parent / "sitemap.xml"
@@ -208,8 +233,12 @@ def run_batch_expansion(
     dry_run: bool = False,
     limit: int | None = None,
     domain_filter: str | None = None,
+    threshold: int | None = None,
 ) -> dict[str, Any]:
-    """Finds all articles <600 words and expands them."""
+    """Finds all articles <threshold prose words (default: ARTICLE_WORD_COUNT_FLOOR) and expands them."""
+    effective_floor = getattr(content_quality_gate, "ARTICLE_WORD_COUNT_FLOOR", ARTICLE_WORD_COUNT_FLOOR)
+    cutoff = threshold if threshold is not None else effective_floor
+
     thin_articles: list[tuple[Path, str, str, int]] = []
 
     for p in sites_dir.rglob("*.html"):
@@ -233,8 +262,9 @@ def run_batch_expansion(
         if domain_filter and domain.lower() != domain_filter.lower():
             continue
 
-        w = count_visible_words(p.read_text(encoding="utf-8", errors="ignore"))
-        if w < 600:
+        html_text = p.read_text(encoding="utf-8", errors="ignore")
+        w = count_prose_words(html_text)
+        if w < cutoff:
             thin_articles.append((p, domain, slug, w))
 
     per_domain: dict[str, dict[str, Any]] = {}
@@ -251,7 +281,7 @@ def run_batch_expansion(
         if limit is not None and total_expanded >= limit:
             continue
 
-        before, after, score = expand_single_article(path, domain, slug, dry_run=dry_run)
+        before, after, score = expand_single_article(path, domain, slug, dry_run=dry_run, threshold=cutoff)
         per_domain[domain]["count"] += 1
         per_domain[domain]["before_words_sum"] += before
         per_domain[domain]["after_words_sum"] += after
@@ -266,16 +296,24 @@ def run_batch_expansion(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Expand thin articles (<600 words) to 1200+ words.")
+    parser = argparse.ArgumentParser(description=f"Expand thin articles (<{ARTICLE_WORD_COUNT_FLOOR} words) to 3000-4000 words.")
     parser.add_argument("--dry-run", action="store_true", help="Calculate expansions without writing files")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of articles expanded")
     parser.add_argument("--domain", type=str, default=None, help="Process single domain only")
+    parser.add_argument(
+        "--min-words",
+        "--threshold",
+        dest="min_words",
+        type=int,
+        default=ARTICLE_WORD_COUNT_FLOOR,
+        help=f"Word threshold to consider thin (default: {ARTICLE_WORD_COUNT_FLOOR})",
+    )
 
     args = parser.parse_args()
     sites_dir = PROJECT_ROOT / "sites"
 
     print("=" * 72)
-    print(" ARTICLE EXPANSION ENGINE — THIN CONTENT MITIGATION (<600 WORDS)")
+    print(f" ARTICLE EXPANSION ENGINE — THIN CONTENT MITIGATION (<{args.min_words} PROSE WORDS)")
     print("=" * 72)
     mode = "DRY RUN (no files modified)" if args.dry_run else "LIVE RUN (updating HTML files)"
     print(f" Execution Mode: {mode}")
@@ -283,9 +321,16 @@ def main() -> int:
         print(f" Domain Filter:  {args.domain}")
     if args.limit:
         print(f" Article Limit:  {args.limit}")
+    print(f" Min Word Floor: {args.min_words}")
     print("-" * 72)
 
-    res = run_batch_expansion(sites_dir, dry_run=args.dry_run, limit=args.limit, domain_filter=args.domain)
+    res = run_batch_expansion(
+        sites_dir,
+        dry_run=args.dry_run,
+        limit=args.limit,
+        domain_filter=args.domain,
+        threshold=args.min_words,
+    )
 
     print(f"{'Domain':<24} | {'Expanded':<8} | {'Avg Before':<12} | {'Avg After':<12}")
     print("-" * 72)
