@@ -115,135 +115,162 @@ def expand_single_article(
         "lsi_keywords": [slug.replace("-", " ")],
     }
 
-    # Generate body via autopublish_engine
-    raw_content, faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
-    sanitized = ContentQualityFinishGate.sanitize_raw_html(raw_content)
-    formatted_html, faqs, quality_meta = ContentQualityFinishGate.format_editorial_layout(
-        clean_html=sanitized,
-        title=h1,
-        domain_key=site_id,
-        primary_kw=h1,
-        category=cat,
-        site_name=site_info["name"],
-    )
+    # Generate body via autopublish_engine with retry on duplicate shingle
+    max_attempts = 2
+    forbidden_phrases: list[str] = []
+    new_text = ""
+    score = 0.0
 
-    score = quality_meta.get("score", 0.0)
-    prose_count = quality_meta.get("word_count", 0)
-    print(f"[{domain}] Finished editorial formatting for '{slug}': {prose_count} prose words, quality score {score}/100.0")
-    if score < 100.0:
-        raise ValueError(f"Content quality gate refused article '{slug}' with score {score}/100.0 (required: 100.0)")
-
-    # Replace content inside HTML
-    h1_orig_m = re.search(r'<h1\b[^>]*>.*?</h1>', text, re.DOTALL | re.IGNORECASE)
-
-    if '<div class="article-inner-body">' in text:
-        idx = text.find('<div class="article-inner-body">')
-        end_pos = text.find("</div>", idx + len('<div class="article-inner-body">'))
-        new_text = text[:idx] + f'<div class="article-inner-body">\n{formatted_html}\n</div>' + text[end_pos + len("</div>"):]
-    elif '<div class="post-content">' in text:
-        idx = text.find('<div class="post-content">')
-        # Look for closing tag before following card or figure
-        m_end = re.search(
-            r'</div>\s*(?:<div class="native-ad-card"|<div class="author-card"|<figure\b|<div class="adsterra)',
-            text[idx:],
-            flags=re.DOTALL | re.IGNORECASE,
+    for attempt in range(1, max_attempts + 1):
+        if forbidden_phrases:
+            try:
+                raw_content, faqs = generate_claude_seo_article(
+                    site_id, site_info, seo_brief, forbidden_phrases=forbidden_phrases
+                )
+            except TypeError:
+                raw_content, faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+        else:
+            raw_content, faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+        sanitized = ContentQualityFinishGate.sanitize_raw_html(raw_content)
+        formatted_html, faqs, quality_meta = ContentQualityFinishGate.format_editorial_layout(
+            clean_html=sanitized,
+            title=h1,
+            domain_key=site_id,
+            primary_kw=h1,
+            category=cat,
+            site_name=site_info["name"],
         )
-        if m_end:
-            end_pos = idx + m_end.start() + len("</div>")
-            new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>' + text[end_pos - len("</div>"):]
-        else:
-            end_pos = text.find("</div>", idx + len('<div class="post-content">'))
-            new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>' + text[end_pos + len("</div>"):]
-    else:
-        # Wrap inside <article>
-        art_idx = text.find("<article")
-        art_end = text.find("</article>", art_idx)
-        h1_end = text.find("</h1>", art_idx)
-        if h1_end != -1:
-            top_ad_idx = text.find('id="top-ad"', h1_end)
-            if top_ad_idx != -1 and top_ad_idx < art_end:
-                top_ad_end = text.find("</div>", top_ad_idx)
-                ins_idx = text.find("</div>", top_ad_end + 1) if top_ad_end != -1 else h1_end + len("</h1>")
-                insert_pos = ins_idx + len("</div>")
+
+        score = quality_meta.get("score", 0.0)
+        prose_count = quality_meta.get("word_count", 0)
+        print(f"[{domain}] Finished editorial formatting for '{slug}' (attempt {attempt}): {prose_count} prose words, quality score {score}/100.0")
+        if score < 100.0:
+            raise ValueError(f"Content quality gate refused article '{slug}' with score {score}/100.0 (required: 100.0)")
+
+        # Replace content inside HTML
+        h1_orig_m = re.search(r'<h1\b[^>]*>.*?</h1>', text, re.DOTALL | re.IGNORECASE)
+
+        if '<div class="article-inner-body">' in text:
+            idx = text.find('<div class="article-inner-body">')
+            end_pos = text.find("</div>", idx + len('<div class="article-inner-body">'))
+            new_text = text[:idx] + f'<div class="article-inner-body">\n{formatted_html}\n</div>' + text[end_pos + len("</div>"):]
+        elif '<div class="post-content">' in text:
+            idx = text.find('<div class="post-content">')
+            # Look for closing tag before following card or figure
+            m_end = re.search(
+                r'</div>\s*(?:<div class="native-ad-card"|<div class="author-card"|<figure\b|<div class="adsterra)',
+                text[idx:],
+                flags=re.DOTALL | re.IGNORECASE,
+            )
+            if m_end:
+                end_pos = idx + m_end.start() + len("</div>")
+                new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>' + text[end_pos - len("</div>"):]
             else:
-                insert_pos = h1_end + len("</h1>")
-            new_text = text[:insert_pos] + f'\n<div class="post-content">\n{formatted_html}\n</div>\n' + text[art_end:]
+                end_pos = text.find("</div>", idx + len('<div class="post-content">'))
+                new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>' + text[end_pos + len("</div>"):]
         else:
-            new_text = text
+            # Wrap inside <article>
+            art_idx = text.find("<article")
+            art_end = text.find("</article>", art_idx)
+            h1_end = text.find("</h1>", art_idx)
+            if h1_end != -1:
+                top_ad_idx = text.find('id="top-ad"', h1_end)
+                if top_ad_idx != -1 and top_ad_idx < art_end:
+                    top_ad_end = text.find("</div>", top_ad_idx)
+                    ins_idx = text.find("</div>", top_ad_end + 1) if top_ad_end != -1 else h1_end + len("</h1>")
+                    insert_pos = ins_idx + len("</div>")
+                else:
+                    insert_pos = h1_end + len("</h1>")
+                new_text = text[:insert_pos] + f'\n<div class="post-content">\n{formatted_html}\n</div>\n' + text[art_end:]
+            else:
+                new_text = text
 
-    # Guarantee H1 preservation: if original had an <h1> but new_text does not, re-insert it
-    if h1_orig_m and not re.search(r'<h1\b', new_text, re.IGNORECASE):
-        pc_idx = new_text.find('<div class="post-content">')
-        if pc_idx != -1:
-            ins = pc_idx + len('<div class="post-content">')
-            new_text = new_text[:ins] + "\n" + h1_orig_m.group(0) + "\n" + new_text[ins:]
-        else:
-            art_idx = new_text.find("<article")
-            if art_idx != -1:
-                ins = new_text.find(">", art_idx) + 1
-                new_text = new_text[:ins] + "\n" + h1_orig_m.group(0) + "\n" + new_text[ins:]
-
-    # Preserve any content figures that existed in the original article
-    fig_pattern = re.compile(r'<figure\b.*?</figure>', re.DOTALL | re.IGNORECASE)
-    old_figs = fig_pattern.findall(text)
-    missing_figs = []
-    for fig in old_figs:
-        src_m = re.search(r'src=["\']([^"\']+)["\']', fig)
-        if src_m and src_m.group(1) not in new_text:
-            missing_figs.append(fig)
-    if missing_figs:
-        art_end = new_text.find("</article>")
-        if art_end != -1:
-            new_text = new_text[:art_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[art_end:]
-        elif '<div class="post-content">' in new_text:
-            closing_search = new_text.find("</main>") if "</main>" in new_text else len(new_text)
-            pc_end = new_text.rfind("</div>", 0, closing_search)
-            if pc_end != -1:
-                new_text = new_text[:pc_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[pc_end:]
-        else:
-            new_text = new_text + "\n" + "\n".join(missing_figs)
-
-    # Preserve featured post-img wrapper if originally present
-    post_img_m = re.search(r'<div[^>]*class=["\'][^"\']*post-img[^"\']*["\'][^>]*>\s*<img[^>]+>\s*</div>', text, re.DOTALL | re.IGNORECASE)
-    if post_img_m and post_img_m.group(0) not in new_text:
-        img_src_m = re.search(r'src=["\']([^"\']+)["\']', post_img_m.group(0))
-        if img_src_m and not re.search(rf'<img[^>]+{re.escape(img_src_m.group(1))}', new_text):
+        # Guarantee H1 preservation: if original had an <h1> but new_text does not, re-insert it
+        if h1_orig_m and not re.search(r'<h1\b', new_text, re.IGNORECASE):
             pc_idx = new_text.find('<div class="post-content">')
             if pc_idx != -1:
-                new_text = new_text[:pc_idx] + post_img_m.group(0) + "\n" + new_text[pc_idx:]
+                ins = pc_idx + len('<div class="post-content">')
+                new_text = new_text[:ins] + "\n" + h1_orig_m.group(0) + "\n" + new_text[ins:]
+            else:
+                art_idx = new_text.find("<article")
+                if art_idx != -1:
+                    ins = new_text.find(">", art_idx) + 1
+                    new_text = new_text[:ins] + "\n" + h1_orig_m.group(0) + "\n" + new_text[ins:]
 
-    # Update post-meta word count and fact check date if present
-    after_words = count_visible_words(new_text)
-    read_mins = max(6, round(after_words / 200))
-    new_text = re.sub(
-        r"<span>\d+\s+Words(?:\s*\(\d+\s*Min\s*Read\))?</span>",
-        f"<span>{after_words} Words ({read_mins} Min Read)</span>",
-        new_text,
-    )
-    new_text = re.sub(
-        r"<span>Last Fact-Checked:.*?</span>",
-        '<span>Last Fact-Checked: <time datetime="2026-11-14">November 14, 2026</time></span>',
-        new_text,
-    )
+        # Preserve any content figures that existed in the original article
+        fig_pattern = re.compile(r'<figure\b.*?</figure>', re.DOTALL | re.IGNORECASE)
+        old_figs = fig_pattern.findall(text)
+        missing_figs = []
+        for fig in old_figs:
+            src_m = re.search(r'src=["\']([^"\']+)["\']', fig)
+            if src_m and src_m.group(1) not in new_text:
+                missing_figs.append(fig)
+        if missing_figs:
+            art_end = new_text.find("</article>")
+            if art_end != -1:
+                new_text = new_text[:art_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[art_end:]
+            elif '<div class="post-content">' in new_text:
+                closing_search = new_text.find("</main>") if "</main>" in new_text else len(new_text)
+                pc_end = new_text.rfind("</div>", 0, closing_search)
+                if pc_end != -1:
+                    new_text = new_text[:pc_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[pc_end:]
+            else:
+                new_text = new_text + "\n" + "\n".join(missing_figs)
 
-    # Update dateModified in JSON-LD
-    new_text = re.sub(
-        r'"dateModified":\s*"[^"]*"',
-        '"dateModified": "2026-11-14T12:00:00+05:30"',
-        new_text,
-    )
+        # Preserve featured post-img wrapper if originally present
+        post_img_m = re.search(r'<div[^>]*class=["\'][^"\']*post-img[^"\']*["\'][^>]*>\s*<img[^>]+>\s*</div>', text, re.DOTALL | re.IGNORECASE)
+        if post_img_m and post_img_m.group(0) not in new_text:
+            img_src_m = re.search(r'src=["\']([^"\']+)["\']', post_img_m.group(0))
+            if img_src_m and not re.search(rf'<img[^>]+{re.escape(img_src_m.group(1))}', new_text):
+                pc_idx = new_text.find('<div class="post-content">')
+                if pc_idx != -1:
+                    new_text = new_text[:pc_idx] + post_img_m.group(0) + "\n" + new_text[pc_idx:]
 
-    # Word count floor refusal check: refuse write if finished prose < floor
-    finished_prose = count_prose_words(new_text)
-    if finished_prose < effective_floor:
-        raise ValueError(
-            f"Finished prose count {finished_prose} is below ARTICLE_WORD_COUNT_FLOOR ({effective_floor}) for '{domain}/{slug}'. Refusing to write."
+        # Update post-meta word count and fact check date if present
+        after_words = count_visible_words(new_text)
+        read_mins = max(6, round(after_words / 200))
+        new_text = re.sub(
+            r"<span>\d+\s+Words(?:\s*\(\d+\s*Min\s*Read\))?</span>",
+            f"<span>{after_words} Words ({read_mins} Min Read)</span>",
+            new_text,
+        )
+        new_text = re.sub(
+            r"<span>Last Fact-Checked:.*?</span>",
+            '<span>Last Fact-Checked: <time datetime="2026-11-14">November 14, 2026</time></span>',
+            new_text,
         )
 
-    # Shingle Guard & Domain Vocabulary validation (for real articles before write)
-    if not dry_run and not slug.startswith("test-"):
-        shingle_idx = get_shared_index()
-        shingle_idx.register_article(domain, slug, new_text, check_duplicates=True)
+        # Update dateModified in JSON-LD
+        new_text = re.sub(
+            r'"dateModified":\s*"[^"]*"',
+            '"dateModified": "2026-11-14T12:00:00+05:30"',
+            new_text,
+        )
+
+        # Word count floor refusal check: refuse write if finished prose < floor
+        finished_prose = count_prose_words(new_text)
+        if finished_prose < effective_floor:
+            raise ValueError(
+                f"Finished prose count {finished_prose} is below ARTICLE_WORD_COUNT_FLOOR ({effective_floor}) for '{domain}/{slug}'. Refusing to write."
+            )
+
+        # Shingle Guard & Domain Vocabulary validation (for real articles before write)
+        if not dry_run and not slug.startswith("test-"):
+            shingle_idx = get_shared_index()
+            try:
+                shingle_idx.register_article(domain, slug, new_text, check_duplicates=True)
+                break
+            except DuplicateContentError as dce:
+                if attempt < max_attempts:
+                    m = re.search(r":\s*'([^']+)'", str(dce))
+                    colliding = m.group(1) if m else str(dce)
+                    print(f"[{domain}] Shingle collision on '{slug}': '{colliding}'. Retrying generation with phrase blocklist (attempt {attempt + 1})...")
+                    forbidden_phrases.append(colliding)
+                    continue
+                else:
+                    raise
+        else:
+            break
 
     if not dry_run:
         path.write_text(new_text, encoding="utf-8")

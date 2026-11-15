@@ -213,8 +213,13 @@ def _strip_code_fences_and_preamble(raw: str) -> str:
     return clean.strip()
 
 
-# 4. 2-PART DEEP AI SEO & GEO ARTICLE GENERATOR (1,300 - 1,800+ WORDS)
-def generate_claude_seo_article(site_id: str, site_info: dict, seo_brief: dict) -> tuple[str, list[dict[str, str]]]:
+# 4. 2-PART DEEP AI SEO & GEO ARTICLE GENERATOR (3,400 to 3,800 WORDS)
+def generate_claude_seo_article(
+    site_id: str,
+    site_info: dict,
+    seo_brief: dict,
+    forbidden_phrases: list[str] | None = None,
+) -> tuple[str, list[dict[str, str]]]:
     """
     2-Part Deep AI Article Generator (Full 3,400 to 3,800 Word Output — 3000-4000 Target Band):
       - Part 1: Direct GEO Lead Paragraph, 3 Analytical Sections with real ₹ math & statutory rules,
@@ -224,20 +229,13 @@ def generate_claude_seo_article(site_id: str, site_info: dict, seo_brief: dict) 
     Achieves 100/100 on ContentQualityFinishGate and passes AntiAIDetectionGate.
     """
     from adsterra_links import render_native_ad_card
+    from shingle_guard import get_domain_vertical
 
     primary_kw = seo_brief["primary_keyword"]
     lsi_kws = ", ".join(seo_brief["lsi_keywords"])
     site_name = site_info["name"]
     category = seo_brief["category"]
-
-    system_prompt = f"""You are the Principal Financial & Consumer Research Editor at {site_name}.
-You follow Google Search Central E-E-A-T and Generative Engine Optimization (GEO) standards.
-EDITORIAL STANDARDS:
-1. NEVER use AI clichés: delve, testament, beacon, vital, crucial, in conclusion, robust, dive deep, foster, elevate, holistic, seamless, plethora, myriad, paramount, pivotal, cornerstone.
-2. Vary sentence length naturally (combine short 6-word factual statements with detailed 22-word analytical sentences).
-3. Cite real Indian figures in ₹, exact % rates, and official institutions (RBI, SBI, HDFC, ICICI, TRAI, NPCI, SEBI, NABARD).
-4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary.
-5. ZERO BOILERPLATE REUSE: Output 100% original, unique prose. Never reuse stock boilerplate phrases (e.g. 'RBI mandates zero-foreclosure penalties under floating-rate loans' or 'Review all charges before applying'). Express every fact in distinctive phrasing."""
+    vertical = get_domain_vertical(site_id)
 
     # Targets derived from unified 3000-4000 word band
     part1_target_min = PART1_TARGET_MIN  # 1900
@@ -248,35 +246,232 @@ EDITORIAL STANDARDS:
     part1_tokens = max(6000, int(part1_target_max * 1.5) + 2000)
     part2_tokens = max(5000, int(part2_target_max * 1.5) + 2000)
 
-    part1_prompt = f"""Write PART 1 ({part1_target_min} to {part1_target_max} words) of the authoritative 2026 consumer guide on: '{primary_kw}'.
+    forbidden_instruction = ""
+    if forbidden_phrases:
+        forbidden_instruction = (
+            "\nCRITICAL MANDATORY CONSTRAINT FOR ORIGINALITY:\n"
+            "DO NOT use any of the following phrases, exact word sequences, or near-synonyms anywhere in the output:\n"
+            + "\n".join(f"- {p}" for p in forbidden_phrases)
+            + "\nExpress all insights in entirely new, distinct vocabulary."
+        )
+
+    if vertical == "recharge":
+        system_prompt = f"""You are the Principal Telecom & Digital Connectivity Research Editor at {site_name}.
+You follow Google Search Central E-E-A-T and Generative Engine Optimization (GEO) standards.
+EDITORIAL STANDARDS:
+1. NEVER use AI clichés: delve, testament, beacon, vital, crucial, in conclusion, robust, dive deep, foster, elevate, holistic, seamless, plethora, myriad, paramount, pivotal, cornerstone.
+2. Vary sentence length naturally (combine short 6-word factual statements with detailed 22-word analytical sentences).
+3. Cite real Indian figures in ₹, data GB allowances, validity days, and official telecom networks and bodies (TRAI, DoT, Jio, Airtel, Vi, BSNL).
+4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary.
+5. ZERO BOILERPLATE REUSE: Output 100% original, unique prose. Express every fact in distinctive phrasing tailored to '{primary_kw}'.
+6. STRICT VOCABULARY POLICY: This is a telecom connectivity guide. NEVER mention loans, EMI, CIBIL, KFS, APR, NBFC, foreclosure, or borrowing.{forbidden_instruction}"""
+
+        part1_prompt = f"""Write PART 1 ({part1_target_min} to {part1_target_max} words) of the authoritative 2026 consumer guide on: '{primary_kw}'.
 Category: {category} | Secondary Keywords: {lsi_kws}
 
 Requirement: Output exhaustive, long-form reference content. Do not summarize. You MUST provide extensive, multi-paragraph analysis under every single heading to produce a comprehensive 2,000-word treatise.
 Output this exact HTML structure with rich paragraphs:
-<p class='lead'>Start with a direct 45-word definition of {primary_kw}, explaining the exact ₹ cost or savings impact and who qualifies in India in 2026.</p>
+<p class='lead'>Start with a direct 45-word definition of {primary_kw}, explaining the exact ₹ tariff cost, high-speed data allowance, validity duration, and who benefits in India in 2026.</p>
+
+<h2>1. Core Network Architecture, Spectrum Allocations & 2026 TRAI Tariff Directives</h2>
+<p>Write 3 detailed analytical paragraphs explaining how {primary_kw} operates across Indian telecom circles. Detail TRAI Quality of Service (QoS) norms, 5G Standalone (SA) and Non-Standalone (NSA) spectrum utilization, and Fair Usage Policy (FUP) rules governing high-speed bandwidth.</p>
+<p>Detail consumer rights regarding unsolicited commercial communications (DND norms), billing dispute grievance escalation tiers, and mobile number portability (MNP) turnaround rules.</p>
+<p>Provide real ₹ figures, average cost per gigabyte, and bandwidth reserve benchmarks consumers should evaluate before activating {primary_kw}.</p>
+
+<h2>2. Plan Specifications, Data Thresholds & Validity Optimization</h2>
+<p>Write 3 detailed paragraphs detailing plan parameters: daily high-speed quotas, post-FUP throttle speeds (64 Kbps baseline), true unlimited 5G data availability criteria, and national roaming allowances across metropolitan and rural circles.</p>
+<p>Analyze voice calling provisions (unlimited local, STD, and national roaming with interconnect usage charges), alongside daily SMS allowances (100 SMS/day ceiling) and banking notification compatibility.</p>
+<p>Detail digital activation procedures, including eSIM QR code provisioning, physical SIM doorstep delivery, and Aadhaar-based paperless e-KYC verification.</p>
+
+<h2>3. Value Breakdown, OTT Bundles & Total Cost of Connectivity</h2>
+<p>Write 3 detailed paragraphs with step-by-step ₹ calculations comparing monthly vs quarterly vs annual recharge cycles for {primary_kw}.</p>
+<p>Detail bundled digital subscriptions: calculate the standalone market value of OTT memberships (Disney+ Hotstar, SonyLIV, Zee5, Amazon Prime Video Mobile Edition) versus the net tariff premium charged in the bundle.</p>
+<p>Explain data rollover rules, booster addon economics (1GB, 2GB, and unlimited night data sachets), and tariff protection mechanisms during mid-cycle regulatory revisions.</p>
+
+<h2>4. Operator Landscape: Reliance Jio vs Bharti Airtel vs Vodafone Idea vs BSNL</h2>
+<p>Write 3 detailed paragraphs contrasting network infrastructure, rural coverage density, customer support turnaround times, and 5G availability across Jio, Airtel, Vi, and BSNL for {primary_kw}.</p>
+<p>Analyze the trade-off between premium network consistency at market leaders versus aggressive pricing and extra data rollover perks at competing networks.</p>
+<p>Provide concrete guidelines on how consumers should evaluate network speeds and signal propagation in their specific locality rather than relying on national marketing claims.</p>
+
+<h2>5. 2026 Empirical Comparison Table: Top 5 Verified Options</h2>
+<p>Introduce the benchmark comparison across India's leading connectivity plans in 2026 with 3 analytical paragraphs on rate spreads, data caps, and validity tradeoffs:</p>
+<div class='table-responsive'>
+<table class='article-table'>
+<thead><tr><th>Plan / Tier</th><th>Tariff (₹) & Validity</th><th>Daily High-Speed Data</th><th>Key Value Advantage</th></tr></thead>
+<tbody>
+<tr><td>Base Standard Plan</td><td>Fill real ₹/days</td><td>Fill real GB/day</td><td>Fill concrete benefit</td></tr>
+<tr><td>Value Optimizer Pack</td><td>Fill real ₹/days</td><td>Fill real GB/day</td><td>Fill concrete benefit</td></tr>
+<tr><td>Heavy Data / OTT Bundle</td><td>Fill real ₹/days</td><td>Fill real GB/day</td><td>Fill concrete benefit</td></tr>
+<tr><td>Long-Term Annual Saver</td><td>Fill real ₹/365 Days</td><td>Fill real GB/day</td><td>Lowest daily cost / zero recharge hassle</td></tr>
+<tr><td>Budget Entry Tier</td><td>Fill real ₹/days</td><td>Fill real GB/day</td><td>Essential calling & emergency data</td></tr>
+</tbody>
+</table>
+</div>"""
+
+        part2_prompt = f"""Write PART 2 ({part2_target_min} to {part2_target_max} words) continuing the 2026 guide on: '{primary_kw}' ({category}).
+Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
+
+<h2>4. Step-by-Step Online Activation, Recharge & Porting Walkthrough</h2>
+<p>Explain the exact online activation and recharge workflow across 5 detailed steps:</p>
+<ol class='guide-steps'>
+<li><strong>Step 1 — Validity Audit & Plan Selection:</strong> Detailed 60-word instructions on checking active plan expiry, data balance, and choosing {primary_kw}.</li>
+<li><strong>Step 2 — Portal Selection & Payment Gateway Verification:</strong> Detailed 60-word instructions on using official operator apps (MyJio, Airtel Thanks, Vi App) or UPI portals to review cashback offers.</li>
+<li><strong>Step 3 — Instant UPI / Card Transaction:</strong> Detailed 60-word instructions on executing secure payment via UPI AutoPay, NetBanking, or debit card with 0% gateway surcharge.</li>
+<li><strong>Step 4 — Confirmation & Network Provisioning:</strong> Detailed 60-word instructions on receiving SMS confirmation, checking updated balance, and validating bundle activation.</li>
+<li><strong>Step 5 — OTT & Add-on Claim Process:</strong> Detailed 60-word instructions on claiming complementary OTT vouchers and setting up linked streaming accounts.</li>
+</ol>
+
+<h2>5. Real-World Case Study & 5 Costly Recharge Traps to Avoid</h2>
+<p>Provide a concrete 3-paragraph Indian consumer case study comparing two mobile users (e.g., Ankit from Lucknow vs Sneha from Jaipur) saving ₹2,400+ annually through strategic recharge scheduling.</p>
+<ul class='checklist'>
+<li><strong>Mistake 1 — Paying for Unused OTT Subscriptions:</strong> Detailed breakdown of bundled streaming packs that duplicate existing home broadband or family subscriptions.</li>
+<li><strong>Mistake 2 — The 28-Day Cycle Extra Recharge Trap:</strong> Detailed breakdown of 28-day validity cycles resulting in 13 recharges per year instead of 12.</li>
+<li><strong>Mistake 3 — Ignoring Post-FUP Throttle Limits:</strong> Detailed breakdown of data exhaustion dropping speeds to 64 Kbps and how emergency data vouchers operate.</li>
+<li><strong>Mistake 4 — Overlooking Circle-Specific Roaming Nuances:</strong> Detailed breakdown of voice and data rules in Jammu & Kashmir or North East circles.</li>
+<li><strong>Mistake 5 — Unintentional Value-Added Service (VAS) Deductions:</strong> Detailed breakdown of premium SMS or caller tune activations and how to dispute via TRAI 1909 helpline.</li>
+</ul>
+
+<h2>Frequently Asked Questions</h2>
+<h3>What is the primary evaluation factor for {primary_kw} in 2026?</h3>
+<p>Write a detailed 4-sentence factual answer tailored specifically to {primary_kw}, citing exact parameters, technical specifications, or compliance standards in India.</p>
+<h3>How should consumers calculate total investment and operational costs for {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer analyzing monthly expenditure, data utility, and annual savings for {primary_kw}.</p>
+<h3>What statutory guidelines and consumer protections apply to {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer listing the exact TRAI consumer protection norms, QoS mandates, or porting rules governing {primary_kw}.</p>
+<h3>How can users avoid accidental charges or plan mismatches with {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer outlining operator app verification, balance audits, and tariff transparency for {primary_kw}.</p>
+<h3>What is the typical activation timeline and service onboarding for {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer comparing digital instant recharge against new SIM activation cycles for {primary_kw}.</p>"""
+
+    elif vertical == "tazabhav":
+        system_prompt = f"""You are the Principal Agricultural Commodities & Market Price Research Editor at {site_name}.
+You follow Google Search Central E-E-A-T and Generative Engine Optimization (GEO) standards.
+EDITORIAL STANDARDS:
+1. NEVER use AI clichés: delve, testament, beacon, vital, crucial, in conclusion, robust, dive deep, foster, elevate, holistic, seamless, plethora, myriad, paramount, pivotal, cornerstone.
+2. Vary sentence length naturally (combine short 6-word factual statements with detailed 22-word analytical sentences).
+3. Cite real Indian figures in ₹ per quintal or kg, mandi arrival volumes in quintals, quality grades, and official agricultural bodies (Agmarknet, e-NAM, APMC, NCDEX, Ministry of Agriculture).
+4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary.
+5. ZERO BOILERPLATE REUSE: Output 100% original, unique prose. Express every fact in distinctive phrasing tailored to '{primary_kw}'.
+6. STRICT VOCABULARY POLICY: This is an agricultural commodity pricing guide. NEVER mention loans, EMI, CIBIL, KFS, APR, NBFC, foreclosure, or telecom recharge packs.{forbidden_instruction}"""
+
+        part1_prompt = f"""Write PART 1 ({part1_target_min} to {part1_target_max} words) of the authoritative 2026 agricultural commodity and mandi market guide on: '{primary_kw}'.
+Category: {category} | Secondary Keywords: {lsi_kws}
+
+Requirement: Output exhaustive, long-form reference content. Do not summarize. You MUST provide extensive, multi-paragraph analysis under every single heading to produce a comprehensive 2,000-word treatise.
+Output this exact HTML structure with rich paragraphs:
+<p class='lead'>Start with a direct 45-word definition of {primary_kw}, explaining the current wholesale spot rate range in ₹ per quintal, daily arrival trends, and seasonal market drivers in India in 2026.</p>
+
+<h2>1. Market Architecture, Statutory APMC Regulations & e-NAM Trading Framework</h2>
+<p>Write 3 detailed analytical paragraphs explaining how {primary_kw} trades across Agricultural Produce Market Committee (APMC) mandis under State Agricultural Marketing Board directives. Detail electronic National Agriculture Market (e-NAM) integration, single-license trading, and transparent electronic auction procedures.</p>
+<p>Detail statutory mandi cess and market fees (ranging from 0.5% to 2.5%), commission agent charges, statutory weighing regulations, and farmer settlement guidelines under AGMARK standards.</p>
+<p>Provide real ₹ figures, mandi rate spreads between peak harvest and lean seasons, and minimum support price (MSP) benchmarks that buyers and traders must evaluate.</p>
+
+<h2>2. Commodity Quality Grades, Moisture Tolerances & Inspection Standards</h2>
+<p>Write 3 detailed paragraphs detailing physical inspection benchmarks: standard moisture content limits (10% to 12% baseline), foreign matter allowances (less than 1.5%), damaged grain thresholds, and optical sorting parameters for {primary_kw}.</p>
+<p>Explain laboratory testing methodologies, digital moisture meters, quality certification certificates issued by certified assayers, and grade classifications (FAQ Grade, Grade-A, Super Fine).</p>
+<p>Detail storage prerequisites, including Warehousing Development and Regulatory Authority (WDRA) registered godowns, scientific fumigation protocols, and warehouse receipt financing options.</p>
+
+<h2>3. Mandi Price Math, Inter-State Arbitrage & Logistics Cost Slabs</h2>
+<p>Write 3 detailed paragraphs with step-by-step ₹ calculations comparing farm-gate realization versus wholesale terminal mandi prices and retail market prices for {primary_kw}.</p>
+<p>Detail all logistics and handling costs: gunny bag packaging charges (₹65 to ₹85 per standard 50kg bag), loading/unloading labor costs (₹12 to ₹20 per quintal), inter-state freight per tonne-kilometer, and transit insurance.</p>
+<p>Explain seasonal arrival curves, cold storage rent dynamics (₹80 to ₹140 per quintal per season), and weight loss deductions due to natural drying during extended warehousing.</p>
+
+<h2>4. Regional Hub Comparison: Premier Mandis vs Secondary Consumption Centers</h2>
+<p>Write 3 detailed paragraphs contrasting arrival volumes, spot liquidity, and price discovery mechanisms across major agricultural trading hubs in India for {primary_kw}.</p>
+<p>Analyze the trade-off between direct procurement at primary farm mandis versus sourcing sorted and graded lots from specialized wholesale agro-aggregators.</p>
+<p>Provide concrete guidelines on how commercial buyers, millers, and retail stockists should time bulk procurement to avoid seasonal price spikes.</p>
+
+<h2>5. 2026 Empirical Comparison Table: Top 5 Verified Options</h2>
+<p>Introduce the benchmark comparison across India's top commodity trading mandis in 2026 with 3 analytical paragraphs on rate spreads, daily arrivals, and quality premiums:</p>
+<div class='table-responsive'>
+<table class='article-table'>
+<thead><tr><th>Mandi / Trading Center</th><th>Modal Rate (₹/Quintal)</th><th>Daily Arrivals & Volume</th><th>Quality / Variety Benchmark</th></tr></thead>
+<tbody>
+<tr><td>Primary Mandi Hub</td><td>Fill real ₹/Qtl</td><td>Fill real quintals</td><td>FAQ Standard Grade</td></tr>
+<tr><td>High-Liquidity Terminal</td><td>Fill real ₹/Qtl</td><td>Fill real quintals</td><td>Super Fine / Export Quality</td></tr>
+<tr><td>Regional Consumption Hub</td><td>Fill real ₹/Qtl</td><td>Fill real quintals</td><td>Graded & Machine Cleaned</td></tr>
+<tr><td>Direct APMC Center</td><td>Fill real ₹/Qtl</td><td>Fill real quintals</td><td>Direct Farm Arrivals</td></tr>
+<tr><td>e-NAM Digital Auction</td><td>Fill real ₹/Qtl</td><td>Fill real quintals</td><td>Electronic Assayed Lot</td></tr>
+</tbody>
+</table>
+</div>"""
+
+        part2_prompt = f"""Write PART 2 ({part2_target_min} to {part2_target_max} words) continuing the 2026 guide on: '{primary_kw}' ({category}).
+Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
+
+<h2>4. Step-by-Step Online Procurement & Mandi Trading Walkthrough</h2>
+<p>Explain the exact procurement and mandi trading workflow across 5 detailed steps:</p>
+<ol class='guide-steps'>
+<li><strong>Step 1 — Mandi Arrival Tracking & Price Verification:</strong> Detailed 60-word instructions on checking daily modal prices on Agmarknet and e-NAM for {primary_kw}.</li>
+<li><strong>Step 2 — Lot Inspection & Quality Assaying:</strong> Detailed 60-word instructions on sample extraction, testing moisture percentage, and verifying dockage before bidding.</li>
+<li><strong>Step 3 — Electronic Bidding & Auction Settlement:</strong> Detailed 60-word instructions on participating in open outcry or e-auction bidding to secure competitive purchase rates.</li>
+<li><strong>Step 4 — Weighment, Billing & Statutory Tax Settlement:</strong> Detailed 60-word instructions on supervising certified electronic weighbridges and generating official mandi receipts with cess.</li>
+<li><strong>Step 5 — Dispatch, Fumigation & Storage Logistics:</strong> Detailed 60-word instructions on loading standard gunny bags, securing transit insurance, and warehousing in WDRA depots.</li>
+</ol>
+
+<h2>5. Real-World Case Study & 5 Costly Mistakes to Avoid</h2>
+<p>Provide a concrete 3-paragraph Indian case study comparing two agricultural commodity stockists (e.g., Rajesh from Indore vs Vikram from Kota) optimizing procurement costs and saving ₹48,000+ per truckload.</p>
+<ul class='checklist'>
+<li><strong>Mistake 1 — Overlooking Moisture Content Differentials:</strong> Detailed breakdown of purchasing high-moisture lots leading to weight loss and spoilage during storage.</li>
+<li><strong>Mistake 2 — Ignoring Inter-State Mandi Cess & Transit Tolls:</strong> Detailed breakdown of hidden transport and cess costs that eliminate paper arbitrage margins.</li>
+<li><strong>Mistake 3 — Purchasing Non-Assayed Lots Without Sampling:</strong> Detailed breakdown of foreign matter contamination and defective grain mixing.</li>
+<li><strong>Mistake 4 — Inadequate Warehousing & Fumigation Scheduling:</strong> Detailed breakdown of insect infestation and fungal spoilage in uncertified storage facilities.</li>
+<li><strong>Mistake 5 — Misjudging Arrival Timing During Peak Glut:</strong> Detailed breakdown of panic buying before peak arrivals hit seasonal price bottoms.</li>
+</ul>
+
+<h2>Frequently Asked Questions</h2>
+<h3>What is the primary evaluation factor for {primary_kw} in 2026?</h3>
+<p>Write a detailed 4-sentence factual answer tailored specifically to {primary_kw}, citing exact parameters, technical specifications, or compliance standards in India.</p>
+<h3>How should consumers calculate total investment and operational costs for {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer analyzing procurement outlay, freight, storage, and net margins for {primary_kw}.</p>
+<h3>What statutory approvals and documentation apply to {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer listing the exact APMC licenses, GST norms, or Agmark certifications governing {primary_kw}.</p>
+<h3>How can buyers avoid defective terms or hidden charges with {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer outlining supplier due diligence, sample testing, and weighment verification for {primary_kw}.</p>
+<h3>What is the typical deployment timeline and operational onboarding for {primary_kw}?</h3>
+<p>Write a detailed 4-sentence factual answer comparing immediate mandi spot buying against seasonal forward contract delivery cycles for {primary_kw}.</p>"""
+
+    else:
+        # Default / Loan / Finance vertical
+        system_prompt = f"""You are the Principal Financial & Consumer Research Editor at {site_name}.
+You follow Google Search Central E-E-A-T and Generative Engine Optimization (GEO) standards.
+EDITORIAL STANDARDS:
+1. NEVER use AI clichés: delve, testament, beacon, vital, crucial, in conclusion, robust, dive deep, foster, elevate, holistic, seamless, plethora, myriad, paramount, pivotal, cornerstone.
+2. Vary sentence length naturally (combine short 6-word factual statements with detailed 22-word analytical sentences).
+3. Cite real Indian figures in ₹, exact % rates, and official institutions (RBI, SBI, HDFC, ICICI, NPCI, NABARD).
+4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary.
+5. ZERO BOILERPLATE REUSE: Output 100% original, unique prose. Never reuse stock boilerplate phrases. Express every fact in distinctive phrasing tailored to '{primary_kw}'.
+6. STRICT VOCABULARY POLICY: NEVER mention telecom validity days, 28 days validity, data boosters, or prepaid packs.{forbidden_instruction}"""
+
+        part1_prompt = f"""Write PART 1 ({part1_target_min} to {part1_target_max} words) of the authoritative 2026 consumer finance guide on: '{primary_kw}'.
+Category: {category} | Secondary Keywords: {lsi_kws}
+
+Requirement: Output exhaustive, long-form reference content. Do not summarize. You MUST provide extensive, multi-paragraph analysis under every single heading to produce a comprehensive 2,000-word treatise.
+Output this exact HTML structure with rich paragraphs:
+<p class='lead'>Start with a direct 45-word definition of {primary_kw}, explaining the exact ₹ borrowing cost, qualifying applicant criteria, and financial impact in India in 2026.</p>
 
 <h2>1. Core Mechanics, Statutory Architecture & 2026 Regulatory Rules</h2>
-<p>Write 3 detailed analytical paragraphs explaining how {primary_kw} operates under current RBI, TRAI, NPCI, and SEBI circulars. Detail statutory licensing frameworks, non-banking financial company (NBFC) classifications, and master directions governing digital operations.</p>
-<p>Detail consumer rights, mandatory disclosure standards, fair practices code guidelines, and official institutional supervisory oversight.</p>
-<p>Provide real ₹ figures, baseline interest spreads, and statutory reserve benchmarks that consumers must evaluate before submitting applications.</p>
+<p>Write 3 detailed analytical paragraphs explaining how {primary_kw} operates under current Indian financial regulations. Detail governing frameworks, lending institution classifications, and master directions governing digital financial operations specifically applicable to {primary_kw}.</p>
+<p>Detail consumer rights, mandatory disclosure standards, fair practices code guidelines, and supervisory oversight protecting applicants.</p>
+<p>Provide real ₹ figures, baseline interest spreads, and reserve benchmarks that consumers must evaluate before applying for {primary_kw}.</p>
 
 <h2>2. Borrower & Consumer Eligibility Criteria & Bureau Benchmarks</h2>
-<p>Write 3 detailed paragraphs detailing eligibility benchmarks: age brackets (21 to 60 years), minimum income thresholds for salaried vs self-employed applicants (₹25,000/month baseline), and bureau score tiers across CIBIL, Experian, and CRIF High Mark.</p>
-<p>Explain fixed obligation to income ratio (FOIR) and debt-to-income (DTI) caps (40% to 50% max allowable ceiling), demonstrating how existing liabilities constrain sanction limits.</p>
-<p>Detail mandatory statutory documentation under PMLA guidelines, including Aadhaar DigiLocker e-KYC, PAN card validation, 6-month automated bank statement extraction, and utility bill address proofs.</p>
+<p>Write 3 detailed paragraphs detailing eligibility benchmarks specifically relevant to {primary_kw}: age criteria, verifiable income or turnover requirements across salaried vs self-employed profiles, and credit score tiers across Indian bureaus.</p>
+<p>Explain financial assessment ratios, debt-to-income benchmarks, and cash-flow evaluations showing how existing liabilities impact approval limits.</p>
+<p>Detail mandatory statutory documentation under PMLA and KYC guidelines, including Aadhaar DigiLocker e-KYC, PAN card validation, bank statement extraction, and operational verification proofs.</p>
 
 <h2>3. Interest Rate Math, Fee Slabs & Hidden Charges Breakdown</h2>
-<p>Write 3 detailed paragraphs with step-by-step ₹ calculations comparing reducing balance interest rates against flat rate models across ₹50,000, ₹2,00,000, and ₹5,00,000 borrowing amounts.</p>
-<p>Detail all upfront and backend costs: processing fee slabs (0.5% to 2.5%), mandatory 18% GST on all administrative fees, stamp duty charges, and credit assessment expenses.</p>
-<p>Explain statutory prepayment and foreclosure protections under RBI circulars (zero foreclosure penalties on floating-rate individual facilities), along with bounce charges (₹450 to ₹800) and penal interest calculation rules.</p>
+<p>Write 3 detailed paragraphs with step-by-step ₹ calculations comparing reducing balance interest rates against flat rate models across ₹50,000, ₹2,00,000, and ₹5,00,000 funding amounts for {primary_kw}.</p>
+<p>Detail all upfront and backend costs: processing fee slabs (0.5% to 2.5%), mandatory 18% GST on administrative fees, documentation charges, and evaluation expenses.</p>
+<p>Explain prepayment and foreclosure protections under banking circulars (zero foreclosure penalties on floating-rate individual facilities), along with bounce charges and penal interest calculation rules.</p>
 
 <h2>4. Institutional Comparison: PSU Banks vs Private Banks vs NBFCs</h2>
-<p>Write 3 detailed paragraphs contrasting underwriting philosophy, processing turnaround times (TAT), and risk premiums across Public Sector Undertakings (State Bank of India, Punjab National Bank), Private Banks (HDFC, ICICI, Axis), and Digital NBFCs/fintech aggregators.</p>
+<p>Write 3 detailed paragraphs contrasting underwriting philosophy, processing turnaround times (TAT), and risk premiums across Public Sector Undertakings (State Bank of India, Punjab National Bank), Private Banks (HDFC, ICICI, Axis), and Digital NBFCs/fintech platforms for {primary_kw}.</p>
 <p>Analyze the trade-off between lower annual percentage rates (APR) at public institutions versus rapid paperless execution at digital lending platforms.</p>
 <p>Provide concrete guidelines on how consumers should evaluate total cost of credit rather than being misled by headline introductory rates.</p>
 
 <h2>5. 2026 Empirical Comparison Table: Top 5 Verified Options</h2>
-<p>Introduce the benchmark comparison across India's leading market offerings in 2026 with 3 analytical paragraphs on rate spreads, TAT, and tenure tradeoffs:</p>
+<p>Introduce the benchmark comparison across India's leading market offerings in 2026 with 3 analytical paragraphs on rate spreads, TAT, and tenure tradeoffs for {primary_kw}:</p>
 <div class='table-responsive'>
 <table class='article-table'>
 <thead><tr><th>Feature / Option</th><th>Rate / Cost (₹ & %)</th><th>Processing / Tenure</th><th>Key Advantage</th></tr></thead>
@@ -290,13 +485,13 @@ Output this exact HTML structure with rich paragraphs:
 </table>
 </div>"""
 
-    part2_prompt = f"""Write PART 2 ({part2_target_min} to {part2_target_max} words) continuing the 2026 guide on: '{primary_kw}' ({category}).
+        part2_prompt = f"""Write PART 2 ({part2_target_min} to {part2_target_max} words) continuing the 2026 guide on: '{primary_kw}' ({category}).
 Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
 
 <h2>4. Step-by-Step Online Application & Verification Walkthrough</h2>
-<p>Explain the exact online verification workflow and mandatory KYC checklist across 5 detailed steps:</p>
+<p>Explain the exact online verification workflow and mandatory KYC checklist for {primary_kw} across 5 detailed steps:</p>
 <ol class='guide-steps'>
-<li><strong>Step 1 — Eligibility & Document Readiness:</strong> Detailed 60-word instructions with PAN, Aadhaar DigiLocker, and 6-month Account Aggregator statement retrieval.</li>
+<li><strong>Step 1 — Eligibility & Document Readiness:</strong> Detailed 60-word instructions with PAN, Aadhaar DigiLocker, and Account Aggregator statement retrieval for {primary_kw}.</li>
 <li><strong>Step 2 — Portal Selection & Rate Comparison:</strong> Detailed 60-word instructions on auditing Key Fact Statements (KFS) and annualized percentage rates (APR).</li>
 <li><strong>Step 3 — Video KYC (V-KYC) & Underwriting Verification:</strong> Detailed 60-word instructions on live geotagged video verification with official banking agent and real-time biometric matching.</li>
 <li><strong>Step 4 — Digital Mandate Setup via e-NACH / UPI Autopay:</strong> Detailed 60-word instructions on automated repayment mandate setup via NetBanking with zero paper physical visit.</li>
@@ -304,11 +499,11 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 </ol>
 
 <h2>5. Real-World Case Study & 5 Costly Mistakes to Avoid</h2>
-<p>Provide a concrete 3-paragraph Indian case study comparing two consumers (e.g., Ramesh from Pune vs Priya from Bengaluru) saving ₹14,800+ across 36 months using smart APR selection.</p>
+<p>Provide a concrete 3-paragraph Indian case study analyzing two applicants evaluating {primary_kw} and optimizing total cost of credit to save ₹14,800+ across their tenure.</p>
 <ul class='checklist'>
 <li><strong>Mistake 1 — Bundled Insurance & Credit Shield Cross-Selling:</strong> Detailed breakdown of forced single-premium credit health/life insurance and how to decline under IRDAI/RBI rules.</li>
-<li><strong>Mistake 2 — Ignoring Processing Fee Slabs & 18% GST:</strong> Detailed breakdown of upfront fee deductions eroding net loan disbursal.</li>
-<li><strong>Mistake 3 — Multiple Simultaneous Hard Bureau Pulls:</strong> Detailed breakdown of 4+ inquiries in 14 days causing a 25–40 point CIBIL score drop.</li>
+<li><strong>Mistake 2 — Ignoring Processing Fee Slabs & 18% GST:</strong> Detailed breakdown of upfront fee deductions eroding net disbursal amount.</li>
+<li><strong>Mistake 3 — Multiple Simultaneous Hard Bureau Pulls:</strong> Detailed breakdown of rapid consecutive inquiries causing unnecessary credit score dips.</li>
 <li><strong>Mistake 4 — Reset Clauses & Floating Spread Revisions:</strong> Detailed breakdown of quiet tenure elongation without upfront borrower alert.</li>
 <li><strong>Mistake 5 — Missing Prepayment & Foreclosure Lock-In Clauses:</strong> Detailed breakdown of minimum lock-in periods and statutory zero-penalty enforcement.</li>
 </ul>
