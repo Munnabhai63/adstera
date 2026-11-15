@@ -168,12 +168,190 @@ BANNED_LEAK_PHRASES = [
     "strict vocabulary:",
 ]
 
+
+def normalize_h2_key(text: str) -> str:
+    """Normalize H2 heading text: lowercase, strip numbers, collapse whitespace, drop trailing punctuation."""
+    t = text.lower()
+    t = re.sub(r"^\s*\d+[.)]\s*", "", t)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t.rstrip(":.,;-")
+
+
+def has_duplicate_sections(soup: Any) -> bool:
+    """Detect whether HTML contains duplicate H2 headings, multiple FAQ blocks, or restarted numbering."""
+    post_content = soup.find("div", class_="post-content") or soup.find("article") or soup.body or soup
+    if not post_content:
+        return False
+    h2_tags = post_content.find_all("h2")
+    if len(h2_tags) <= 1:
+        return False
+    keys = [normalize_h2_key(h.get_text()) for h in h2_tags]
+    faq_count = sum(1 for k in keys if "frequently asked questions" in k)
+    if faq_count > 1:
+        return True
+    if len(keys) != len(set(keys)):
+        return True
+    numbers = []
+    for h in h2_tags:
+        raw = re.sub(r"\s+", " ", h.get_text()).strip()
+        m = re.match(r"^(\d+)[.)]\s*", raw)
+        if m:
+            numbers.append(int(m.group(1)))
+    if numbers and any(numbers[i] >= numbers[i + 1] for i in range(len(numbers) - 1)):
+        return True
+    return False
+
+
+def merge_duplicate_sections(html_text: str) -> str:
+    """
+    Deterministically collapse duplicate H2 sections, consolidate multiple FAQ blocks
+    into a single FAQ header, renumber H2 headings sequentially (1..N), and rebuild
+    the Table of Contents. Never drops <p>, <table>, <figure>, <img>, or <ol>.
+    Idempotent.
+    """
+    if not html_text or "<h2" not in html_text:
+        return html_text
+
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup(html_text, "html.parser")
+    if not has_duplicate_sections(soup):
+        return html_text
+
+    post_content = soup.find("div", class_="post-content") or soup.find("article") or soup.body or soup
+    if not post_content:
+        return html_text
+    h2_tags = post_content.find_all("h2")
+    if len(h2_tags) <= 1:
+        return html_text
+
+    # 1. Handle FAQ headers: consolidate into single FAQ header
+    faq_h2s = [h for h in h2_tags if "frequently asked questions" in normalize_h2_key(h.get_text())]
+    if len(faq_h2s) > 1:
+        master_faq = None
+        for h in reversed(faq_h2s):
+            if h.parent and "faq-section" in h.parent.get("class", []):
+                master_faq = h
+                break
+        if not master_faq:
+            master_faq = faq_h2s[-1]
+
+        master_wrapper = master_faq.parent if (master_faq.parent and "faq-section" in master_faq.parent.get("class", [])) else None
+
+        for h in faq_h2s:
+            if h is master_faq:
+                continue
+            sibs = []
+            curr = h.next_sibling
+            while curr:
+                if getattr(curr, "name", None) == "h2":
+                    break
+                if getattr(curr, "find", None) and curr.find("h2"):
+                    break
+                next_s = curr.next_sibling
+                sibs.append(curr)
+                curr = next_s
+
+            if master_wrapper:
+                for s in sibs:
+                    if getattr(s, "get", None) and "faq-card" in s.get("class", []):
+                        master_wrapper.append(s)
+                    elif getattr(s, "find_all", None) and s.find_all("div", class_="faq-card"):
+                        for c in s.find_all("div", class_="faq-card"):
+                            master_wrapper.append(c)
+                    elif getattr(s, "name", None) in ("p", "div", "table", "ul", "ol", "figure"):
+                        master_wrapper.insert_before(s)
+            h_parent = h.parent
+            h.decompose()
+            if h_parent and "faq-section" in h_parent.get("class", []):
+                if not h_parent.find_all(["p", "div", "h2", "h3", "table", "ul", "ol"]):
+                    h_parent.decompose()
+
+    # 2. General duplicate H2 merge
+    h2_tags = post_content.find_all("h2")
+    seen_h2: dict[str, Any] = {}
+    to_merge = []
+    for h in h2_tags:
+        key = normalize_h2_key(h.get_text())
+        if key in seen_h2:
+            to_merge.append((h, seen_h2[key]))
+        else:
+            seen_h2[key] = h
+
+    for dup_h2, first_h2 in to_merge:
+        sibs = []
+        curr = dup_h2.next_sibling
+        while curr:
+            if getattr(curr, "name", None) == "h2":
+                break
+            if getattr(curr, "find", None) and curr.find("h2"):
+                break
+            next_s = curr.next_sibling
+            sibs.append(curr)
+            curr = next_s
+
+        target = first_h2
+        curr = first_h2.next_sibling
+        while curr:
+            if getattr(curr, "name", None) == "h2":
+                break
+            if getattr(curr, "find", None) and curr.find("h2"):
+                break
+            target = curr
+            curr = curr.next_sibling
+
+        for s in sibs:
+            target.insert_after(s)
+            target = s
+
+        dup_h2.decompose()
+
+    # 3. Renumber remaining H2s sequentially (1..N)
+    h2_tags = post_content.find_all("h2")
+    sec_idx = 0
+    toc_items: list[tuple[str, str]] = []
+    for h in h2_tags:
+        raw_text = re.sub(r"\s+", " ", h.get_text()).strip()
+        norm_key = normalize_h2_key(raw_text)
+        if "frequently asked questions" in norm_key:
+            h.string = "Frequently Asked Questions"
+            h["id"] = "section-faq"
+            toc_items.append(("section-faq", "Frequently Asked Questions"))
+        else:
+            sec_idx += 1
+            clean_title = re.sub(r"^\s*\d+[.)]\s*", "", raw_text).strip()
+            numbered = f"{sec_idx}. {clean_title}"
+            h.string = numbered
+            sec_id = f"section-{sec_idx}"
+            h["id"] = sec_id
+            toc_items.append((sec_id, numbered))
+
+    # 4. Rebuild Table of Contents
+    toc_nav = soup.find("nav", class_="article-toc")
+    if toc_nav:
+        toc_list = toc_nav.find("ol", class_="toc-list")
+        if not toc_list:
+            toc_list = soup.new_tag("ol", class_="toc-list")
+            toc_nav.append(toc_list)
+        else:
+            toc_list.clear()
+        for s_id, t_text in toc_items:
+            li = soup.new_tag("li")
+            a = soup.new_tag("a", href=f"#{s_id}")
+            a.string = t_text
+            li.append(a)
+            toc_list.append(li)
+
+    return str(soup)
+
+
 class ContentQualityFinishGate:
     """
     Automated gate that inspects every generated article layout,
     strips LLM reasoning/thinking leaks, enforces Fortune-500 magazine formatting,
     and formats interactive FAQ cards and Executive Summary boxes.
     """
+
+    merge_duplicate_sections = staticmethod(merge_duplicate_sections)
 
     @classmethod
     def sanitize_raw_html(cls, raw: str) -> str:
@@ -413,6 +591,9 @@ class ContentQualityFinishGate:
                 {fallback_cards}
             </div>
             """
+
+        # Deduplicate and collapse duplicate H2 sections & FAQ blocks deterministically before numbering
+        html_out = merge_duplicate_sections(html_out)
 
         # 5. Auto-Number H2 Anchors & Inject Linked Table of Contents (`seo-content` 1,500+ word requirement)
         print("[DEBUG Step 4]", "<table" in html_out)

@@ -589,7 +589,8 @@ Output only clean semantic HTML tags."""
         raise RuntimeError(err_msg)
 
     raw_html = f"{clean_p1}\n\n{clean_p2}"
-    from content_quality_gate import ContentQualityFinishGate
+    from content_quality_gate import ContentQualityFinishGate, merge_duplicate_sections
+    raw_html = merge_duplicate_sections(raw_html)
     raw_html = ContentQualityFinishGate.sanitize_raw_html(raw_html)
 
     # Dynamic topic-specific expansion tied to ARTICLE_TARGET_MIN floor (3000 words)

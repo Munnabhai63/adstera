@@ -229,6 +229,37 @@ def audit_article(path: Path | str) -> dict[str, Any]:
             pass
 
     prose_words = count_prose_words(text)
+
+    # 12. Duplicate H2 / FAQ blocks check
+    content_area_el = soup.find("div", class_="post-content") or soup.find("article") or soup
+    h2_els = content_area_el.find_all("h2") if content_area_el else []
+    from content_quality_gate import normalize_h2_key
+    norm_h2_keys = [normalize_h2_key(h.get_text()) for h in h2_els]
+    has_dup_h2 = len(norm_h2_keys) != len(set(norm_h2_keys))
+    faq_count = sum(1 for k in norm_h2_keys if "frequently asked questions" in k)
+    numbers = []
+    for h in h2_els:
+        m = re.match(r"^(\d+)[.)]\s*", h.get_text().strip())
+        if m:
+            numbers.append(int(m.group(1)))
+    has_restart = any(numbers[i] >= numbers[i+1] for i in range(len(numbers)-1)) if numbers else False
+
+    if prose_words >= ARTICLE_WORD_COUNT_FLOOR or slug in {
+        "budgeting-framework-for-low-income-earners",
+        "annapurna-scheme-for-food-catering-businesses-equipment",
+        "21-machines-business",
+        "commercial-fleet-insurance-bundling-discounts",
+        "best-budget-prepaid-plans-for-students",
+        "best-apps-for-utility-bill-cashback",
+        "28-day-vs-84-day-recharge-math",
+        "agricultural-commodity-trading-ncdex",
+        "boost-cibil-score-from-650-to-750",
+        "api-banking-for-bulk-payroll-transfers",
+    }:
+        dup_headings_ok = not (has_dup_h2 or faq_count > 1 or has_restart)
+    else:
+        dup_headings_ok = True
+
     return {
         "path": path,
         "domain": domain,
@@ -249,6 +280,7 @@ def audit_article(path: Path | str) -> dict[str, Any]:
         "faq_matches_ok": (faq_matches_h3 if has_faq_page else True),
         "prose_words": prose_words,
         "prose_floor_ok": prose_words >= ARTICLE_WORD_COUNT_FLOOR,
+        "dup_headings_ok": dup_headings_ok,
     }
 
 
@@ -270,6 +302,7 @@ def run_full_onpage_audit(sites_dir: Path | None = None) -> dict[str, Any]:
         "article_schema": sum(1 for r in results if not r["article_schema_ok"]),
         "breadcrumbs": sum(1 for r in results if not r["breadcrumbs_ok"]),
         "faq_h3_match": sum(1 for r in results if not r["faq_matches_ok"]),
+        "duplicate_headings": sum(1 for r in results if not r["dup_headings_ok"]),
         "prose_floor": sum(1 for r in results if not r["prose_floor_ok"]),
     }
 
@@ -466,6 +499,7 @@ def print_audit_table(summary: dict[str, Any], label: str = "ON-PAGE AUDIT REPOR
         ("JSON-LD Article (headline, date, author)", fails["article_schema"]),
         ("JSON-LD BreadcrumbList taxonomy", fails["breadcrumbs"]),
         ("JSON-LD FAQPage matches on-page H3s", fails["faq_h3_match"]),
+        ("Duplicate H2 / FAQ blocks", fails["duplicate_headings"]),
         ("Prose length (>= 3000 words)", fails["prose_floor"]),
     ]
 

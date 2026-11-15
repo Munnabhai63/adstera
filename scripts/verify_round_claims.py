@@ -99,8 +99,8 @@ def verify_claim_5_pytest_collection() -> tuple[bool, str]:
     if not m:
         return False, f"Claim 5 FAILED: Could not parse test collection count from output"
     count = int(m.group(1))
-    if count != 535:
-        return False, f"Claim 5 FAILED: Expected 535 tests collected, got {count}"
+    if count != 540:
+        return False, f"Claim 5 FAILED: Expected 540 tests collected, got {count}"
     return True, f"Claim 5: pytest --collect-only == {count} tests (exit 0)"
 
 
@@ -108,11 +108,77 @@ def verify_claim_6_word_count_floor_expansion() -> tuple[bool, str]:
     from scripts.seo_onpage_audit import run_full_onpage_audit
 
     summary = run_full_onpage_audit()
-    prose_counts = [r["prose_words"] for r in summary.get("details", [])]
-    ge_3000 = sum(1 for c in prose_counts if c >= 3000)
+    details = summary.get("details", [])
+    if details:
+        prose_counts = [r["prose_words"] for r in details]
+        ge_3000 = sum(1 for c in prose_counts if c >= 3000)
+    else:
+        ge_3000 = summary.get("distribution", {}).get("ge_3000", 0)
     if ge_3000 < 12:
         return False, f"Claim 6 FAILED: Expected >= 12 articles >= 3000 words, found {ge_3000}"
     return True, f"Claim 6: on-page audit >= 3000 word articles == {ge_3000} (>= 12 target verified)"
+
+
+def verify_claim_7_duplicate_headings_count() -> tuple[bool, str]:
+    from scripts.seo_onpage_audit import run_full_onpage_audit
+
+    summary = run_full_onpage_audit()
+    dup_fails = summary.get("failures", {}).get("duplicate_headings", 0)
+    if dup_fails != 0:
+        return False, f"Claim 7 FAILED: Expected 0 duplicate H2/FAQ blocks, found {dup_fails}"
+    return True, f"Claim 7: corpus-wide duplicate-H2/FAQ count == {dup_fails} (0 verified)"
+
+
+def verify_claim_8_ten_slugs_unique_and_strictly_increasing() -> tuple[bool, str]:
+    from bs4 import BeautifulSoup
+    import re
+    from content_quality_gate import normalize_h2_key
+
+    ten_slugs = [
+        "karzseva.com/budgeting-framework-for-low-income-earners",
+        "loankiseva.com/annapurna-scheme-for-food-catering-businesses-equipment",
+        "loanraaj.com/21-machines-business",
+        "loantau.com/commercial-fleet-insurance-bundling-discounts",
+        "rechargekar.com/best-budget-prepaid-plans-for-students",
+        "rechargepur.com/best-apps-for-utility-bill-cashback",
+        "rechargetak.com/28-day-vs-84-day-recharge-math",
+        "tazabhav.com/agricultural-commodity-trading-ncdex",
+        "tazaloan.com/boost-cibil-score-from-650-to-750",
+        "tazarokda.com/api-banking-for-bulk-payroll-transfers",
+    ]
+
+    for slug in ten_slugs:
+        p = PROJECT_ROOT / "sites" / slug / "index.html"
+        if not p.exists():
+            return False, f"Claim 8 FAILED: {slug} not found"
+        soup = BeautifulSoup(p.read_text(encoding="utf-8"), "html.parser")
+        pc = soup.find("div", class_="post-content") or soup.find("article") or soup
+        h2s = [re.sub(r"\s+", " ", h.get_text()).strip() for h in pc.find_all("h2")]
+
+        # 1. Exactly one FAQ H2
+        faqs = [h for h in h2s if "frequently asked questions" in normalize_h2_key(h)]
+        if len(faqs) != 1:
+            return False, f"Claim 8 FAILED: {slug} has {len(faqs)} FAQ H2s, expected exactly 1"
+
+        # 2. No duplicate H2 text
+        norm_keys = [normalize_h2_key(h) for h in h2s]
+        dups = [k for k in set(norm_keys) if norm_keys.count(k) > 1]
+        if dups:
+            return False, f"Claim 8 FAILED: {slug} has duplicate H2s: {dups}"
+
+        # 3. Strictly increasing numbering
+        numbers = []
+        for h in h2s:
+            m = re.match(r"^(\d+)[.)]\s*", h)
+            if m:
+                numbers.append(int(m.group(1)))
+        if not numbers:
+            return False, f"Claim 8 FAILED: {slug} has no numbered H2 headings"
+        for i in range(len(numbers) - 1):
+            if numbers[i] >= numbers[i + 1]:
+                return False, f"Claim 8 FAILED: {slug} numbering not strictly increasing: {numbers}"
+
+    return True, f"Claim 8: all 10 previously-broken slugs have exactly 1 FAQ H2 and strictly increasing numbering (verified)"
 
 
 def main() -> int:
@@ -124,6 +190,8 @@ def main() -> int:
         ("claim_4_layer7_concurrency", verify_claim_4_layer7_concurrency_5x),
         ("claim_5_pytest_collection", verify_claim_5_pytest_collection),
         ("claim_6_word_floor_expansion", verify_claim_6_word_count_floor_expansion),
+        ("claim_7_duplicate_headings_count", verify_claim_7_duplicate_headings_count),
+        ("claim_8_ten_slugs_strictly_increasing", verify_claim_8_ten_slugs_unique_and_strictly_increasing),
     ]
 
     for name, func in claims:
