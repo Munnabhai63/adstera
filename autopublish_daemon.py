@@ -644,8 +644,32 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             site_name=name,
         )
         words_count = quality_meta["word_count"]
-        if words_count < ARTICLE_WORD_COUNT_FLOOR:
-            logger.warning(f"[{site_id}] prose {words_count} < {ARTICLE_WORD_COUNT_FLOOR}, regeneration required")
+        floor_ok, floor_msg = check_word_count_floor(words_count)
+        leak_ok = bool(quality_meta.get("no_leaks", True))
+        if not floor_ok or not leak_ok:
+            reasons = []
+            if not floor_ok:
+                reasons.append(floor_msg)
+            if not leak_ok:
+                reasons.append("prompt leak detected in body (no_leaks=False)")
+            reason = "; ".join(reasons)
+            logger.warning(f"[{site_id}] PUBLISH BLOCKED: {reason}")
+            print(f"[{site_id}] PUBLISH BLOCKED: {reason}")
+            try:
+                topic_intelligence.update_pipeline_stage(
+                    domain=site_id,
+                    stage_num=4,
+                    stage_name="Quality Gate Refused",
+                    active_topic=topic,
+                    status_message=reason[:180],
+                    words_written=words_count,
+                    anti_ai_score=float(quality_meta.get("score", 0.0)),
+                    db_path=DB_PATH,
+                )
+            except Exception:
+                pass
+            _reset_topic_pending(q_id)
+            return False
         print(
             f"[{site_id}] Content Quality Finish-Gate Score: {quality_meta['score']}/100 "
             f"| Claude-SEO QRG Quality: {quality_meta.get('qrg_overall_quality', 92)}/100 "
