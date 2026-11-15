@@ -268,7 +268,9 @@ def run_batch_expansion(
             thin_articles.append((p, domain, slug, w))
 
     per_domain: dict[str, dict[str, Any]] = {}
-    total_expanded = 0
+    attempted = 0
+    succeeded = 0
+    failures: list[dict[str, str]] = []
 
     for path, domain, slug, before_w in thin_articles:
         if domain not in per_domain:
@@ -278,24 +280,50 @@ def run_batch_expansion(
                 "after_words_sum": 0,
             }
 
-        if limit is not None and total_expanded >= limit:
-            continue
+        if limit is not None and attempted >= limit:
+            break
 
-        before, after, score = expand_single_article(path, domain, slug, dry_run=dry_run, threshold=cutoff)
-        per_domain[domain]["count"] += 1
-        per_domain[domain]["before_words_sum"] += before
-        per_domain[domain]["after_words_sum"] += after
-        total_expanded += 1
+        attempted += 1
+        try:
+            before, after, score = expand_single_article(path, domain, slug, dry_run=dry_run, threshold=cutoff)
+            per_domain[domain]["count"] += 1
+            per_domain[domain]["before_words_sum"] += before
+            per_domain[domain]["after_words_sum"] += after
+            succeeded += 1
+        except (ValueError, RuntimeError, DuplicateContentError) as err:
+            reason = str(err)
+            failures.append({
+                "domain": domain,
+                "slug": slug,
+                "reason": reason,
+            })
+            print(f"[-] Refused/Failed expansion for {domain}/{slug}: {reason}")
+            continue
+        except (KeyboardInterrupt, SystemExit):
+            raise
+        except Exception as err:
+            reason = f"{type(err).__name__}: {err}"
+            failures.append({
+                "domain": domain,
+                "slug": slug,
+                "reason": reason,
+            })
+            print(f"[-] Unexpected error expanding {domain}/{slug}: {reason}")
+            continue
 
     return {
         "thin_count": len(thin_articles),
-        "total_expanded": total_expanded,
+        "attempted": attempted,
+        "succeeded": succeeded,
+        "failed": len(failures),
+        "failures": failures,
         "per_domain": per_domain,
         "dry_run": dry_run,
+        "total_expanded": succeeded,
     }
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=f"Expand thin articles (<{ARTICLE_WORD_COUNT_FLOOR} words) to 3000-4000 words.")
     parser.add_argument("--dry-run", action="store_true", help="Calculate expansions without writing files")
     parser.add_argument("--limit", type=int, default=None, help="Limit number of articles expanded")
@@ -309,7 +337,7 @@ def main() -> int:
         help=f"Word threshold to consider thin (default: {ARTICLE_WORD_COUNT_FLOOR})",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     sites_dir = PROJECT_ROOT / "sites"
 
     print("=" * 72)
@@ -351,10 +379,16 @@ def main() -> int:
     overall_avg_a = tot_after_sum / tot_exp if tot_exp else 0
     print(f"{'TOTAL':<24} | {tot_exp:<8} | {overall_avg_b:<12.1f} | {overall_avg_a:<12.1f}")
     print("=" * 72)
-    print(f" Successfully processed: {res['total_expanded']}/{res['thin_count']} thin articles")
+    print(f"ATTEMPTED {res['attempted']} | SUCCEEDED {res['succeeded']} | FAILED {res['failed']}")
+    if res["failures"]:
+        print("\nFAILURES:")
+        for f in res["failures"]:
+            print(f"  - [{f['domain']}/{f['slug']}] {f['reason']}")
+    print("=" * 72)
+    print(f" Successfully processed: {res['succeeded']}/{res['thin_count']} thin articles")
     print("=" * 72)
 
-    return 0
+    return 0 if res["failed"] == 0 else 1
 
 
 if __name__ == "__main__":

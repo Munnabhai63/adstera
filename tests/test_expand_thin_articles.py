@@ -251,3 +251,67 @@ def test_run_batch_expansion_selects_articles_in_gap(tmp_path: Path):
     # With threshold=600, only a1 (300) is selected
     res_600 = run_batch_expansion(sites_dir=sites_dir, dry_run=True, limit=0, threshold=600)
     assert res_600["thin_count"] == 1
+
+
+def test_batch_continues_after_single_article_failure(tmp_path: Path):
+    from scripts.expand_thin_articles import run_batch_expansion
+    sites_dir = tmp_path / "sites"
+    dom_dir = sites_dir / "loanraaj.com"
+
+    for i in range(1, 4):
+        a_dir = dom_dir / f"art-{i}"
+        a_dir.mkdir(parents=True)
+        (a_dir / "index.html").write_text(
+            f"<!DOCTYPE html><html><body><article><h1>A{i}</h1><div class='post-content'><p>" + " ".join(["word"] * 200) + "</p></div></article></body></html>",
+            encoding="utf-8",
+        )
+
+    def _mock_expand(path, domain, slug, dry_run=False, threshold=None):
+        if slug == "art-2":
+            raise ValueError("Finished prose 1200 below floor")
+        return (200, 3200, 100.0)
+
+    with patch("scripts.expand_thin_articles.expand_single_article", side_effect=_mock_expand):
+        res = run_batch_expansion(sites_dir=sites_dir, dry_run=True, threshold=3000)
+
+    assert res["thin_count"] == 3
+    assert res["attempted"] == 3
+    assert res["succeeded"] == 2
+    assert res["failed"] == 1
+    assert len(res["failures"]) == 1
+    assert res["failures"][0]["domain"] == "loanraaj.com"
+    assert res["failures"][0]["slug"] == "art-2"
+    assert "Finished prose 1200 below floor" in res["failures"][0]["reason"]
+
+
+def test_batch_exit_code_nonzero_when_any_failure(monkeypatch: pytest.MonkeyPatch):
+    from scripts.expand_thin_articles import main
+
+    # Case 1: Has failures -> returns 1
+    with patch("scripts.expand_thin_articles.run_batch_expansion", return_value={
+        "thin_count": 2,
+        "attempted": 2,
+        "succeeded": 1,
+        "failed": 1,
+        "failures": [{"domain": "loanraaj.com", "slug": "bad-art", "reason": "RuntimeError: gateway timeout"}],
+        "per_domain": {"loanraaj.com": {"count": 1, "before_words_sum": 200, "after_words_sum": 3200}},
+        "dry_run": True,
+        "total_expanded": 1,
+    }):
+        ret = main(["--dry-run"])
+        assert ret == 1
+
+    # Case 2: Zero failures -> returns 0
+    with patch("scripts.expand_thin_articles.run_batch_expansion", return_value={
+        "thin_count": 2,
+        "attempted": 2,
+        "succeeded": 2,
+        "failed": 0,
+        "failures": [],
+        "per_domain": {"loanraaj.com": {"count": 2, "before_words_sum": 400, "after_words_sum": 6400}},
+        "dry_run": True,
+        "total_expanded": 2,
+    }):
+        ret = main(["--dry-run"])
+        assert ret == 0
+
