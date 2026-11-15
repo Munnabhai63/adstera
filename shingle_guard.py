@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -165,6 +166,7 @@ def validate_domain_vocabulary(domain: str, text: str):
 
 _INDEX_SINGLETON: ShingleIndex | None = None
 _INDEX_SINGLETON_PATH: Path | None = None
+_SINGLETON_LOCK = threading.Lock()
 
 
 def get_shared_index(index_path: Path | None = None) -> ShingleIndex:
@@ -174,16 +176,19 @@ def get_shared_index(index_path: Path | None = None) -> ShingleIndex:
     global _INDEX_SINGLETON, _INDEX_SINGLETON_PATH
     target = Path(index_path or SHINGLE_INDEX_PATH).resolve()
     if _INDEX_SINGLETON is None or _INDEX_SINGLETON_PATH != target:
-        _INDEX_SINGLETON = ShingleIndex(index_path=target)
-        _INDEX_SINGLETON_PATH = target
+        with _SINGLETON_LOCK:
+            if _INDEX_SINGLETON is None or _INDEX_SINGLETON_PATH != target:
+                _INDEX_SINGLETON = ShingleIndex(index_path=target)
+                _INDEX_SINGLETON_PATH = target
     return _INDEX_SINGLETON
 
 
 def clear_shared_index() -> None:
     """Clear process-wide ShingleIndex cache."""
     global _INDEX_SINGLETON, _INDEX_SINGLETON_PATH
-    _INDEX_SINGLETON = None
-    _INDEX_SINGLETON_PATH = None
+    with _SINGLETON_LOCK:
+        _INDEX_SINGLETON = None
+        _INDEX_SINGLETON_PATH = None
 
 
 class ShingleIndex:
@@ -191,37 +196,43 @@ class ShingleIndex:
         self.index_path = Path(index_path or SHINGLE_INDEX_PATH).resolve()
         self.auto_build_if_empty = auto_build_if_empty
         self.index: dict[str, dict[str, str]] = {}
+        self._lock = threading.RLock()
         self.load()
 
     def rebuild(self):
         """Rebuild index from sites/ corpus."""
-        try:
-            from scripts.build_shingle_index import build_shingle_index
-            build_shingle_index(output_path=self.index_path)
-            if self.index_path.exists():
-                self.index = json.loads(self.index_path.read_text(encoding="utf-8"))
-        except Exception as e:
-            # Fallback if corpus cannot be parsed
-            pass
+        with self._lock:
+            try:
+                from scripts.build_shingle_index import build_shingle_index
+                build_shingle_index(output_path=self.index_path)
+                if self.index_path.exists():
+                    self.index = json.loads(self.index_path.read_text(encoding="utf-8"))
+            except Exception:
+                # Fallback if corpus cannot be parsed
+                pass
 
     def load(self):
-        if self.index_path.exists():
-            try:
-                self.index = json.loads(self.index_path.read_text(encoding="utf-8"))
-            except Exception:
+        with self._lock:
+            if self.index_path.exists():
+                try:
+                    self.index = json.loads(self.index_path.read_text(encoding="utf-8"))
+                except Exception:
+                    self.index = {}
+            else:
                 self.index = {}
-        else:
-            self.index = {}
 
-        if not self.index and self.auto_build_if_empty:
-            self.rebuild()
-            if not self.index:
-                self.index_path.parent.mkdir(parents=True, exist_ok=True)
-                self.save()
+            if not self.index and self.auto_build_if_empty:
+                self.rebuild()
+                if not self.index:
+                    self.index_path.parent.mkdir(parents=True, exist_ok=True)
+                    self.save()
 
     def save(self):
+        with self._lock:
+            snapshot = dict(self.index)
+            payload = json.dumps(snapshot, indent=2)
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
-        self.index_path.write_text(json.dumps(self.index, indent=2), encoding="utf-8")
+        self.index_path.write_text(payload, encoding="utf-8")
 
     def register_article(self, domain: str, slug: str, html_text: str, check_duplicates: bool = True) -> int:
         """
@@ -240,25 +251,26 @@ class ShingleIndex:
         now_iso = datetime.now().isoformat()
         shingles = get_12_word_shingles(full_prose)
 
-        if check_duplicates:
+        with self._lock:
+            if check_duplicates:
+                for shingle in shingles:
+                    existing = self.index.get(shingle)
+                    if existing and existing["page_id"] != page_id:
+                        raise DuplicateContentError(
+                            f"Duplicate 12-word shingle found in {page_id} (already in {existing['page_id']}): '{shingle}'"
+                        )
+
+            # Record shingles
             for shingle in shingles:
-                existing = self.index.get(shingle)
-                if existing and existing["page_id"] != page_id:
-                    raise DuplicateContentError(
-                        f"Duplicate 12-word shingle found in {page_id} (already in {existing['page_id']}): '{shingle}'"
-                    )
+                if shingle not in self.index:
+                    self.index[shingle] = {
+                        "domain": domain,
+                        "slug": slug,
+                        "page_id": page_id,
+                        "first_seen": now_iso
+                    }
 
-        # Record shingles
-        for shingle in shingles:
-            if shingle not in self.index:
-                self.index[shingle] = {
-                    "domain": domain,
-                    "slug": slug,
-                    "page_id": page_id,
-                    "first_seen": now_iso
-                }
-
-        self.save()
+            self.save()
         return len(shingles)
 
 
