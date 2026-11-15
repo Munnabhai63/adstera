@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 CLOUDFLARE_EDGE_URL = "https://loanraaj.com"
 LOCAL_DAEMON_URL = "http://127.0.0.1:3001"
 DEFAULT_API_URL = CLOUDFLARE_EDGE_URL
-DEFAULT_MODEL = "Qwen/Qwen2.5-72B-Instruct"
+DEFAULT_MODEL = "llama-3.3-70b"
 FREELLMAPI_SERVER_DIR = Path(r"F:\UserData\Downloads\ai-power-tools\freellmapi\server")
 
 FAST_INSTRUCT_CHAIN: List[Dict[str, str]] = [
@@ -130,12 +130,14 @@ class FreeLLMClient:
         self.enabled = bool(freellm_cfg.get("enabled", True))
         self.timeout = float(freellm_cfg.get("timeout", 150.0))
         self.fallback_models: List[str] = list(freellm_cfg.get("fallback_models") or [
-            "Qwen/Qwen2.5-72B-Instruct",
-            "meta-llama/Llama-3.3-70B-Instruct",
-            "mistralai/Mistral-Small-24B-Instruct-2501",
+            "llama-3.3-70b",
+            "auto",
+            "kilo-auto",
+            "free-router",
+            "gpt-oss-120b",
         ])
-        cfg_model = str(freellm_cfg.get("model", "auto")).strip()
-        if cfg_model in ("auto", "fusion", "claude-sonnet-4-5", "") and self.fallback_models:
+        cfg_model = str(freellm_cfg.get("model", "llama-3.3-70b")).strip()
+        if cfg_model in ("claude-sonnet-4-5", "") and self.fallback_models:
             self.default_model = self.fallback_models[0]
         else:
             self.default_model = cfg_model or (self.fallback_models[0] if self.fallback_models else DEFAULT_MODEL)
@@ -244,31 +246,29 @@ class FreeLLMClient:
         }
 
         # Build ordered list of models to try from config
-        effective_fallbacks = [fb for fb in self.fallback_models if fb not in ("auto", "fusion", "claude-sonnet-4-5")]
-        primary_fallback = effective_fallbacks[0] if effective_fallbacks else DEFAULT_MODEL
+        primary_fallback = "llama-3.3-70b"
 
         models_to_try: List[str] = []
         primary_candidate = model or self.default_model
-        if primary_candidate in ("auto", "fusion", "claude-sonnet-4-5", ""):
-            primary_candidate = primary_fallback
-
-        if primary_candidate:
+        if primary_candidate and primary_candidate not in ("claude-sonnet-4-5", ""):
             models_to_try.append(primary_candidate)
-        for fb in effective_fallbacks:
-            if fb and fb not in models_to_try:
+        for fb in ("llama-3.3-70b", "auto", "kilo-auto", "free-router", "gpt-oss-120b"):
+            if fb not in models_to_try:
                 models_to_try.append(fb)
 
         gateways_to_try: List[str] = []
-        if self.edge_url:
-            gateways_to_try.append(f"{self.edge_url}/v1/chat/completions")
         if self.api_url and self.api_url != self.edge_url:
             gw = f"{self.api_url}/chat/completions" if "/v1" in self.api_url else f"{self.api_url}/v1/chat/completions"
             if gw not in gateways_to_try:
                 gateways_to_try.append(gw)
+        if self.local_url and f"{self.local_url}/v1/chat/completions" not in gateways_to_try:
+            gateways_to_try.append(f"{self.local_url}/v1/chat/completions")
+        if self.edge_url and f"{self.edge_url}/v1/chat/completions" not in gateways_to_try:
+            gateways_to_try.append(f"{self.edge_url}/v1/chat/completions")
 
         for idx, candidate_model in enumerate(models_to_try):
             chosen_model = candidate_model
-            if chosen_model in ("claude-sonnet-4-5", "auto", "fusion"):
+            if chosen_model in ("claude-sonnet-4-5", "fusion"):
                 chosen_model = primary_fallback
 
             last_failure_reason = None
@@ -304,7 +304,7 @@ class FreeLLMClient:
             )
             for route in ordered_routes:
                 try:
-                    with httpx.Client(timeout=req_timeout) as client:
+                    with httpx.Client(timeout=min(req_timeout, 20.0)) as client:
                         res = client.post(
                             route["url"],
                             headers={

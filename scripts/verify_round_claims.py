@@ -88,6 +88,33 @@ def verify_claim_4_layer7_concurrency_5x() -> tuple[bool, str]:
     return True, f"Claim 4: {status_line} (5/5 consecutive passes verified)"
 
 
+def verify_claim_5_pytest_collection() -> tuple[bool, str]:
+    cmd = [sys.executable, "-m", "pytest", "--collect-only", "-q"]
+    proc = subprocess.run(cmd, cwd=str(PROJECT_ROOT), capture_output=True, text=True)
+    if proc.returncode != 0:
+        return False, f"Claim 5 FAILED: pytest --collect-only returned code {proc.returncode}"
+
+    import re
+    m = re.search(r"(\d+)\s+tests collected", proc.stdout) or re.search(r"collected\s+(\d+)\s+items", proc.stdout)
+    if not m:
+        return False, f"Claim 5 FAILED: Could not parse test collection count from output"
+    count = int(m.group(1))
+    if count != 535:
+        return False, f"Claim 5 FAILED: Expected 535 tests collected, got {count}"
+    return True, f"Claim 5: pytest --collect-only == {count} tests (exit 0)"
+
+
+def verify_claim_6_word_count_floor_expansion() -> tuple[bool, str]:
+    from scripts.seo_onpage_audit import run_full_onpage_audit
+
+    summary = run_full_onpage_audit()
+    prose_counts = [r["prose_words"] for r in summary.get("details", [])]
+    ge_3000 = sum(1 for c in prose_counts if c >= 3000)
+    if ge_3000 < 12:
+        return False, f"Claim 6 FAILED: Expected >= 12 articles >= 3000 words, found {ge_3000}"
+    return True, f"Claim 6: on-page audit >= 3000 word articles == {ge_3000} (>= 12 target verified)"
+
+
 def main() -> int:
     print("--- Running scripts/verify_round_claims.py ---")
     claims = [
@@ -95,6 +122,8 @@ def main() -> int:
         ("claim_2_word_floor", verify_claim_2_word_floor),
         ("claim_3_article_count", verify_claim_3_article_count),
         ("claim_4_layer7_concurrency", verify_claim_4_layer7_concurrency_5x),
+        ("claim_5_pytest_collection", verify_claim_5_pytest_collection),
+        ("claim_6_word_floor_expansion", verify_claim_6_word_count_floor_expansion),
     ]
 
     for name, func in claims:

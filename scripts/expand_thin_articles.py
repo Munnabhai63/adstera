@@ -48,6 +48,7 @@ STATIC_SLUGS = {
     "emi-calculator",
     "personal-loan-guide",
     "credit-card-apply",
+    "intermodal-cargo-insurance-guide-marine-rail-highway-fr",
 }
 
 
@@ -116,7 +117,7 @@ def expand_single_article(
     }
 
     # Generate body via autopublish_engine with retry on duplicate shingle
-    max_attempts = 2
+    max_attempts = 3
     forbidden_phrases: list[str] = []
     new_text = ""
     score = 0.0

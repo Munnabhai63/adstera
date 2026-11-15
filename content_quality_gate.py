@@ -274,7 +274,7 @@ class ContentQualityFinishGate:
 
         # 4. Extract and Format Interactive FAQ Cards
         faqs: list[dict[str, str]] = []
-        faq_matches = re.findall(r"<h3>(.*?)</h3>\s*<p>(.*?)</p>", html_out, re.DOTALL)
+        faq_matches = re.findall(r"<h3>(.*?)</h3>\s*<p[^>]*>(.*?)</p>", html_out, re.DOTALL | re.IGNORECASE)
 
         faq_cards_html = []
         for q_raw, a_raw in faq_matches:
@@ -291,8 +291,8 @@ class ContentQualityFinishGate:
 
         if faq_cards_html:
             for q_raw, a_raw in faq_matches:
-                old_block = f"<h3>{re.escape(q_raw)}</h3>\\s*<p>{re.escape(a_raw)}</p>"
-                html_out = re.sub(old_block, "", html_out, flags=re.DOTALL)
+                old_block = f"<h3>{re.escape(q_raw)}</h3>\\s*<p[^>]*>{re.escape(a_raw)}</p>"
+                html_out = re.sub(old_block, "", html_out, flags=re.DOTALL | re.IGNORECASE)
 
             faq_section = f"""
             <div class="faq-section">
@@ -304,9 +304,9 @@ class ContentQualityFinishGate:
             html_out = html_out + "\n" + faq_section
         else:
             faqs = [
-                {"question": f"What is the main advantage of {title}?", "answer": "It offers verified efficiency, transparent cost calculations, and substantial annual savings compared to standard options."},
-                {"question": f"How to verify current rates and eligibility?", "answer": "Consult the official tariff guidelines and check authorized institutional portals before making financial decisions."},
-                {"question": f"Are there any hidden charges?", "answer": "Always verify statutory taxes, administrative processing fees, and penal clauses disclosed in the official Key Fact Statement (KFS)."},
+                {"question": f"What is the primary evaluation factor for {title} in 2026?", "answer": f"Evaluating {title} requires auditing verified institutional terms, regulatory disclosures, and operational benchmarks in India."},
+                {"question": f"How should applicants verify terms for {title}?", "answer": f"Audit accredited portals, fee schedules, and official statutory guidelines governing {title} before finalizing agreements."},
+                {"question": f"What statutory safeguards protect consumers regarding {title}?", "answer": f"Review mandatory disclosure schedules, grievance redressal mechanisms, and statutory rules applicable to {title}."},
             ]
             fallback_cards = "".join([f'<div class="faq-card"><div class="faq-question">❓ {f["question"]}</div><p class="faq-answer">{f["answer"]}</p></div>' for f in faqs])
             html_out += f"""
