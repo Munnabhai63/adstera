@@ -126,6 +126,13 @@ def test_parallel_two_domain_batch_concurrency_and_isolation(tmp_path: Path, mon
     monkeypatch.setattr(autopublish_daemon, "CONFIG_PATH", repo_cfg)
     autopublish_daemon.init_db()
 
+    # Seed isolated ShingleGuard index in tmp_path to prevent side-effects on repo state
+    shingle_file = tmp_path / "state" / "prose_shingles.json"
+    shingle_file.parent.mkdir(parents=True, exist_ok=True)
+    shingle_file.write_text('{"seed_hash": {"domain": "seed", "slug": "seed", "page_id": "seed/seed", "first_seen": "2026-11-15T00:00:00"}}', encoding="utf-8")
+    import shingle_guard
+    monkeypatch.setattr(shingle_guard, "SHINGLE_INDEX_PATH", shingle_file)
+
     # Seed empty sites dirs + sitemap for tazaloan & loankiseva
     for dom in ("tazaloan", "loankiseva", "loanraaj", "karzseva"):
         d = tmp_path / "sites" / f"{dom}.com"
@@ -161,21 +168,88 @@ def test_parallel_two_domain_batch_concurrency_and_isolation(tmp_path: Path, mon
         lambda kw, site: {"url": "https://example.com/hero.jpg", "alt": "hero"},
     )
 
-    def _slow_article(site_id, site_info, brief):
-        time.sleep(0.35)
+    domain_timing: dict[str, tuple[float, float]] = {}
+
+    def _generate_domain_long_article(site_id: str) -> tuple[str, list[dict[str, str]]]:
         if "taza" in site_id:
-            lead = f"Tazaloan provides an empirical benchmark analyzing personal loan interest slabs and statutory guidelines."
-            ans = f"Tazaloan documentation requires verified PAN and income statements for processing."
+            parts = ["<p class='lead'>Tazaloan provides comprehensive empirical benchmarks analyzing salaried personal borrowing rates and consumer debt structures in 2026.</p>"]
+            sections = [
+                "Personal Borrowing Standards",
+                "Salaried Credit Frameworks",
+                "Consumer Risk Evaluation",
+                "Direct Disbursement Metrics",
+                "Statutory Repayment Terms",
+            ]
+            for i, s in enumerate(sections, 1):
+                parts.append(f"<h2>{i}. {s}</h2>")
+                parts.append(f"<p>Tazaloan Section {i} reviews personal credit card limits, consumer credit bureau scores, and monthly instalment affordability for prime applicants.</p>")
+                for j in range(25):
+                    parts.append(
+                        f"<p>Under Tazaloan personal review tier {i}-{j}, salaried applicants submit salary slips, income tax documentation, and employer identity proofs for cycle {j}. "
+                        f"Tazaloan underwriting officer {j} examines net take-home compensation to ensure monthly EMI outlays do not exceed forty percent of disposable earnings in cohort {i}. "
+                        f"Furthermore, Tazaloan risk model {i} evaluates revolving balance ratios to ensure retail borrowers maintain prime credit standing across Indian banking channel {j}.</p>"
+                    )
+            parts.append("""
+            <div class='table-responsive'>
+                <table class='article-table'>
+                    <thead><tr><th>Tazaloan Slab</th><th>APR</th><th>Tenure</th></tr></thead>
+                    <tbody><tr><td>Tier 1 Salaried</td><td>8.5%</td><td>60 Months</td></tr></tbody>
+                </table>
+            </div>
+            """)
+            parts.append("<h3>How does Tazaloan process personal loans?</h3>")
+            parts.append("<p>Tazaloan checks income tax filings and salary credit history for prime applicants.</p>")
+            parts.append("<h3>What documentation is required by Tazaloan?</h3>")
+            parts.append("<p>Tazaloan requires PAN, Aadhaar, and three months certified bank account salary slips.</p>")
+            faqs = [
+                {"question": "How does Tazaloan process personal loans?", "answer": "Tazaloan checks income tax filings and salary credit history for prime applicants."},
+                {"question": "What documentation is required by Tazaloan?", "answer": "Tazaloan requires PAN, Aadhaar, and three months certified bank account salary slips."}
+            ]
+            return "\n".join(parts), faqs
         else:
-            lead = f"Loankiseva publishes authoritative comparative research regarding government subsidy schemes and commercial enterprise credit."
-            ans = f"Loankiseva applicants should review official portal notifications before submitting applications."
-        html_snip = (
-            f"<p class='lead'>{lead}</p>"
-            "<h2>Comparison</h2><div class='table-responsive'><table class='article-table'><thead><tr><th>Option</th><th>Rate</th></tr></thead>"
-            "<tbody><tr><td>SBI</td><td>9.5%</td></tr><tr><td>HDFC</td><td>10.2%</td></tr></tbody></table></div>"
-            f"<h3>Question regarding {site_id}?</h3><p>{ans}</p>"
-        )
-        return html_snip, [{"question": "Question one?", "answer": "Verified answer."}]
+            parts = ["<p class='lead'>Loankiseva offers specialized technical analysis regarding central government industrial subsidies, MSME working capital, and enterprise credit allocations.</p>"]
+            sections = [
+                "Enterprise Subsidy Directives",
+                "Mudra Working Capital Structures",
+                "Commercial Machinery Hypothecation",
+                "State Industrial Grants",
+                "Corporate Collateral Benchmarks",
+            ]
+            for i, s in enumerate(sections, 1):
+                parts.append(f"<h2>{i}. {s}</h2>")
+                parts.append(f"<p>Loankiseva Section {i} investigates factory equipment financing, enterprise turnover thresholds, and statutory nodal ministry certifications for manufacturing units.</p>")
+                for j in range(25):
+                    parts.append(
+                        f"<p>Within Loankiseva industrial evaluation stage {i}-{j}, business entrepreneurs furnish audited balance sheets, GST returns, and factory registration certificates for phase {j}. "
+                        f"Loankiseva commercial credit committee {j} assesses debt service coverage ratios to confirm enterprise cash flows adequately support long-term debt servicing obligations in bracket {i}. "
+                        f"Additionally, Loankiseva nodal analyst {i} verifies central ministry subsidy eligibility to facilitate capital grant disbursements for expanding commercial entities under schedule {j}.</p>"
+                    )
+            parts.append("""
+            <div class='table-responsive'>
+                <table class='article-table'>
+                    <thead><tr><th>Loankiseva Scheme</th><th>Subsidized Rate</th><th>Moratorium</th></tr></thead>
+                    <tbody><tr><td>Mudra Industrial Grant</td><td>7.2%</td><td>12 Months</td></tr></tbody>
+                </table>
+            </div>
+            """)
+            parts.append("<h3>How does Loankiseva verify MSME subsidies?</h3>")
+            parts.append("<p>Loankiseva reviews GST portal returns and central nodal ministry sanction orders.</p>")
+            parts.append("<h3>Which enterprises qualify for Loankiseva assistance?</h3>")
+            parts.append("<p>Registered micro and small manufacturing units with active Udyam portal certificates.</p>")
+            faqs = [
+                {"question": "How does Loankiseva verify MSME subsidies?", "answer": "Loankiseva reviews GST portal returns and central nodal ministry sanction orders."},
+                {"question": "Which enterprises qualify for Loankiseva assistance?", "answer": "Registered micro and small manufacturing units with active Udyam portal certificates."}
+            ]
+            return "\n".join(parts), faqs
+        return "\n".join(parts), faqs
+
+    def _slow_article(site_id, site_info, brief):
+        t_start = time.perf_counter()
+        time.sleep(0.35)
+        html_snip, faqs = _generate_domain_long_article(site_id)
+        t_end = time.perf_counter()
+        domain_timing[site_id] = (t_start, t_end)
+        return html_snip, faqs
 
     monkeypatch.setattr(autopublish_daemon, "generate_claude_seo_article", _slow_article)
     monkeypatch.setattr(autopublish_daemon, "_notify_pipeline_error", lambda *a, **k: None)
@@ -197,8 +271,28 @@ def test_parallel_two_domain_batch_concurrency_and_isolation(tmp_path: Path, mon
     assert res["published_count"] == 2
     assert set(res["attempted_sites"]) == {"tazaloan", "loankiseva"}
     assert set(git_calls) == {"tazaloan", "loankiseva"}
-    # Parallel proof: 2 x 0.35s serialized = >= 0.70s; concurrent finishes well under 0.65s + overhead check
-    assert res["elapsed_seconds"] < 2.5
+
+    # Concurrency verification (replaces brittle wall clock assert res["elapsed_seconds"] < 2.5):
+    # 1. Windows overlap: both domains ran concurrently in parallel worker threads
+    start_a, end_a = domain_timing["tazaloan"]
+    start_b, end_b = domain_timing["loankiseva"]
+    overlap = min(end_a, end_b) - max(start_a, start_b)
+    dur_a = end_a - start_a
+    dur_b = end_b - start_b
+    concurrency_span = max(end_a, end_b) - min(start_a, start_b)
+
+    print(
+        f"\n[CONCURRENCY TIMING] Overlap: {overlap:.4f}s | Tazaloan duration: {dur_a:.4f}s | "
+        f"Loankiseva duration: {dur_b:.4f}s | Concurrency span: {concurrency_span:.4f}s | "
+        f"Batch elapsed: {res['elapsed_seconds']:.4f}s"
+    )
+
+    assert overlap > 0, f"Expected concurrency overlap > 0, got {overlap:.4f}s"
+    # 2. Parallel vs serial: concurrent execution span is strictly less than serial execution sum
+    assert concurrency_span < (dur_a + dur_b), (
+        f"Concurrency span {concurrency_span:.4f}s must be less than serial sum {dur_a + dur_b:.4f}s"
+    )
+    assert not (start_b >= end_a or start_a >= end_b), "Execution was sequential, not concurrent"
 
     with sqlite3.connect(ap_db) as con:
         pub_doms = {r[0] for r in con.execute("SELECT domain FROM published_posts").fetchall()}
