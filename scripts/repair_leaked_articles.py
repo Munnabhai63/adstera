@@ -22,7 +22,7 @@ def render_301_stub(domain: str, target_slug: str) -> str:
     clean_domain = domain.lower().replace("https://", "").replace("http://", "").strip("/")
     clean_target = "/" + target_slug.lstrip("/")
     canonical_url = f"https://{clean_domain}{clean_target}"
-    nl = "\r\n"
+    nl = "\n"
     return (
         f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">{nl}'
         f'<title>Moved</title><meta name="robots" content="noindex, nofollow">{nl}'
