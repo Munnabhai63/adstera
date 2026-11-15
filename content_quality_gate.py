@@ -208,6 +208,19 @@ class ContentQualityFinishGate:
             
         clean = "\n".join(purged)
 
+        # 4b. Wrap any bare text paragraphs in semantic <p> tags
+        blocks = re.split(r"\n\s*\n+", clean)
+        wrapped_blocks = []
+        for block in blocks:
+            b_str = block.strip()
+            if not b_str:
+                continue
+            if not re.match(r"^<(?:p|h[1-6]|div|table|thead|tbody|tr|td|th|ul|ol|li|figure|figcaption|nav|aside|header|footer|section|article|blockquote)\b", b_str, re.IGNORECASE):
+                wrapped_blocks.append(f"<p>{b_str}</p>")
+            else:
+                wrapped_blocks.append(b_str)
+        clean = "\n\n".join(wrapped_blocks)
+
         # 5. Execute Claude-SEO v2.5.0 `content_humanize.py` (strip invisible Unicode watermarks + 48 AI phrase replacements)
         try:
             from autopublish_engine import strip_invisible_artifacts
