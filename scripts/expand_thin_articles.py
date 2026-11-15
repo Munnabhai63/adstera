@@ -459,7 +459,9 @@ def run_batch_expansion(
     effective_floor = getattr(content_quality_gate, "ARTICLE_WORD_COUNT_FLOOR", ARTICLE_WORD_COUNT_FLOOR)
     cutoff = threshold if threshold is not None else effective_floor
 
-    thin_articles: list[tuple[Path, str, str, int]] = []
+    from collections import defaultdict
+    by_domain: dict[str, list[tuple[Path, str, str, int]]] = defaultdict(list)
+    domain_at_floor: dict[str, int] = {}
 
     for p in sites_dir.rglob("*.html"):
         try:
@@ -485,10 +487,29 @@ def run_batch_expansion(
         html_text = p.read_text(encoding="utf-8", errors="ignore")
         w = count_prose_words(html_text)
         if w < cutoff:
-            thin_articles.append((p, domain, slug, w))
+            by_domain[domain].append((p, domain, slug, w))
+        else:
+            domain_at_floor[domain] = domain_at_floor.get(domain, 0) + 1
 
-    # Prioritize 1200-2999 mid-tier band first, then remaining thin articles
-    thin_articles.sort(key=lambda item: (0 if 1200 <= item[3] < cutoff else 1, -item[3], str(item[0])))
+    # D8 + D9: Round-robin domain balance prioritizing domains with < 2 at-floor articles first.
+    # Rank candidates within each domain by word count descending.
+    ranked_candidates: list[tuple[Path, str, str, int, int]] = []
+    for domain, items in by_domain.items():
+        items.sort(key=lambda x: -x[3])
+        for rank, (p, d, s, w) in enumerate(items):
+            ranked_candidates.append((p, d, s, w, rank))
+
+    ranked_candidates.sort(
+        key=lambda item: (
+            0 if domain_at_floor.get(item[1], 0) < 2 and item[4] == 0 else 1,
+            item[4],  # pick 1 from each domain, then pick 2, etc.
+            1 if item[1] == "loanraaj.com" else 0,
+            -item[3],
+            str(item[0]),
+        )
+    )
+
+    thin_articles = [(p, d, s, w) for p, d, s, w, r in ranked_candidates]
 
     per_domain: dict[str, dict[str, Any]] = {}
     attempted = 0
