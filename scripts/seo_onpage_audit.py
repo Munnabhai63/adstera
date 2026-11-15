@@ -35,7 +35,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from network_registry import NETWORK_REGISTRY
-from content_quality_gate import count_prose_words, ARTICLE_WORD_COUNT_FLOOR
+from content_quality_gate import count_prose_words, ARTICLE_WORD_COUNT_FLOOR, is_redirect_stub
 
 DANGLING_WORDS = {
     "for", "in", "with", "the", "a", "an", "on", "to",
@@ -74,8 +74,8 @@ def get_all_article_paths(sites_dir: Path | None = None) -> list[Path]:
         if slug in STATIC_SLUGS:
             continue
         try:
-            head_snippet = p.read_text(encoding="utf-8", errors="ignore")[:600].lower()
-            if 'http-equiv="refresh"' in head_snippet or "<title>moved</title>" in head_snippet:
+            head_snippet = p.read_text(encoding="utf-8", errors="ignore")[:600]
+            if is_redirect_stub(head_snippet):
                 continue
         except Exception:
             pass

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from bs4 import BeautifulSoup
+from content_quality_gate import is_redirect_stub
 
 STATIC_SLUGS = {
     "about-us",
@@ -29,8 +30,8 @@ def _get_article_pages(base: Path) -> list[Path]:
         if slug in STATIC_SLUGS:
             continue
         try:
-            head_snippet = p.read_text(encoding="utf-8", errors="ignore")[:600].lower()
-            if 'http-equiv="refresh"' in head_snippet or "<title>moved</title>" in head_snippet:
+            head_snippet = p.read_text(encoding="utf-8", errors="ignore")[:600]
+            if is_redirect_stub(head_snippet):
                 continue
         except Exception:
             pass

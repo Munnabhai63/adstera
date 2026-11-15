@@ -5,6 +5,7 @@ Verifies that every single canonical article and static landing guide across sit
 
 from pathlib import Path
 from bs4 import BeautifulSoup
+from content_quality_gate import is_redirect_stub
 
 
 def test_every_article_has_exactly_one_non_empty_h1():
@@ -16,7 +17,7 @@ def test_every_article_has_exactly_one_non_empty_h1():
         if any(x in path.parts for x in ("layouts", "_default", "category")):
             continue
         html = path.read_text(encoding="utf-8", errors="ignore")
-        if 'http-equiv="refresh"' in html[:500].lower() or "<title>moved</title>" in html[:500].lower():
+        if is_redirect_stub(html):
             continue
         soup = BeautifulSoup(html, "html.parser")
         h1s = soup.find_all("h1")

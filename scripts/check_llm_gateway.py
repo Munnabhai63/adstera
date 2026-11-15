@@ -13,14 +13,12 @@ Verifies connection to FreeLLMAPI gateway:
    - 3: Gateway returned 0 models
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import os
 from pathlib import Path
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import httpx
 

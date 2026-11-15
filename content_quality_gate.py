@@ -27,6 +27,14 @@ def check_word_count_floor(prose_words: int) -> tuple[bool, str]:
     return True, f"prose {prose_words} >= {ARTICLE_WORD_COUNT_FLOOR}, target met"
 
 
+def is_redirect_stub(html_text: str, head_chars: int = 600) -> bool:
+    """Detect whether an HTML file is a minimal 301 redirect quarantine stub."""
+    if not html_text:
+        return False
+    snippet = html_text[:head_chars].lower()
+    return 'http-equiv="refresh"' in snippet or "<title>moved</title>" in snippet
+
+
 def count_page_words(html_text: str) -> int:
     """Calculate visible words in the whole HTML document, ignoring scripts, styles, and markup."""
     from bs4 import BeautifulSoup

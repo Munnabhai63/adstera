@@ -42,6 +42,9 @@ DB_PATH = str(AUTOPUBLISH_DB_PATH)
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
 os.makedirs(str(STATE_DIR), exist_ok=True)
 
+# 5-Wave Cutover timestamp: only deep articles published after this ISO cutover count towards daily domain limits
+WAVE_CUTOVER_ISO: str = "2026-11-11T21:10:00"
+
 _GIT_SYNC_LOCK = threading.Lock()
 _QUEUE_CLAIM_LOCK = threading.Lock()
 
@@ -654,7 +657,6 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
                 reasons.append("prompt leak detected in body (no_leaks=False)")
             reason = "; ".join(reasons)
             logger.warning(f"[{site_id}] PUBLISH BLOCKED: {reason}")
-            print(f"[{site_id}] PUBLISH BLOCKED: {reason}")
             try:
                 topic_intelligence.update_pipeline_stage(
                     domain=site_id,
@@ -1012,8 +1014,8 @@ def get_today_domain_counts() -> dict[str, int]:
     today_prefix = datetime.now().strftime("%Y-%m-%d")
     conn = _connect_db()
     rows = conn.execute(
-        "SELECT domain, COUNT(*) FROM published_posts WHERE published_at LIKE ? AND published_at >= '2026-11-11T21:10:00' AND COALESCE(words, 0) >= ? GROUP BY domain",
-        (f"{today_prefix}%", ARTICLE_WORD_COUNT_FLOOR),
+        "SELECT domain, COUNT(*) FROM published_posts WHERE published_at LIKE ? AND published_at >= ? AND COALESCE(words, 0) >= ? GROUP BY domain",
+        (f"{today_prefix}%", WAVE_CUTOVER_ISO, ARTICLE_WORD_COUNT_FLOOR),
     ).fetchall()
     conn.close()
     return {str(r[0]): int(r[1]) for r in rows if r[0]}

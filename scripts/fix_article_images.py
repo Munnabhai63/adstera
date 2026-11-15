@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 import sys
 from bs4 import BeautifulSoup
+from content_quality_gate import is_redirect_stub
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -48,8 +49,8 @@ def get_all_articles(sites_dir: Path | None = None) -> list[Path]:
         if slug in STATIC_SLUGS:
             continue
         try:
-            head_snippet = p.read_text(encoding="utf-8", errors="ignore")[:600].lower()
-            if 'http-equiv="refresh"' in head_snippet or "<title>moved</title>" in head_snippet:
+            head_snippet = p.read_text(encoding="utf-8", errors="ignore")[:600]
+            if is_redirect_stub(head_snippet):
                 continue
         except Exception:
             pass
