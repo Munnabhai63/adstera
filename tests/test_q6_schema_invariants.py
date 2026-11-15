@@ -19,7 +19,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 def test_article_schema_invariants():
     base = PROJECT_ROOT / "sites"
     articles = get_all_articles(base)
-    assert len(articles) in (278, 279), f"Expected 278-279 articles, found {len(articles)}"
+    # 278 live articles; the /intermodal-cargo-insurance-guide-... page is a 301 stub and is excluded above.
+    assert len(articles) == 278, f"Expected 278 articles, found {len(articles)}"
 
     total_article_nodes = 0
     multi_article_pages = []
