@@ -157,18 +157,21 @@ def expand_single_article(
             new_text = text[:idx] + f'<div class="article-inner-body">\n{formatted_html}\n</div>' + text[end_pos + len("</div>"):]
         elif '<div class="post-content">' in text:
             idx = text.find('<div class="post-content">')
-            # Look for closing tag before following card or figure
+            # Look for closing of post-content before author-card, sidebar, or article end
             m_end = re.search(
-                r'</div>\s*(?:<div class="native-ad-card"|<div class="author-card"|<figure\b|<div class="adsterra)',
+                r'</div>\s*(?=<div class="author-card"|<div class="post-author"|<aside class="sidebar|</article)',
                 text[idx:],
                 flags=re.DOTALL | re.IGNORECASE,
             )
             if m_end:
                 end_pos = idx + m_end.start() + len("</div>")
-                new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>' + text[end_pos - len("</div>"):]
+                new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>\n' + text[end_pos:]
             else:
-                end_pos = text.find("</div>", idx + len('<div class="post-content">'))
-                new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>' + text[end_pos + len("</div>"):]
+                end_pos = text.rfind("</div>", idx, text.find("</article>", idx) if "</article>" in text else len(text))
+                if end_pos != -1:
+                    new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>\n' + text[end_pos + len("</div>"):]
+                else:
+                    new_text = text[:idx] + f'<div class="post-content">\n{formatted_html}\n</div>\n'
         else:
             # Wrap inside <article>
             art_idx = text.find("<article")
@@ -247,6 +250,44 @@ def expand_single_article(
             '"dateModified": "2026-11-14T12:00:00+05:30"',
             new_text,
         )
+
+        # Synchronize JSON-LD FAQPage with on-page FAQs
+        if faqs and '<script type="application/ld+json">' in new_text:
+            def _sync_faqpage(match):
+                block = match.group(0)
+                try:
+                    inner_m = re.search(r'>\s*(\{.*?\})\s*</script>', block, re.DOTALL)
+                    if not inner_m:
+                        return block
+                    jd = json.loads(inner_m.group(1))
+                    nodes = jd.get("@graph", [jd]) if isinstance(jd, dict) else []
+                    found_faq = False
+                    for node in nodes:
+                        if "FAQPage" in str(node.get("@type", "")):
+                            node["mainEntity"] = [
+                                {
+                                    "@type": "Question",
+                                    "name": f_item["question"].replace("❓", "").strip(),
+                                    "acceptedAnswer": {
+                                        "@type": "Answer",
+                                        "text": f_item["answer"].strip(),
+                                    },
+                                }
+                                for f_item in faqs
+                            ]
+                            found_faq = True
+                    if found_faq:
+                        return f'<script type="application/ld+json">\n{json.dumps(jd, indent=2, ensure_ascii=False)}\n</script>'
+                except Exception:
+                    pass
+                return block
+
+            new_text = re.sub(
+                r'<script\s+type=[\'"]application/ld\+json[\'"]>.*?</script>',
+                _sync_faqpage,
+                new_text,
+                flags=re.DOTALL,
+            )
 
         # Word count floor refusal check: refuse write if finished prose < floor
         finished_prose = count_prose_words(new_text)

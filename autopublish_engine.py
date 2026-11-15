@@ -154,7 +154,7 @@ def _get_client() -> FreeLLMClient:
 def query_freellmapi(prompt, system_prompt, model=None, max_tokens=6000, timeout=180.0):
     """Query the 3-Layer 24x7 FreeLLMAPI Gateway (Cloudflare Edge -> Cloud Failover -> Local Watchdog)."""
     client = _get_client()
-    target_model = model or getattr(client, "default_model", "llama-3.3-70b")
+    target_model = model or "llama-3.3-70b"
     result = client.generate_completion(
         prompt=prompt,
         system_prompt=system_prompt,
@@ -206,10 +206,30 @@ def _strip_code_fences_and_preamble(raw: str) -> str:
     clean = re.sub(r"```\s*$", "", clean, flags=re.MULTILINE).strip()
     clean = re.sub(r"<think>.*?</think>", "", clean, flags=re.DOTALL | re.IGNORECASE).strip()
     clean = strip_invisible_artifacts(clean)
-    if "<p" in clean and ("<h2" not in clean or clean.find("<p") < clean.find("<h2")):
-        clean = clean[clean.find("<p"):]
+
+    # Strip any leading meta-paragraphs containing prompt instructions or AI clichés
+    clean = re.sub(
+        r"^(?:<p[^>]*>)?\s*(?:editorial standards|ai clich[eé]s|strict vocabulary|system prompt|here is the|certainly!|sure, here|as an ai|output only clean semantic html tags).*?(?:</p>|$)",
+        "",
+        clean,
+        flags=re.IGNORECASE | re.DOTALL,
+    ).strip()
+
+    # Strip planning / meta-commentary blocks before the first actual HTML section
+    clean = re.sub(
+        r"(?:^|\n)\s*(?:let me|now i need|i need to|wait,|so i'll|deconstruct the topic|\d+\.\s+\*\*|output only clean semantic html tags).*?(?=\n\s*<(?:p|h2)\b)",
+        "",
+        clean,
+        flags=re.IGNORECASE | re.DOTALL,
+    ).strip()
+
+    real_lead_m = re.search(r'<p\s+class=[\'"]lead[\'"][^>]*>(?!\s*`)(?:(?!</p>).){20,}</p>', clean, flags=re.DOTALL | re.IGNORECASE)
+    if real_lead_m:
+        clean = clean[real_lead_m.start():]
     elif "<h2" in clean:
         clean = clean[clean.find("<h2"):]
+    elif "<p" in clean:
+        clean = clean[clean.find("<p"):]
     return clean.strip()
 
 
@@ -259,7 +279,7 @@ def generate_claude_seo_article(
         system_prompt = f"""You are the Principal Telecom & Digital Connectivity Research Editor at {site_name}.
 You follow Google Search Central E-E-A-T and Generative Engine Optimization (GEO) standards.
 EDITORIAL STANDARDS:
-1. NEVER use AI clichés: delve, testament, beacon, vital, crucial, in conclusion, robust, dive deep, foster, elevate, holistic, seamless, plethora, myriad, paramount, pivotal, cornerstone.
+1. STYLE REQUIREMENT: Use natural journalistic tone. Write directly without generic filler phrases.
 2. Vary sentence length naturally (combine short 6-word factual statements with detailed 22-word analytical sentences).
 3. Cite real Indian figures in ₹, data GB allowances, validity days, and official telecom networks and bodies (TRAI, DoT, Jio, Airtel, Vi, BSNL).
 4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary.
@@ -333,21 +353,21 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 
 <h2>Frequently Asked Questions</h2>
 <h3>What is the primary evaluation factor for {primary_kw} in 2026?</h3>
-<p>Write a detailed 4-sentence factual answer tailored specifically to {primary_kw}, citing exact parameters, technical specifications, or compliance standards in India.</p>
+<p>Explain the key network parameters, high-speed allowances, and regulatory directives governing {primary_kw} in India.</p>
 <h3>How should consumers calculate total investment and operational costs for {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer analyzing monthly expenditure, data utility, and annual savings for {primary_kw}.</p>
+<p>Analyze annual expenditure, daily data utility, and potential OTT bundle savings for {primary_kw}.</p>
 <h3>What statutory guidelines and consumer protections apply to {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer listing the exact TRAI consumer protection norms, QoS mandates, or porting rules governing {primary_kw}.</p>
+<p>List the official TRAI quality-of-service mandates, DND rules, and porting timelines for {primary_kw}.</p>
 <h3>How can users avoid accidental charges or plan mismatches with {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer outlining operator app verification, balance audits, and tariff transparency for {primary_kw}.</p>
+<p>Outline operator self-care app verification, balance tracking, and tariff audit practices for {primary_kw}.</p>
 <h3>What is the typical activation timeline and service onboarding for {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer comparing digital instant recharge against new SIM activation cycles for {primary_kw}.</p>"""
+<p>Compare instantaneous digital recharge against new physical or eSIM provisioning cycles for {primary_kw}.</p>"""
 
     elif vertical == "tazabhav":
         system_prompt = f"""You are the Principal Agricultural Commodities & Market Price Research Editor at {site_name}.
 You follow Google Search Central E-E-A-T and Generative Engine Optimization (GEO) standards.
 EDITORIAL STANDARDS:
-1. NEVER use AI clichés: delve, testament, beacon, vital, crucial, in conclusion, robust, dive deep, foster, elevate, holistic, seamless, plethora, myriad, paramount, pivotal, cornerstone.
+1. STYLE REQUIREMENT: Use natural journalistic tone. Write directly without generic filler phrases.
 2. Vary sentence length naturally (combine short 6-word factual statements with detailed 22-word analytical sentences).
 3. Cite real Indian figures in ₹ per quintal or kg, mandi arrival volumes in quintals, quality grades, and official agricultural bodies (Agmarknet, e-NAM, APMC, NCDEX, Ministry of Agriculture).
 4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary.
@@ -421,22 +441,22 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 
 <h2>Frequently Asked Questions</h2>
 <h3>What is the primary evaluation factor for {primary_kw} in 2026?</h3>
-<p>Write a detailed 4-sentence factual answer tailored specifically to {primary_kw}, citing exact parameters, technical specifications, or compliance standards in India.</p>
-<h3>How should consumers calculate total investment and operational costs for {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer analyzing procurement outlay, freight, storage, and net margins for {primary_kw}.</p>
+<p>Explain key assaying parameters, modal price benchmarks, and quality grades governing {primary_kw} in India.</p>
+<h3>How should buyers calculate total procurement and storage costs for {primary_kw}?</h3>
+<p>Analyze mandi arrival trends, transport tolls, APMC cess, and warehouse storage costs for {primary_kw}.</p>
 <h3>What statutory approvals and documentation apply to {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer listing the exact APMC licenses, GST norms, or Agmark certifications governing {primary_kw}.</p>
-<h3>How can buyers avoid defective terms or hidden charges with {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer outlining supplier due diligence, sample testing, and weighment verification for {primary_kw}.</p>
-<h3>What is the typical deployment timeline and operational onboarding for {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer comparing immediate mandi spot buying against seasonal forward contract delivery cycles for {primary_kw}.</p>"""
+<p>List official e-NAM settlement rules, Agmark standards, and APMC trader licensing requirements for {primary_kw}.</p>
+<h3>How can traders avoid defective lots or hidden deductions with {primary_kw}?</h3>
+<p>Outline dockage sampling, certified weighbridge verification, and dispute resolution for {primary_kw}.</p>
+<h3>What is the typical trade settlement timeline for {primary_kw}?</h3>
+<p>Compare open outcry physical bidding turnaround against electronic spot auction settlement for {primary_kw}.</p>"""
 
     else:
         # Default / Loan / Finance vertical
         system_prompt = f"""You are the Principal Financial & Consumer Research Editor at {site_name}.
 You follow Google Search Central E-E-A-T and Generative Engine Optimization (GEO) standards.
 EDITORIAL STANDARDS:
-1. NEVER use AI clichés: delve, testament, beacon, vital, crucial, in conclusion, robust, dive deep, foster, elevate, holistic, seamless, plethora, myriad, paramount, pivotal, cornerstone.
+1. STYLE REQUIREMENT: Use natural journalistic tone. Write directly without generic filler phrases.
 2. Vary sentence length naturally (combine short 6-word factual statements with detailed 22-word analytical sentences).
 3. Cite real Indian figures in ₹, exact % rates, and official institutions (RBI, SBI, HDFC, ICICI, NPCI, NABARD).
 4. Output ONLY clean semantic HTML tags (<p>, <h2>, <h3>, <table>, <thead>, <tbody>, <tr>, <th>, <td>, <ul>, <ol>, <li>, <strong>). Never output markdown fences or meta-commentary.
@@ -511,15 +531,15 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 
 <h2>Frequently Asked Questions</h2>
 <h3>What is the primary evaluation factor for {primary_kw} in 2026?</h3>
-<p>Write a detailed 4-sentence factual answer tailored specifically to {primary_kw}, citing exact parameters, technical specifications, or compliance standards in India.</p>
-<h3>How should consumers calculate total investment and operational costs for {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer analyzing capital expenditure, operating costs, and savings specific to {primary_kw}.</p>
+<p>Explain the key institutional eligibility benchmarks, APR ranges, and statutory disclosures for {primary_kw} in India.</p>
+<h3>How should consumers calculate total investment and financing costs for {primary_kw}?</h3>
+<p>Analyze principal outlay, amortized interest expense, and GST-inclusive fee deductions for {primary_kw}.</p>
 <h3>What statutory approvals and documentation apply to {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer listing the exact KYC, commercial licenses, or registration norms governing {primary_kw}.</p>
-<h3>How can buyers avoid defective terms or hidden charges with {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer outlining supplier due diligence, warranty terms, and fee transparency for {primary_kw}.</p>
-<h3>What is the typical deployment timeline and operational onboarding for {primary_kw}?</h3>
-<p>Write a detailed 4-sentence factual answer comparing digital fast-track setup against conventional delivery cycles for {primary_kw}.</p>"""
+<p>List official RBI master directions, fair practices guidelines, and KYC compliance norms governing {primary_kw}.</p>
+<h3>How can applicants avoid defective terms or hidden charges with {primary_kw}?</h3>
+<p>Outline Key Fact Statement (KFS) audits, prepayment penalty checks, and processing fee verification for {primary_kw}.</p>
+<h3>What is the typical approval timeline and disbursal cycle for {primary_kw}?</h3>
+<p>Compare digital paperless fast-track disbursal against conventional branch documentation cycles for {primary_kw}.</p>"""
 
     try:
         raw_part1 = query_freellmapi(part1_prompt, system_prompt, max_tokens=part1_tokens, timeout=180.0)
@@ -539,6 +559,11 @@ Output only clean semantic HTML tags."""
 
         raw_part2 = query_freellmapi(part2_prompt, system_prompt, max_tokens=part2_tokens, timeout=180.0)
         clean_p2 = _strip_code_fences_and_preamble(raw_part2 or "")
+        for h2_marker in ("<h2>4.", "<h2>Step-by-Step", "<h2"):
+            h2_pos = clean_p2.find(h2_marker)
+            if h2_pos != -1:
+                clean_p2 = clean_p2[h2_pos:]
+                break
         p2_words = len(re.findall(r"\b\w+\b", clean_p2))
         p2_min_threshold = int(part2_target_min * 0.60)
         if p2_words < p2_min_threshold:
@@ -564,6 +589,8 @@ Output only clean semantic HTML tags."""
         raise RuntimeError(err_msg)
 
     raw_html = f"{clean_p1}\n\n{clean_p2}"
+    from content_quality_gate import ContentQualityFinishGate
+    raw_html = ContentQualityFinishGate.sanitize_raw_html(raw_html)
 
     # Dynamic topic-specific expansion tied to ARTICLE_TARGET_MIN floor (3000 words)
     current_prose = count_prose_words(raw_html)
@@ -571,7 +598,6 @@ Output only clean semantic HTML tags."""
     attempts = 0
     while attempts < 6:
         try:
-            from content_quality_gate import ContentQualityFinishGate
             test_san = ContentQualityFinishGate.sanitize_raw_html(raw_html)
             _, _, test_meta = ContentQualityFinishGate.format_editorial_layout(
                 clean_html=test_san,
@@ -586,13 +612,13 @@ Output only clean semantic HTML tags."""
             fmt_prose = count_prose_words(raw_html)
 
         print(f"[DEBUG Engine] Layout prose check: raw_prose={current_prose}, fmt_prose={fmt_prose}")
-        if fmt_prose >= 3100:
+        if fmt_prose >= 3250:
             break
 
         attempts += 1
-        needed_words = max(400, 3150 - fmt_prose + 150)
+        needed_words = max(400, 3300 - fmt_prose + 150)
         expand_tokens = min(2200, max(1200, int(needed_words * 1.5) + 300))
-        print(f"[DEBUG Engine] Attempt {attempts}: fmt_prose={fmt_prose} < 3100, requesting {needed_words} words (tokens: {expand_tokens})")
+        print(f"[DEBUG Engine] Attempt {attempts}: fmt_prose={fmt_prose} < 3250, requesting {needed_words} words (tokens: {expand_tokens})")
         if vertical == "recharge":
             expand_topic = f"Consumer Protections under TRAI QoS Framework, Dispute Escalation, and Tariff Optimization for {primary_kw} in India. NEVER mention loans, EMI, CIBIL, KFS, or NBFCs."
         elif vertical == "tazabhav":
@@ -607,6 +633,11 @@ Output only valid HTML with an <h2> heading and <p> paragraphs. Do not echo prom
         try:
             extra_content = query_freellmapi(expand_prompt, system_prompt, max_tokens=expand_tokens, timeout=150.0)
             clean_extra = _strip_code_fences_and_preamble(extra_content or "")
+            for h2_marker in ("<h2>", "<h2"):
+                h2_pos = clean_extra.find(h2_marker)
+                if h2_pos != -1:
+                    clean_extra = clean_extra[h2_pos:]
+                    break
             print(f"[DEBUG Engine] Extra content chars={len(clean_extra)}")
             if len(clean_extra) > 200:
                 raw_html = f"{raw_html}\n{clean_extra}"
@@ -621,6 +652,8 @@ Output only valid HTML with an <h2> heading and <p> paragraphs. Do not echo prom
 
     clean_html = AntiAIDetectionGate.humanize(raw_html)
     clean_html = _strip_code_fences_and_preamble(clean_html)
+    clean_html = re.sub(r"\[?\b(?:\d+-sentence\s+)?factual\s+answer(?:\s+tailored)?\b\]?", "", clean_html, flags=re.IGNORECASE)
+    clean_html = re.sub(r"\[?\bwrite\s+a\s+detailed\b.*?\]?", "", clean_html, flags=re.IGNORECASE)
 
     if vertical == "loan":
         clean_html = re.sub(r"\bvalidity\s+days\b", "validity period", clean_html, flags=re.IGNORECASE)
