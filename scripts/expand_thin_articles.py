@@ -134,13 +134,19 @@ def expand_single_article(
         raise ValueError(f"Content quality gate refused article '{slug}' with score {score}/100.0 (required: 100.0)")
 
     # Replace content inside HTML
-    if '<div class="post-content">' in text:
+    h1_orig_m = re.search(r'<h1\b[^>]*>.*?</h1>', text, re.DOTALL | re.IGNORECASE)
+
+    if '<div class="article-inner-body">' in text:
+        idx = text.find('<div class="article-inner-body">')
+        end_pos = text.find("</div>", idx + len('<div class="article-inner-body">'))
+        new_text = text[:idx] + f'<div class="article-inner-body">\n{formatted_html}\n</div>' + text[end_pos + len("</div>"):]
+    elif '<div class="post-content">' in text:
         idx = text.find('<div class="post-content">')
         # Look for closing tag before following card or figure
         m_end = re.search(
-            r'</div>\s*(?:<div class="native-ad-card"|<div class="author-card"|<figure class="article-figure"|<div class="adsterra)',
+            r'</div>\s*(?:<div class="native-ad-card"|<div class="author-card"|<figure\b|<div class="adsterra)',
             text[idx:],
-            flags=re.DOTALL,
+            flags=re.DOTALL | re.IGNORECASE,
         )
         if m_end:
             end_pos = idx + m_end.start() + len("</div>")
@@ -165,8 +171,20 @@ def expand_single_article(
         else:
             new_text = text
 
+    # Guarantee H1 preservation: if original had an <h1> but new_text does not, re-insert it
+    if h1_orig_m and not re.search(r'<h1\b', new_text, re.IGNORECASE):
+        pc_idx = new_text.find('<div class="post-content">')
+        if pc_idx != -1:
+            ins = pc_idx + len('<div class="post-content">')
+            new_text = new_text[:ins] + "\n" + h1_orig_m.group(0) + "\n" + new_text[ins:]
+        else:
+            art_idx = new_text.find("<article")
+            if art_idx != -1:
+                ins = new_text.find(">", art_idx) + 1
+                new_text = new_text[:ins] + "\n" + h1_orig_m.group(0) + "\n" + new_text[ins:]
+
     # Preserve any content figures that existed in the original article
-    fig_pattern = re.compile(r'<figure class=["\']article-figure["\'].*?</figure>', re.DOTALL)
+    fig_pattern = re.compile(r'<figure\b.*?</figure>', re.DOTALL | re.IGNORECASE)
     old_figs = fig_pattern.findall(text)
     missing_figs = []
     for fig in old_figs:
@@ -177,6 +195,13 @@ def expand_single_article(
         art_end = new_text.find("</article>")
         if art_end != -1:
             new_text = new_text[:art_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[art_end:]
+        elif '<div class="post-content">' in new_text:
+            closing_search = new_text.find("</main>") if "</main>" in new_text else len(new_text)
+            pc_end = new_text.rfind("</div>", 0, closing_search)
+            if pc_end != -1:
+                new_text = new_text[:pc_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[pc_end:]
+        else:
+            new_text = new_text + "\n" + "\n".join(missing_figs)
 
     # Preserve featured post-img wrapper if originally present
     post_img_m = re.search(r'<div[^>]*class=["\'][^"\']*post-img[^"\']*["\'][^>]*>\s*<img[^>]+>\s*</div>', text, re.DOTALL | re.IGNORECASE)
