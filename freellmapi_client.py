@@ -246,13 +246,17 @@ class FreeLLMClient:
         }
 
         # Build ordered list of models to try from config
-        primary_fallback = "llama-3.3-70b"
+        effective_fallbacks = [fb for fb in self.fallback_models if fb not in ("auto", "fusion", "claude-sonnet-4-5")]
+        primary_fallback = effective_fallbacks[0] if effective_fallbacks else DEFAULT_MODEL
 
         models_to_try: List[str] = []
         primary_candidate = model or self.default_model
-        if primary_candidate and primary_candidate not in ("claude-sonnet-4-5", ""):
+        if primary_candidate in ("auto", "fusion", "claude-sonnet-4-5", ""):
+            primary_candidate = primary_fallback
+
+        if primary_candidate:
             models_to_try.append(primary_candidate)
-        for fb in ("llama-3.3-70b", "auto", "kilo-auto", "free-router", "gpt-oss-120b"):
+        for fb in self.fallback_models:
             if fb not in models_to_try:
                 models_to_try.append(fb)
 
