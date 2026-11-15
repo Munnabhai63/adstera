@@ -17,12 +17,23 @@ if str(PROJECT_ROOT) not in sys.path:
 from bs4 import BeautifulSoup
 from content_quality_gate import BANNED_LEAK_PHRASES
 
-STUB_301_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
-<title>Moved</title><meta name="robots" content="noindex, nofollow">
-<link rel="canonical" href="https://loanraaj.com/commercial-auto-insurance">
-<meta http-equiv="refresh" content="0; url=/commercial-auto-insurance"></head>
-<body><p>This page has moved to <a href="/commercial-auto-insurance">
-/commercial-auto-insurance</a>.</p></body></html>"""
+def render_301_stub(domain: str, target_slug: str) -> str:
+    """Render a minimal 301 redirect stub HTML page (<200 words, noindex, refresh header)."""
+    clean_domain = domain.lower().replace("https://", "").replace("http://", "").strip("/")
+    clean_target = "/" + target_slug.lstrip("/")
+    canonical_url = f"https://{clean_domain}{clean_target}"
+    nl = "\r\n"
+    return (
+        f'<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">{nl}'
+        f'<title>Moved</title><meta name="robots" content="noindex, nofollow">{nl}'
+        f'<link rel="canonical" href="{canonical_url}">{nl}'
+        f'<meta http-equiv="refresh" content="0; url={clean_target}"></head>{nl}'
+        f'<body><p>This page has moved to <a href="{clean_target}">{nl}'
+        f'{clean_target}</a>.</p></body></html>{nl}'
+    )
+
+
+STUB_301_HTML = render_301_stub("loanraaj.com", "commercial-auto-insurance")
 
 
 def is_leak(text: str) -> list[str]:
@@ -58,11 +69,19 @@ def repair_or_quarantine_leaks():
     token = os.environ.get("FREELLMAPI_TOKEN", "").strip()
     has_live_token = bool(token and not token.startswith("dummy") and not token.startswith("ci-"))
 
-    # When live token is absent, quarantine the page per specification:
-    # Completely replace file with minimal 301 redirect stub (<200 words, no prompt text, no ad slots)
-    print("page quarantined, regeneration blocked: no token")
-    target_path.write_text(STUB_301_HTML, encoding="utf-8")
-    print(f"[PAGE UPDATED] Replaced leaked article with minimal 301 redirect stub in {target_rel}")
+    if has_live_token:
+        print("token present, regenerating leaked article via LLM gateway")
+        try:
+            from autopublish_daemon import publish_next_post
+            publish_next_post(specific_site="loanraaj")
+        except Exception as e:
+            print(f"[REPAIR ERROR] Regeneration attempt failed: {e}")
+    else:
+        # When live token is absent, quarantine the page per specification:
+        # Completely replace file with minimal 301 redirect stub (<200 words, no prompt text, no ad slots)
+        print("page quarantined, regeneration blocked: no token")
+        target_path.write_text(render_301_stub("loanraaj.com", "commercial-auto-insurance"), encoding="utf-8")
+        print(f"[PAGE UPDATED] Replaced leaked article with minimal 301 redirect stub in {target_rel}")
 
     # Remove URL from sites/loanraaj.com/sitemap.xml
     sitemap_path = PROJECT_ROOT / "sites" / "loanraaj.com" / "sitemap.xml"
