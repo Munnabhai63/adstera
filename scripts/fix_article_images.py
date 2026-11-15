@@ -47,6 +47,12 @@ def get_all_articles(sites_dir: Path | None = None) -> list[Path]:
         slug = p.parent.name if p.name == "index.html" else p.stem
         if slug in STATIC_SLUGS:
             continue
+        try:
+            head_snippet = p.read_text(encoding="utf-8", errors="ignore")[:600].lower()
+            if 'http-equiv="refresh"' in head_snippet or "<title>moved</title>" in head_snippet:
+                continue
+        except Exception:
+            pass
         articles.append(p)
     return sorted(articles)
 

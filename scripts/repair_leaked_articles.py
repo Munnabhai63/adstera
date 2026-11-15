@@ -2,7 +2,7 @@
 """
 scripts/repair_leaked_articles.py — Detect, quarantine, and repair prompt-leaked articles.
 Scans corpus for BANNED_LEAK_PHRASES. When live token is absent or regeneration is blocked,
-quarantines the article (noindex, sitemap removal, 301 redirect, leaked prompt purged).
+quarantines the article (minimal 301 stub, noindex, sitemap removal, 301 redirect).
 """
 
 import os
@@ -16,6 +16,13 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from bs4 import BeautifulSoup
 from content_quality_gate import BANNED_LEAK_PHRASES
+
+STUB_301_HTML = """<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<title>Moved</title><meta name="robots" content="noindex, nofollow">
+<link rel="canonical" href="https://loanraaj.com/commercial-auto-insurance">
+<meta http-equiv="refresh" content="0; url=/commercial-auto-insurance"></head>
+<body><p>This page has moved to <a href="/commercial-auto-insurance">
+/commercial-auto-insurance</a>.</p></body></html>"""
 
 
 def is_leak(text: str) -> list[str]:
@@ -51,48 +58,13 @@ def repair_or_quarantine_leaks():
     token = os.environ.get("FREELLMAPI_TOKEN", "").strip()
     has_live_token = bool(token and not token.startswith("dummy") and not token.startswith("ci-"))
 
-    # When live token is absent, quarantine the page per specification
+    # When live token is absent, quarantine the page per specification:
+    # Completely replace file with minimal 301 redirect stub (<200 words, no prompt text, no ad slots)
     print("page quarantined, regeneration blocked: no token")
+    target_path.write_text(STUB_301_HTML, encoding="utf-8")
+    print(f"[PAGE UPDATED] Replaced leaked article with minimal 301 redirect stub in {target_rel}")
 
-    # 1. Add <meta name="robots" content="noindex, nofollow" />
-    head = soup.find("head")
-    if head:
-        existing_robots = head.find("meta", attrs={"name": re.compile(r"^robots$", re.I)})
-        if existing_robots:
-            existing_robots["content"] = "noindex, nofollow"
-        else:
-            new_meta = soup.new_tag("meta", attrs={"name": "robots", "content": "noindex, nofollow"})
-            head.append(new_meta)
-
-    # 2. Clean leaked prompt commentary from post-content
-    if post_content:
-        # Remove direct strings / children containing the prompt leak
-        for el in list(post_content.find_all(string=True)):
-            if is_leak(str(el)):
-                el.extract()
-
-        # Remove any paragraphs containing prompt leak
-        for p in list(post_content.find_all(["p", "h2", "blockquote"])):
-            if is_leak(p.get_text()):
-                p.extract()
-
-        # Prepend clean editorial quarantine notice
-        notice = soup.new_tag("div", attrs={
-            "class": "quarantine-notice",
-            "style": "background:#FFF1F2; border:1px solid #FDA4AF; padding:20px 24px; border-radius:8px; margin:24px 0;"
-        })
-        p_title = soup.new_tag("p", attrs={"style": "color:#9F1239; font-weight:700; margin:0 0 8px 0; font-size:16px;"})
-        p_title.string = "[Editorial Review Pending — Quarantined]"
-        p_body = soup.new_tag("p", attrs={"style": "color:#4C0519; margin:0; font-size:14px; line-height:1.6;"})
-        p_body.string = "This intermodal freight liability guide is currently undergoing scheduled editorial audit and regulatory re-verification. Content has been quarantined from search indexes."
-        notice.append(p_title)
-        notice.append(p_body)
-        post_content.insert(0, notice)
-
-    target_path.write_text(str(soup), encoding="utf-8")
-    print(f"[PAGE UPDATED] Injected noindex and cleaned leaked text in {target_rel}")
-
-    # 3. Remove URL from sites/loanraaj.com/sitemap.xml
+    # Remove URL from sites/loanraaj.com/sitemap.xml
     sitemap_path = PROJECT_ROOT / "sites" / "loanraaj.com" / "sitemap.xml"
     if sitemap_path.exists():
         sitemap_text = sitemap_path.read_text(encoding="utf-8")
@@ -102,7 +74,7 @@ def repair_or_quarantine_leaks():
         sitemap_path.write_text(new_sitemap, encoding="utf-8")
         print(f"[SITEMAP] Removed {slug} from loanraaj.com/sitemap.xml")
 
-    # 4. Add 301 redirect in sites/loanraaj.com/_redirects
+    # Add 301 redirect in sites/loanraaj.com/_redirects
     redirects_path = PROJECT_ROOT / "sites" / "loanraaj.com" / "_redirects"
     if redirects_path.exists():
         redirects_text = redirects_path.read_text(encoding="utf-8")

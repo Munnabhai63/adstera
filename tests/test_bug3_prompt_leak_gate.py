@@ -1,9 +1,10 @@
 """
-tests/test_bug3_prompt_leak_gate.py — Invariant test for BUG-3:
+tests/test_bug3_prompt_leak_gate.py — Invariant test for BUG-3 & BUG-3b:
 1. Verifies that prompt leaks in generated content are caught by BANNED_LEAK_PHRASES,
    deducting 30 points and failing the no_leaks check.
 2. Verifies that the quarantined page has no leaked prompt commentary, carries noindex,
    is removed from sitemap.xml, and is routed via 301 redirect.
+3. Verifies that the quarantined page contains no banned leak phrases and word count is under 200 words.
 """
 
 from pathlib import Path
@@ -50,3 +51,22 @@ def test_quarantined_article_invariants():
     # 4. Must be redirected in _redirects
     redirects = Path("sites/loanraaj.com/_redirects").read_text(encoding="utf-8")
     assert "/intermodal-cargo-insurance-guide-marine-rail-highway-fr" in redirects, "Quarantined page must be mapped in _redirects"
+
+
+def test_quarantined_stub_word_count_and_no_leak_phrases():
+    """BUG-3b invariant: Quarantined stub must be clean of leak phrases and < 200 words."""
+    article_path = Path("sites/loanraaj.com/intermodal-cargo-insurance-guide-marine-rail-highway-fr/index.html")
+    html = article_path.read_text(encoding="utf-8")
+    html_lower = html.lower()
+
+    for phrase in BANNED_LEAK_PHRASES:
+        assert phrase.lower() not in html_lower, f"Banned leak phrase '{phrase}' found in quarantined stub"
+
+    # Check common leaked instruction strings
+    assert "Include 3-4 detailed" not in html
+    assert "Include a structured comparison table" not in html
+    assert "Include actionable step-by-step checklist" not in html
+
+    soup = BeautifulSoup(html, "html.parser")
+    words = len(soup.get_text().split())
+    assert words < 200, f"Quarantined stub must have < 200 words, found {words}"

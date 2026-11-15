@@ -28,6 +28,12 @@ def _get_article_pages(base: Path) -> list[Path]:
         slug = rel.parts[1]
         if slug in STATIC_SLUGS:
             continue
+        try:
+            head_snippet = p.read_text(encoding="utf-8", errors="ignore")[:600].lower()
+            if 'http-equiv="refresh"' in head_snippet or "<title>moved</title>" in head_snippet:
+                continue
+        except Exception:
+            pass
         pages.append(p)
     return sorted(pages)
 

@@ -12,10 +12,12 @@ def test_every_article_has_exactly_one_non_empty_h1():
     missing_or_multiple_h1 = []
 
     for path in pages:
-        # Ignore layouts / templates if any
+        # Ignore layouts / templates / 301 redirect stubs
         if any(x in path.parts for x in ("layouts", "_default", "category")):
             continue
         html = path.read_text(encoding="utf-8", errors="ignore")
+        if 'http-equiv="refresh"' in html[:500].lower() or "<title>moved</title>" in html[:500].lower():
+            continue
         soup = BeautifulSoup(html, "html.parser")
         h1s = soup.find_all("h1")
 
