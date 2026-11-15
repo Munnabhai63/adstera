@@ -58,7 +58,7 @@ def build_shingle_index(output_path: Path = SHINGLE_INDEX_PATH, dry_run: bool = 
 
     if not dry_run:
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(sorted_index, indent=2, ensure_ascii=False), encoding="utf-8")
+        output_path.write_text(json.dumps(sorted_index, indent=2, ensure_ascii=False), encoding="utf-8", newline="\n")
         print(f"Index successfully written to {output_path}")
 
     return len(sorted_index)

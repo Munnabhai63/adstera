@@ -345,6 +345,52 @@ def merge_duplicate_sections(html_text: str) -> str:
     return str(soup)
 
 
+def count_structural_units(html_text: str) -> dict[str, int]:
+    """Count structural units (<p>, <table>, <figure>, <img>, <ol>/<ul>) and prose words in <p>."""
+    soup = BeautifulSoup(html_text, "html.parser")
+    root = soup.find("div", class_="post-content") or soup.find("article") or soup
+    p_tags = root.find_all("p")
+    p_words = sum(len(p.get_text().split()) for p in p_tags)
+    return {
+        "p": len(p_tags),
+        "table": len(root.find_all("table")),
+        "figure": len(root.find_all("figure")),
+        "img": len(root.find_all("img")),
+        "list": len(root.find_all(["ol", "ul"])),
+        "p_words": p_words,
+    }
+
+
+def verify_structural_integrity(html_before: str, html_after: str) -> tuple[bool, str, dict[str, Any]]:
+    """
+    Validates structural preservation across repairs or expansions:
+    - Fails if any unit count (<p>, <table>, <figure>, <img>, <ol>/<ul>) decreases.
+    - Fails if <p> text word count drops by more than 0.5%.
+    - Removing duplicated headings without losing paragraphs preserves structural units.
+    """
+    before = count_structural_units(html_before)
+    after = count_structural_units(html_after)
+
+    for unit in ("p", "table", "figure", "img", "list"):
+        if after[unit] < before[unit]:
+            return (
+                False,
+                f"Structural unit count decreased for <{unit}>: {before[unit]} -> {after[unit]}",
+                {"before": before, "after": after},
+            )
+
+    if before["p_words"] > 0:
+        drop_pct = (before["p_words"] - after["p_words"]) / before["p_words"]
+        if drop_pct > 0.005:
+            return (
+                False,
+                f"<p> word count fell by {drop_pct*100:.2f}% ({before['p_words']} -> {after['p_words']}), exceeds 0.5% tolerance",
+                {"before": before, "after": after},
+            )
+
+    return True, "Structural integrity verified", {"before": before, "after": after}
+
+
 class ContentQualityFinishGate:
     """
     Automated gate that inspects every generated article layout,

@@ -80,7 +80,7 @@ def repair_or_quarantine_leaks():
         # When live token is absent, quarantine the page per specification:
         # Completely replace file with minimal 301 redirect stub (<200 words, no prompt text, no ad slots)
         print("page quarantined, regeneration blocked: no token")
-        target_path.write_text(render_301_stub("loanraaj.com", "commercial-auto-insurance"), encoding="utf-8")
+        target_path.write_text(render_301_stub("loanraaj.com", "commercial-auto-insurance").replace("\r\n", "\n"), encoding="utf-8", newline="\n")
         print(f"[PAGE UPDATED] Replaced leaked article with minimal 301 redirect stub in {target_rel}")
 
     # Remove URL from sites/loanraaj.com/sitemap.xml
@@ -90,7 +90,7 @@ def repair_or_quarantine_leaks():
         slug = "intermodal-cargo-insurance-guide-marine-rail-highway-fr"
         url_pattern = re.compile(rf"\s*<url>\s*<loc>[^<]*{re.escape(slug)}[^<]*</loc>.*?</url>", re.DOTALL)
         new_sitemap = url_pattern.sub("", sitemap_text)
-        sitemap_path.write_text(new_sitemap, encoding="utf-8")
+        sitemap_path.write_text(new_sitemap.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
         print(f"[SITEMAP] Removed {slug} from loanraaj.com/sitemap.xml")
 
     # Add 301 redirect in sites/loanraaj.com/_redirects
@@ -100,7 +100,7 @@ def repair_or_quarantine_leaks():
         rule = "/intermodal-cargo-insurance-guide-marine-rail-highway-fr /commercial-auto-insurance 301"
         if rule not in redirects_text:
             new_redirects = redirects_text.strip() + f"\n{rule}\n"
-            redirects_path.write_text(new_redirects, encoding="utf-8")
+            redirects_path.write_text(new_redirects.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
             print(f"[_REDIRECTS] Added 301 redirect: {rule}")
 
 

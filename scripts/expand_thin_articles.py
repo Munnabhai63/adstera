@@ -69,7 +69,7 @@ def update_sitemap_lastmod(sitemap_path: Path, domain: str, slug: str, date_str:
     pattern = rf"(<loc>\s*{re.escape(target_loc)}/?\s*</loc>\s*<lastmod>)(.*?)(</lastmod>)"
     if re.search(pattern, text):
         new_text = re.sub(pattern, rf"\g<1>{date_str}\g<3>", text)
-        sitemap_path.write_text(new_text, encoding="utf-8")
+        sitemap_path.write_text(new_text.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
         return True
     return False
 
@@ -441,7 +441,7 @@ def expand_single_article(
             break
 
     if not dry_run:
-        path.write_text(new_text, encoding="utf-8")
+        path.write_text(new_text.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
         sitemap_file = path.parents[1] / "sitemap.xml" if path.name == "index.html" else path.parent / "sitemap.xml"
         update_sitemap_lastmod(sitemap_file, domain, slug, "2026-11-14")
 
@@ -573,6 +573,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.limit:
         print(f" Article Limit:  {args.limit}")
     print(f" Min Word Floor: {args.min_words}")
+    shingle_idx = get_shared_index()
+    st = shingle_idx.get_status()
+    print(f" Shingle Index:  {st['shingles']} shingles / {st['pages']} pages (age: {st['age_seconds']}s)")
     print("-" * 72)
 
     res = run_batch_expansion(

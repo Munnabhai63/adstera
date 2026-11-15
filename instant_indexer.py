@@ -63,7 +63,7 @@ def _provision_verification_keys_unlocked(sites_dir: str) -> None:
 
             # 1. IndexNow Verification File
             key_file = os.path.join(d, f"{INDEXNOW_KEY}.txt")
-            with open(key_file, "w", encoding="utf-8") as f:
+            with open(key_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(INDEXNOW_KEY)
 
             # 2. robots.txt (Claude-SEO v2.5.0 `seo-geo` + `seo-agentic`: separate AI Search, User-Agent & Training groups + Content-Signal)
@@ -107,7 +107,7 @@ Allow: /
 
 Sitemap: https://{domain}/sitemap.xml
 """
-            with open(robots_file, "w", encoding="utf-8") as f:
+            with open(robots_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(robots_content)
 
             # 3. llms.txt (Claude-SEO `seo-geo` & `seo-agentic` standard for AI answer engines)
@@ -132,7 +132,7 @@ Sitemap: https://{domain}/sitemap.xml
 - [Canonical XML Sitemap](https://{domain}/sitemap.xml): Full index of all published guides.
 - [IndexNow Verification Key](https://{domain}/{INDEXNOW_KEY}.txt): Instant indexing verification endpoint.
 """
-            with open(llms_file, "w", encoding="utf-8") as f:
+            with open(llms_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(llms_content)
 
             # 4. Cloudflare Pages _redirects (enforce non-www canonical 301 redirect and .html to clean URL)
@@ -143,7 +143,7 @@ Sitemap: https://{domain}/sitemap.xml
                 f"http://{domain}/* https://{domain}/:splat 301\n"
                 f"/:slug.html /:slug 301\n"
             )
-            with open(redirects_file, "w", encoding="utf-8") as f:
+            with open(redirects_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(redirects_content)
 
             # 5. Cloudflare 24x7 Serverless Edge Gateway on loanraaj.com (/v1/models & /v1/chat/completions)
@@ -270,7 +270,7 @@ export default {
   }
 };
 """
-                with open(worker_file, "w", encoding="utf-8") as f:
+                with open(worker_file, "w", encoding="utf-8", newline="\n") as f:
                     f.write(worker_js)
 
     print("[Instant Indexer] IndexNow verification keys, robots.txt, llms.txt, _redirects, and Edge Gateway provisioned across all domains.")
@@ -300,7 +300,7 @@ def update_sitemap_xml(site_id: str, new_url: str) -> None:
 
         if "</urlset>" in content:
             updated = content.replace("</urlset>", url_node_str + "</urlset>")
-            with open(sitemap_path, "w", encoding="utf-8") as f:
+            with open(sitemap_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(updated)
 
 

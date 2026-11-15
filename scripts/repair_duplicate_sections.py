@@ -88,7 +88,7 @@ def repair_pages(apply_changes: bool = False) -> int:
             print(f"    + {h}")
 
         if apply_changes:
-            p.write_text(merged_html, encoding="utf-8")
+            p.write_text(merged_html.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
             repaired_count += 1
         else:
             repaired_count += 1

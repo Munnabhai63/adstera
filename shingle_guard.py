@@ -8,9 +8,11 @@ from __future__ import annotations
 import json
 import re
 import threading
+import time
 import unicodedata
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 from bs4 import BeautifulSoup
 
 PROJECT_ROOT = Path(__file__).resolve().parent
@@ -197,16 +199,73 @@ class ShingleIndex:
         self.auto_build_if_empty = auto_build_if_empty
         self.index: dict[str, dict[str, str]] = {}
         self._lock = threading.RLock()
+        self._last_staleness_check: float = 0.0
+        self._is_stale_cached: bool = False
         self.load()
 
+    def is_stale(self, sites_dir: Path | None = None) -> bool:
+        """Check if index file is missing, empty, or older than the newest file in sites/."""
+        if not self.index_path.exists():
+            return True
+        try:
+            index_mtime = self.index_path.stat().st_mtime
+        except OSError:
+            return True
+
+        if not self.index:
+            return True
+
+        # Throttle repeated filesystem scans if checked within the last 5 seconds
+        now = time.time()
+        if sites_dir is None and (now - self._last_staleness_check) < 5.0:
+            return self._is_stale_cached
+
+        s_dir = sites_dir or (PROJECT_ROOT / "sites")
+        if not s_dir.exists():
+            return False
+
+        is_stale_res = False
+        for p in s_dir.rglob("*.html"):
+            try:
+                if p.stat().st_mtime > index_mtime:
+                    is_stale_res = True
+                    break
+            except OSError:
+                continue
+
+        if sites_dir is None:
+            self._last_staleness_check = now
+            self._is_stale_cached = is_stale_res
+        return is_stale_res
+
+    def get_status(self) -> dict[str, Any]:
+        """Return status metrics: pages indexed, total shingles, and index file age in seconds."""
+        with self._lock:
+            pages = len(set(v.get("page_id", "") for v in self.index.values()))
+            shingles = len(self.index)
+            age_sec = 0.0
+            if self.index_path.exists():
+                try:
+                    age_sec = time.time() - self.index_path.stat().st_mtime
+                except OSError:
+                    pass
+            return {
+                "pages": pages,
+                "shingles": shingles,
+                "age_seconds": round(age_sec, 1),
+                "path": str(self.index_path),
+            }
+
     def rebuild(self):
-        """Rebuild index from sites/ corpus."""
+        """Rebuild index from sites/ corpus and report [guard] index rebuilt."""
         with self._lock:
             try:
                 from scripts.build_shingle_index import build_shingle_index
                 build_shingle_index(output_path=self.index_path)
                 if self.index_path.exists():
                     self.index = json.loads(self.index_path.read_text(encoding="utf-8"))
+                pages = len(set(v.get("page_id", "") for v in self.index.values()))
+                print(f"[guard] index rebuilt: {len(self.index)} shingles / {pages} pages")
             except Exception:
                 # Fallback if corpus cannot be parsed
                 pass
@@ -221,7 +280,7 @@ class ShingleIndex:
             else:
                 self.index = {}
 
-            if not self.index and self.auto_build_if_empty:
+            if (not self.index or self.is_stale()) and self.auto_build_if_empty:
                 self.rebuild()
                 if not self.index:
                     self.index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -232,12 +291,13 @@ class ShingleIndex:
             snapshot = dict(self.index)
             payload = json.dumps(snapshot, indent=2)
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
-        self.index_path.write_text(payload, encoding="utf-8")
+        self.index_path.write_text(payload, encoding="utf-8", newline="\n")
 
     def register_article(self, domain: str, slug: str, html_text: str, check_duplicates: bool = True) -> int:
         """
         Validate quality, check vocabulary blocklists, and record 12-word shingles.
         Raises DuplicateContentError if a shingle is found on another page.
+        Fail-closed: rebuilds index if missing or stale before duplicate check.
         """
         paras = extract_prose_paragraphs(html_text)
         full_prose = " ".join(paras)
@@ -252,6 +312,10 @@ class ShingleIndex:
         shingles = get_12_word_shingles(full_prose)
 
         with self._lock:
+            # Fail closed: ensure index is fresh before checking duplicates
+            if check_duplicates and (not self.index or self.is_stale()) and self.auto_build_if_empty:
+                self.rebuild()
+
             if check_duplicates:
                 for shingle in shingles:
                     existing = self.index.get(shingle)

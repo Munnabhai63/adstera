@@ -99,8 +99,8 @@ def verify_claim_5_pytest_collection() -> tuple[bool, str]:
     if not m:
         return False, f"Claim 5 FAILED: Could not parse test collection count from output"
     count = int(m.group(1))
-    if count != 540:
-        return False, f"Claim 5 FAILED: Expected 540 tests collected, got {count}"
+    if count != 542:
+        return False, f"Claim 5 FAILED: Expected 542 tests collected, got {count}"
     return True, f"Claim 5: pytest --collect-only == {count} tests (exit 0)"
 
 
@@ -181,6 +181,25 @@ def verify_claim_8_ten_slugs_unique_and_strictly_increasing() -> tuple[bool, str
     return True, f"Claim 8: all 10 previously-broken slugs have exactly 1 FAQ H2 and strictly increasing numbering (verified)"
 
 
+def verify_claim_9_domain_distribution_at_least_two() -> tuple[bool, str]:
+    from scripts.seo_onpage_audit import run_full_onpage_audit
+    from network_registry import NETWORK_REGISTRY
+
+    summary = run_full_onpage_audit()
+    details = summary.get("details", [])
+    domain_counts: dict[str, int] = {}
+    for r in details:
+        if r.get("prose_words", 0) >= 3000:
+            d = r.get("domain", "")
+            domain_counts[d] = domain_counts.get(d, 0) + 1
+
+    all_domains = [f"{k}.com" for k in NETWORK_REGISTRY.keys()]
+    under_two = {d: domain_counts.get(d, 0) for d in all_domains if domain_counts.get(d, 0) < 2}
+    if under_two:
+        return False, f"Claim 9 FAILED: Domains with < 2 at-floor articles: {under_two} (counts: {domain_counts})"
+    return True, f"Claim 9: all 10 domains have >= 2 at-floor articles (verified live: {domain_counts})"
+
+
 def main() -> int:
     print("--- Running scripts/verify_round_claims.py ---")
     claims = [
@@ -192,6 +211,7 @@ def main() -> int:
         ("claim_6_word_floor_expansion", verify_claim_6_word_count_floor_expansion),
         ("claim_7_duplicate_headings_count", verify_claim_7_duplicate_headings_count),
         ("claim_8_ten_slugs_strictly_increasing", verify_claim_8_ten_slugs_unique_and_strictly_increasing),
+        ("claim_9_domain_distribution_at_least_two", verify_claim_9_domain_distribution_at_least_two),
     ]
 
     for name, func in claims:
