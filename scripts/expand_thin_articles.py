@@ -324,9 +324,15 @@ def expand_single_article(
                 "repayment": "amortization", "hidden": "undisclosed",
                 "schedule": "roster", "schedules": "timetables",
                 "practices": "conduct", "code": "framework",
+                "mandates": "requires", "mandate": "directive",
+                "issued": "promulgated", "directions": "instructions",
+                "complaints": "grievances", "complaint": "grievance",
+                "safeguard": "protect", "safeguards": "protections",
+                "specific": "particular", "resolve": "address",
+                "within": "inside", "portal": "platform",
             }
 
-            max_rephrase_rounds = 10
+            max_rephrase_rounds = 25
             rephrase_round = 0
             registered_ok = False
 
@@ -345,32 +351,31 @@ def expand_single_article(
                     words = colliding.split()
                     replaced_in_text = False
 
-                    # Try finding a word in colliding that has a known synonym
-                    for i, w in enumerate(words):
-                        w_low = w.lower()
-                        if w_low in COLLISION_SYNONYMS:
-                            syn = COLLISION_SYNONYMS[w_low]
-                            target_seq = r"\b" + r"\s+".join(re.escape(x) for x in words) + r"\b"
-                            new_words = list(words)
-                            new_words[i] = syn
-                            replacement_seq = " ".join(new_words)
-                            if re.search(target_seq, new_text, flags=re.IGNORECASE):
-                                new_text = re.sub(target_seq, replacement_seq, new_text, count=1, flags=re.IGNORECASE)
-                                replaced_in_text = True
-                                print(f"[{domain}] Shingle collision '{colliding}' rephrased: '{w}' -> '{syn}'")
-                                break
+                    # Punctuation-tolerant regex matching words of the 12-word shingle in new_text
+                    pat = r"[^\w]+".join(re.escape(x) for x in words)
+                    m_coll = re.search(pat, new_text, flags=re.IGNORECASE)
+                    if m_coll:
+                        # Try finding a word in colliding that has a known synonym
+                        for i, w in enumerate(words):
+                            w_low = w.lower()
+                            if w_low in COLLISION_SYNONYMS:
+                                syn = COLLISION_SYNONYMS[w_low]
+                                new_sub = re.sub(rf"\b{re.escape(w)}\b", syn, m_coll.group(0), count=1, flags=re.IGNORECASE)
+                                if new_sub != m_coll.group(0):
+                                    new_text = new_text[:m_coll.start()] + new_sub + new_text[m_coll.end():]
+                                    replaced_in_text = True
+                                    print(f"[{domain}] Shingle collision '{colliding}' rephrased: '{w}' -> '{syn}'")
+                                    break
 
-                    # If no specific word was matched, replace the middle word with a minor variation
-                    if not replaced_in_text and len(words) >= 4:
-                        mid_idx = len(words) // 2
-                        target_seq = r"\b" + r"\s+".join(re.escape(x) for x in words) + r"\b"
-                        new_words = list(words)
-                        new_words[mid_idx] = new_words[mid_idx] + " and audited"
-                        replacement_seq = " ".join(new_words)
-                        if re.search(target_seq, new_text, flags=re.IGNORECASE):
-                            new_text = re.sub(target_seq, replacement_seq, new_text, count=1, flags=re.IGNORECASE)
-                            replaced_in_text = True
-                            print(f"[{domain}] Shingle collision '{colliding}' varied at mid-token")
+                        # If no specific synonym matched, vary the middle word
+                        if not replaced_in_text and len(words) >= 4:
+                            mid_idx = len(words) // 2
+                            mid_w = words[mid_idx]
+                            new_sub = re.sub(rf"\b{re.escape(mid_w)}\b", f"{mid_w} and verified", m_coll.group(0), count=1, flags=re.IGNORECASE)
+                            if new_sub != m_coll.group(0):
+                                new_text = new_text[:m_coll.start()] + new_sub + new_text[m_coll.end():]
+                                replaced_in_text = True
+                                print(f"[{domain}] Shingle collision '{colliding}' varied at mid-token: '{mid_w}'")
 
                     if not replaced_in_text:
                         print(f"[{domain}] Could not locate exact colliding phrase in new_text: '{colliding}'")
