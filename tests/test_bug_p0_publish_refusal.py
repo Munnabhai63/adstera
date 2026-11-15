@@ -209,13 +209,18 @@ def test_below_floor_article_is_not_published(tmp_path: Path, monkeypatch: pytes
 def test_leaked_article_is_not_published(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     ap_db, git_calls = _setup_test_env(tmp_path, monkeypatch, domain="tazaloan")
 
+    # Fixture clears 3,000+ prose words floor but contains an explicit banned prompt leak phrase
+    base_long_html = _generate_varied_long_article()
     leak_phrase = BANNED_LEAK_PHRASES[0]
-    leak_html = (
-        f"<p class='lead'>Tazaloan analysis report. {leak_phrase} for this draft article.</p>"
-        "<h2>1. Market Dynamics</h2>"
-        "<p>Financial metrics require strict adherence to regulatory standards across all regional sectors.</p>"
-    )
-    faqs = [{"question": "Q1?", "answer": "A1."}]
+    leak_paragraph = f"<p>System instruction override: {leak_phrase} for this draft article.</p>"
+    leak_html = base_long_html.replace("<h2>1. ", f"{leak_paragraph}\n<h2>1. ")
+    faqs = [{"question": "How to verify current rates and eligibility?", "answer": "Consult the official tariff guidelines and check authorized portals."}]
+
+    # The sanitizer in content_quality_gate.py:181-193 legitimately strips leaky paragraphs before the gate.
+    # We bypass sanitize_raw_html here to isolate and test the finish gate's refusal on prompt leak.
+    from content_quality_gate import ContentQualityFinishGate
+    monkeypatch.setattr(ContentQualityFinishGate, "sanitize_raw_html", lambda raw_html: raw_html)
+
     monkeypatch.setattr(autopublish_daemon, "generate_claude_seo_article", lambda *a, **k: (leak_html, faqs))
 
     res = autopublish_daemon.publish_next_post(specific_site="tazaloan")
@@ -227,8 +232,19 @@ def test_leaked_article_is_not_published(tmp_path: Path, monkeypatch: pytest.Mon
     created_html = [p for p in site_dir.rglob("*.html")]
     assert len(created_html) == 0, f"No HTML files should be written on prompt leak, found: {created_html}"
 
+    # Verify zero rows in published_posts
+    with sqlite3.connect(ap_db) as con:
+        rows = con.execute("SELECT * FROM published_posts WHERE domain = 'tazaloan'").fetchall()
+        stage_row = con.execute("SELECT stage_name, status_message FROM pipeline_state WHERE domain = 'tazaloan'").fetchone()
+    assert len(rows) == 0, "published_posts table must have no row for leaked article"
+
     # Verify sync_github was never called
     assert len(git_calls) == 0, "sync_github must never be called when prompt leak is detected"
+
+    # Verify block reason contains 'prompt leak'
+    assert stage_row is not None, "pipeline_state must record refusal"
+    assert stage_row[0] == "Quality Gate Refused"
+    assert "prompt leak" in stage_row[1].lower(), f"Status message should mention 'prompt leak', got: {stage_row[1]}"
 
 
 def test_topic_returns_to_pending_after_refusal(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
