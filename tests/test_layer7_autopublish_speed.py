@@ -335,7 +335,7 @@ def test_claude_seo_v2_5_full_subsystem_on_article() -> None:
 
 
 def test_dry_run_meets_length_floor(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Verify dry-run genuinely produces at least 1,250 words without mocking word count."""
+    """Verify dry-run genuinely produces at least 3000 words (ARTICLE_WORD_COUNT_FLOOR) without mocking word count."""
     import sys
     import re
     import subprocess
@@ -362,9 +362,7 @@ def test_dry_run_meets_length_floor(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     wc = int(wc_match.group(1))
     score = float(score_match.group(1))
 
-    # Must clear single source of truth floor and the >=1250 target
     assert wc >= ARTICLE_WORD_COUNT_FLOOR, f"Word count {wc} below single source floor {ARTICLE_WORD_COUNT_FLOOR}"
-    assert wc >= 1250, f"Word count {wc} below target floor 1250"
     assert score >= 90.0, f"Quality score {score} below 90.0"
 
 
