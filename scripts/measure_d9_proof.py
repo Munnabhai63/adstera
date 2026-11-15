@@ -12,9 +12,16 @@ from shingle_guard import ShingleIndex
 import scripts.seo_onpage_audit as seo_audit
 
 def main():
-    proof_path = Path("C:/tmp/round7_proof/instant-personal-loan-2026-apply-online-eligibil-2.html")
+    if len(sys.argv) > 1:
+        proof_path = Path(sys.argv[1])
+    else:
+        proof_path = Path("C:/tmp/round7_proof/instant-personal-loan-2026-apply-online-eligibil-2.html")
+        if not proof_path.exists():
+            proof_path = Path("/tmp/round7_proof/instant-personal-loan-2026-apply-online-eligibil-2.html")
+
     if not proof_path.exists():
-        proof_path = Path("/tmp/round7_proof/instant-personal-loan-2026-apply-online-eligibil-2.html")
+        print(f"Error: Proof file not found at '{proof_path}'.", file=sys.stderr)
+        sys.exit(2)
         
     raw = proof_path.read_text(encoding="utf-8", errors="ignore")
     soup = BeautifulSoup(raw, "html.parser")
