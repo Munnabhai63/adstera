@@ -521,15 +521,15 @@ def _reset_topic_pending(q_id: int) -> None:
 
 def ensure_shingle_guard_index():
     """Startup verification: ensure 12-word prose shingle index is populated. Never publish with an empty shingle index."""
-    from shingle_guard import ShingleIndex, SHINGLE_INDEX_PATH
+    from shingle_guard import get_shared_index, SHINGLE_INDEX_PATH
     from scripts.build_shingle_index import build_shingle_index
 
-    idx = ShingleIndex()
+    idx = get_shared_index()
     if not idx.index or len(idx.index) == 0:
         logger.info("Startup check: shingle index missing or empty; auto-rebuilding from corpus...")
         print("[ShingleGuard] Startup check: Index empty/missing. Auto-rebuilding from corpus...")
         build_shingle_index(output_path=SHINGLE_INDEX_PATH)
-        idx = ShingleIndex()
+        idx.load()
     if not idx.index or len(idx.index) == 0:
         raise RuntimeError("FATAL: Shingle index is empty! Refusing to publish without active shingle guard.")
     print(f"[ShingleGuard] Startup check: verified index with {len(idx.index)} unique shingles.")
@@ -838,8 +838,8 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
 
         # PHASE 5B: Shingle Guard & Domain Vocabulary Integrity Gate (D2 - right before article write)
         try:
-            from shingle_guard import ShingleIndex, DuplicateContentError
-            shingle_idx = ShingleIndex()
+            from shingle_guard import get_shared_index, DuplicateContentError
+            shingle_idx = get_shared_index()
             shingle_idx.register_article(site_id, slug, full_html)
             print(f"[{site_id}] Shingle Guard Verified: registered '{site_id}/{slug}' without duplicate collisions.")
         except DuplicateContentError as dup_err:

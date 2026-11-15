@@ -163,9 +163,32 @@ def validate_domain_vocabulary(domain: str, text: str):
             )
 
 
+_INDEX_SINGLETON: ShingleIndex | None = None
+_INDEX_SINGLETON_PATH: Path | None = None
+
+
+def get_shared_index(index_path: Path | None = None) -> ShingleIndex:
+    """Return a process-wide ShingleIndex. Cached per resolved path.
+    If SHINGLE_INDEX_PATH is monkeypatched in tests, the cache must follow the path change.
+    """
+    global _INDEX_SINGLETON, _INDEX_SINGLETON_PATH
+    target = Path(index_path or SHINGLE_INDEX_PATH).resolve()
+    if _INDEX_SINGLETON is None or _INDEX_SINGLETON_PATH != target:
+        _INDEX_SINGLETON = ShingleIndex(index_path=target)
+        _INDEX_SINGLETON_PATH = target
+    return _INDEX_SINGLETON
+
+
+def clear_shared_index() -> None:
+    """Clear process-wide ShingleIndex cache."""
+    global _INDEX_SINGLETON, _INDEX_SINGLETON_PATH
+    _INDEX_SINGLETON = None
+    _INDEX_SINGLETON_PATH = None
+
+
 class ShingleIndex:
-    def __init__(self, index_path: Path = SHINGLE_INDEX_PATH, auto_build_if_empty: bool = True):
-        self.index_path = index_path
+    def __init__(self, index_path: Path | None = None, auto_build_if_empty: bool = True):
+        self.index_path = Path(index_path or SHINGLE_INDEX_PATH).resolve()
         self.auto_build_if_empty = auto_build_if_empty
         self.index: dict[str, dict[str, str]] = {}
         self.load()

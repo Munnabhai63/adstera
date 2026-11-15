@@ -536,7 +536,7 @@ class ContentQualityFinishGate:
         no forbidden domain jargon, and no quality anomalies.
         Raises DuplicateContentError on collision.
         """
-        from shingle_guard import ShingleIndex
-        idx = ShingleIndex()
+        from shingle_guard import get_shared_index
+        idx = get_shared_index()
         return idx.register_article(domain, slug, html_text, check_duplicates=check_duplicates)
 
