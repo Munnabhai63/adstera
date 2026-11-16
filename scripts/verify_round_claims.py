@@ -224,6 +224,15 @@ def verify_claim_11_content_images_inside_article() -> tuple[bool, str]:
     return True, f"Claim 11: all articles have >= 5 content images inside post-content (0 fails verified)"
 
 
+def verify_claim_12_no_repeated_word_titles() -> tuple[bool, str]:
+    from scripts.seo_onpage_audit import run_full_onpage_audit
+    summary = run_full_onpage_audit()
+    fails = summary.get("failures", {}).get("title_repeated_words", 0)
+    if fails != 0:
+        return False, f"Claim 12 FAILED: Found {fails} articles with repeated words in title"
+    return True, f"Claim 12: repeated-word title count == {fails} (0 verified)"
+
+
 def main() -> int:
     print("--- Running scripts/verify_round_claims.py ---")
     claims = [
@@ -238,6 +247,7 @@ def main() -> int:
         ("claim_9_domain_distribution_at_least_two", verify_claim_9_domain_distribution_at_least_two),
         ("claim_10_bug_suite_passes", verify_claim_10_bug_suite_passes),
         ("claim_11_content_images_inside_article", verify_claim_11_content_images_inside_article),
+        ("claim_12_no_repeated_word_titles", verify_claim_12_no_repeated_word_titles),
     ]
 
     for name, func in claims:

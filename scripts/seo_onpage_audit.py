@@ -272,6 +272,15 @@ def audit_article(path: Path | str) -> dict[str, Any]:
 
     content_images_ok = in_article_imgs >= 5
 
+    # 14. Title repeated words check (D16)
+    title_core = title.split("|")[0].strip()
+    title_words = [w.lower() for w in re.findall(r"\b[A-Za-z0-9]+\b", title_core)]
+    has_repeated_word = any(
+        title_words[i] == title_words[i + 1] and len(title_words[i]) >= 3
+        for i in range(len(title_words) - 1)
+    )
+    title_repeated_words_ok = not has_repeated_word
+
     return {
         "path": path,
         "domain": domain,
@@ -295,6 +304,7 @@ def audit_article(path: Path | str) -> dict[str, Any]:
         "dup_headings_ok": dup_headings_ok,
         "content_images_ok": content_images_ok,
         "in_article_imgs": in_article_imgs,
+        "title_repeated_words_ok": title_repeated_words_ok,
     }
 
 
@@ -318,6 +328,7 @@ def run_full_onpage_audit(sites_dir: Path | None = None) -> dict[str, Any]:
         "faq_h3_match": sum(1 for r in results if not r["faq_matches_ok"]),
         "duplicate_headings": sum(1 for r in results if not r["dup_headings_ok"]),
         "content_images": sum(1 for r in results if not r["content_images_ok"]),
+        "title_repeated_words": sum(1 for r in results if not r["title_repeated_words_ok"]),
         "prose_floor": sum(1 for r in results if not r["prose_floor_ok"]),
     }
 
@@ -516,6 +527,7 @@ def print_audit_table(summary: dict[str, Any], label: str = "ON-PAGE AUDIT REPOR
         ("JSON-LD FAQPage matches on-page H3s", fails["faq_h3_match"]),
         ("Duplicate H2 / FAQ blocks", fails["duplicate_headings"]),
         ("Content images inside article (>= 5)", fails["content_images"]),
+        ("Title has no repeated word (Guide Guide)", fails["title_repeated_words"]),
         ("Prose length (>= 3000 words)", fails["prose_floor"]),
     ]
 
