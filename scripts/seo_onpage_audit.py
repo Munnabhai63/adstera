@@ -244,6 +244,10 @@ def audit_article(path: Path | str) -> dict[str, Any]:
             numbers.append(int(m.group(1)))
     has_restart = any(numbers[i] >= numbers[i+1] for i in range(len(numbers)-1)) if numbers else False
 
+    # Universal on-page SEO invariant: No duplicate H2 headings allowed on ANY page regardless of word count.
+    # Multi-FAQ duplication (faq_count > 1) is also a duplication defect on any page.
+    # Exact single FAQ presence (faq_count == 1) and sequential numbering (not has_restart)
+    # apply strictly to fully expanded articles (>= ARTICLE_WORD_COUNT_FLOOR) and the 10 repair slugs.
     if prose_words >= ARTICLE_WORD_COUNT_FLOOR or slug in {
         "budgeting-framework-for-low-income-earners",
         "annapurna-scheme-for-food-catering-businesses-equipment",
@@ -258,7 +262,7 @@ def audit_article(path: Path | str) -> dict[str, Any]:
     }:
         dup_headings_ok = not (has_dup_h2 or faq_count != 1 or has_restart)
     else:
-        dup_headings_ok = True
+        dup_headings_ok = not (has_dup_h2 or faq_count > 1)
 
     # 13. Content images inside post-content (>= 5)
     post_content_el = soup.find("div", class_="post-content")
