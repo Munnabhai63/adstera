@@ -154,7 +154,7 @@ def _get_client() -> FreeLLMClient:
 def query_freellmapi(prompt, system_prompt, model=None, max_tokens=6000, timeout=180.0):
     """Query the 3-Layer 24x7 FreeLLMAPI Gateway (Cloudflare Edge -> Cloud Failover -> Local Watchdog)."""
     client = _get_client()
-    target_model = model or "llama-3.3-70b"
+    target_model = model or getattr(client, "default_model", None) or "Qwen2.5-VL-72B-Instruct"
     result = client.generate_completion(
         prompt=prompt,
         system_prompt=system_prompt,
