@@ -60,6 +60,7 @@ def test_offline_conversion_database_persistence():
     assert records[0]["email"] == res["email"]
 
 
+@pytest.mark.browser
 def test_lead_form_detection_and_human_submission():
     async def _test():
         fixture_path = Path("tests/fixtures/advertiser_lead_page.html").resolve()

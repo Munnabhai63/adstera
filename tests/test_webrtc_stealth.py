@@ -3,10 +3,12 @@ tests/test_webrtc_stealth.py — Invariant tests for Step 3.2: WebRTC IP Leak Pr
 Verifies RTCPeerConnection masking, prototype inheritance, SDP sanitization, and candidate filtering.
 """
 import asyncio
+import pytest
 from pool import Proxy, GeoInfo
 import fingerprint as fp_mod
 
 
+@pytest.mark.browser
 def test_webrtc_stealth_playwright():
     from playwright.async_api import async_playwright
 

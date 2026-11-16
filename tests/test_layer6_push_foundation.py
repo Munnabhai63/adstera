@@ -23,6 +23,7 @@ import random
 import socketserver
 import subprocess
 import sys
+import pytest
 import threading
 from pathlib import Path
 
@@ -295,6 +296,7 @@ def test_site_templates_emits_push_foundation_with_balanced_divs() -> None:
     assert html_out.lower().count("<div") == html_out.lower().count("</div>")
 
 
+@pytest.mark.browser
 def test_playwright_real_chromium_push_collector_and_sw_registration(tmp_path: Path) -> None:
     from playwright.async_api import async_playwright
 

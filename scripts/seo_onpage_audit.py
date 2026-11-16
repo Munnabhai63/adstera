@@ -256,9 +256,21 @@ def audit_article(path: Path | str) -> dict[str, Any]:
         "boost-cibil-score-from-650-to-750",
         "api-banking-for-bulk-payroll-transfers",
     }:
-        dup_headings_ok = not (has_dup_h2 or faq_count > 1 or has_restart)
+        dup_headings_ok = not (has_dup_h2 or faq_count != 1 or has_restart)
     else:
         dup_headings_ok = True
+
+    # 13. Content images inside post-content (>= 5)
+    post_content_el = soup.find("div", class_="post-content")
+    if post_content_el:
+        content_imgs = [img for img in post_content_el.find_all("img") if not any(
+            re.search(r"widget|sidebar|author-card", c) for c in (img.find_parent().get("class") or [])
+        )]
+        in_article_imgs = len(content_imgs)
+    else:
+        in_article_imgs = 0
+
+    content_images_ok = in_article_imgs >= 5
 
     return {
         "path": path,
@@ -281,6 +293,8 @@ def audit_article(path: Path | str) -> dict[str, Any]:
         "prose_words": prose_words,
         "prose_floor_ok": prose_words >= ARTICLE_WORD_COUNT_FLOOR,
         "dup_headings_ok": dup_headings_ok,
+        "content_images_ok": content_images_ok,
+        "in_article_imgs": in_article_imgs,
     }
 
 
@@ -303,6 +317,7 @@ def run_full_onpage_audit(sites_dir: Path | None = None) -> dict[str, Any]:
         "breadcrumbs": sum(1 for r in results if not r["breadcrumbs_ok"]),
         "faq_h3_match": sum(1 for r in results if not r["faq_matches_ok"]),
         "duplicate_headings": sum(1 for r in results if not r["dup_headings_ok"]),
+        "content_images": sum(1 for r in results if not r["content_images_ok"]),
         "prose_floor": sum(1 for r in results if not r["prose_floor_ok"]),
     }
 
@@ -500,6 +515,7 @@ def print_audit_table(summary: dict[str, Any], label: str = "ON-PAGE AUDIT REPOR
         ("JSON-LD BreadcrumbList taxonomy", fails["breadcrumbs"]),
         ("JSON-LD FAQPage matches on-page H3s", fails["faq_h3_match"]),
         ("Duplicate H2 / FAQ blocks", fails["duplicate_headings"]),
+        ("Content images inside article (>= 5)", fails["content_images"]),
         ("Prose length (>= 3000 words)", fails["prose_floor"]),
     ]
 

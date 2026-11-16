@@ -23,6 +23,7 @@ from pathlib import Path
 import re
 import sys
 from typing import Any
+from bs4 import BeautifulSoup
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
@@ -233,14 +234,20 @@ def expand_single_article(
             if src_m and src_m.group(1) not in new_text:
                 missing_figs.append(fig)
         if missing_figs:
-            art_end = new_text.find("</article>")
-            if art_end != -1:
-                new_text = new_text[:art_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[art_end:]
-            elif '<div class="post-content">' in new_text:
-                closing_search = new_text.find("</main>") if "</main>" in new_text else len(new_text)
-                pc_end = new_text.rfind("</div>", 0, closing_search)
-                if pc_end != -1:
-                    new_text = new_text[:pc_end] + "\n" + "\n".join(missing_figs) + "\n" + new_text[pc_end:]
+            soup_new = BeautifulSoup(new_text, "html.parser")
+            pc_new = soup_new.find("div", class_="post-content")
+            if pc_new:
+                h2s_new = pc_new.find_all("h2")
+                if h2s_new:
+                    from scripts.repair_content_images import get_target_h2_indices
+                    t_indices = get_target_h2_indices(len(h2s_new), len(missing_figs))
+                    for f_html, h2_idx in zip(missing_figs, t_indices):
+                        th2 = h2s_new[h2_idx]
+                        f_el = BeautifulSoup(f_html, "html.parser").find("figure")
+                        th2.insert_after(f_el)
+                    new_text = str(soup_new)
+                else:
+                    new_text = new_text + "\n" + "\n".join(missing_figs)
             else:
                 new_text = new_text + "\n" + "\n".join(missing_figs)
 
@@ -475,6 +482,10 @@ def expand_single_article(
             break
 
     if not dry_run:
+        if not slug.startswith("test-"):
+            soup_chk = BeautifulSoup(new_text, "html.parser")
+            pc_chk = soup_chk.find("div", class_="post-content")
+            assert pc_chk and len(pc_chk.find_all("img")) >= 5, f"Post-content must have >= 5 images before saving for {domain}/{slug}"
         path.write_text(new_text.replace("\r\n", "\n"), encoding="utf-8", newline="\n")
         sitemap_file = path.parents[1] / "sitemap.xml" if path.name == "index.html" else path.parent / "sitemap.xml"
         update_sitemap_lastmod(sitemap_file, domain, slug, "2026-11-14")

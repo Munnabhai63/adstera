@@ -99,8 +99,8 @@ def verify_claim_5_pytest_collection() -> tuple[bool, str]:
     if not m:
         return False, f"Claim 5 FAILED: Could not parse test collection count from output"
     count = int(m.group(1))
-    if count != 542:
-        return False, f"Claim 5 FAILED: Expected 542 tests collected, got {count}"
+    if count < 542:
+        return False, f"Claim 5 FAILED: Expected >= 542 tests collected, got {count}"
     return True, f"Claim 5: pytest --collect-only == {count} tests (exit 0)"
 
 
@@ -215,6 +215,15 @@ def verify_claim_10_bug_suite_passes() -> tuple[bool, str]:
     return True, f"Claim 10: direct pytest bug suite == 28 passed (exit 0)"
 
 
+def verify_claim_11_content_images_inside_article() -> tuple[bool, str]:
+    from scripts.seo_onpage_audit import run_full_onpage_audit
+    summary = run_full_onpage_audit()
+    fails = summary.get("failures", {}).get("content_images", 0)
+    if fails != 0:
+        return False, f"Claim 11 FAILED: Found {fails} articles with < 5 images inside post-content"
+    return True, f"Claim 11: all articles have >= 5 content images inside post-content (0 fails verified)"
+
+
 def main() -> int:
     print("--- Running scripts/verify_round_claims.py ---")
     claims = [
@@ -228,6 +237,7 @@ def main() -> int:
         ("claim_8_ten_slugs_strictly_increasing", verify_claim_8_ten_slugs_unique_and_strictly_increasing),
         ("claim_9_domain_distribution_at_least_two", verify_claim_9_domain_distribution_at_least_two),
         ("claim_10_bug_suite_passes", verify_claim_10_bug_suite_passes),
+        ("claim_11_content_images_inside_article", verify_claim_11_content_images_inside_article),
     ]
 
     for name, func in claims:

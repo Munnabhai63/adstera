@@ -118,6 +118,7 @@ def test_ab_test_epsilon_greedy_and_ttl_expiry(tmp_path, monkeypatch):
     assert engine.winning_variant_id is None
 
 
+@pytest.mark.browser
 def test_impression_deduplication():
     # Test on a temporary HTML fixture with 2 ad containers wrapping 2 iframes
     html_content = """<!DOCTYPE html>

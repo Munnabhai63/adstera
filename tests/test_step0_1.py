@@ -52,6 +52,7 @@ def test_db_log_session_with_error_reason():
         # Cleanup test row
         con.execute("DELETE FROM sessions WHERE id = ?", (row_id,))
 
+@pytest.mark.browser
 def test_worker_resilient_navigation():
     import asyncio
     async def _run():
@@ -87,6 +88,7 @@ def test_worker_resilient_navigation():
     
     asyncio.run(_run())
 
+@pytest.mark.browser
 def test_worker_fallback_recovery_on_bad_url():
     import asyncio
     async def _run():
