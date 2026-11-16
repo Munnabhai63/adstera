@@ -225,31 +225,40 @@ def expand_single_article(
                     ins = new_text.find(">", art_idx) + 1
                     new_text = new_text[:ins] + "\n" + h1_orig_m.group(0) + "\n" + new_text[ins:]
 
-        # Preserve any content figures that existed in the original article
-        fig_pattern = re.compile(r'<figure\b.*?</figure>', re.DOTALL | re.IGNORECASE)
-        old_figs = fig_pattern.findall(text)
-        missing_figs = []
-        for fig in old_figs:
-            src_m = re.search(r'src=["\']([^"\']+)["\']', fig)
-            if src_m and src_m.group(1) not in new_text:
-                missing_figs.append(fig)
-        if missing_figs:
+        # Preserve all content figures from original article and ensure they are INSIDE post-content
+        soup_orig = BeautifulSoup(text, "html.parser")
+        all_orig_figs = soup_orig.find_all("figure")
+        clean_figs = []
+        for f in all_orig_figs:
+            img = f.find("img")
+            if img and "exhibit" not in img.get("alt", "").lower():
+                clean_figs.append(f)
+        selected_figs = clean_figs[:5] if len(clean_figs) >= 5 else all_orig_figs[:5]
+        extracted_fig_htmls = [str(f) for f in selected_figs]
+
+        if extracted_fig_htmls:
             soup_new = BeautifulSoup(new_text, "html.parser")
             pc_new = soup_new.find("div", class_="post-content")
             if pc_new:
-                h2s_new = pc_new.find_all("h2")
-                if h2s_new:
-                    from scripts.repair_content_images import get_target_h2_indices
-                    t_indices = get_target_h2_indices(len(h2s_new), len(missing_figs))
-                    for f_html, h2_idx in zip(missing_figs, t_indices):
-                        th2 = h2s_new[h2_idx]
-                        f_el = BeautifulSoup(f_html, "html.parser").find("figure")
-                        th2.insert_after(f_el)
-                    new_text = str(soup_new)
-                else:
-                    new_text = new_text + "\n" + "\n".join(missing_figs)
-            else:
-                new_text = new_text + "\n" + "\n".join(missing_figs)
+                # Decompose any figures outside post-content to avoid duplicate/stray figures
+                pc_figs = set(pc_new.find_all("figure"))
+                for f in soup_new.find_all("figure"):
+                    if f not in pc_figs:
+                        f.decompose()
+
+                # If post-content does not have the 5 figures, insert them after target H2s
+                if len(pc_new.find_all("figure")) < len(extracted_fig_htmls):
+                    for f in pc_new.find_all("figure"):
+                        f.decompose()
+                    h2s_new = pc_new.find_all("h2")
+                    if h2s_new:
+                        from scripts.repair_content_images import get_target_h2_indices
+                        t_indices = get_target_h2_indices(len(h2s_new), len(extracted_fig_htmls))
+                        for f_html, h2_idx in zip(extracted_fig_htmls, t_indices):
+                            th2 = h2s_new[h2_idx]
+                            f_el = BeautifulSoup(f_html, "html.parser").find("figure")
+                            th2.insert_after(f_el)
+                new_text = str(soup_new)
 
         # Preserve featured post-img wrapper if originally present
         post_img_m = re.search(r'<div[^>]*class=["\'][^"\']*post-img[^"\']*["\'][^>]*>\s*<img[^>]+>\s*</div>', text, re.DOTALL | re.IGNORECASE)
@@ -407,6 +416,14 @@ def expand_single_article(
                 "consumer": ["subscriber", "user", "customer", "account holder"],
                 "review": ["assessment", "breakdown", "analysis", "evaluation"],
                 "illustrates": ["demonstrates", "exhibits", "clarifies", "depicts"],
+                "workflow": ["process", "protocol", "framework", "sequence", "pipeline"],
+                "onboarding": ["enrollment", "registration", "application", "setup"],
+                "ensures": ["guarantees", "safeguards", "facilitates", "promotes"],
+                "seamless": ["smooth", "frictionless", "efficient", "uninterrupted"],
+                "structured": ["organized", "systematic", "methodical", "disciplined"],
+                "verification": ["validation", "confirmation", "authentication", "vetting"],
+                "calculation": ["computation", "assessment", "breakdown", "estimation"],
+                "borrowing": ["financing", "credit access", "funding", "leverage"],
             }
 
             max_rephrase_rounds = 30
@@ -432,8 +449,8 @@ def expand_single_article(
                     words = colliding.split()
                     replaced_in_text = False
 
-                    # Punctuation-tolerant regex matching words of the 12-word shingle in new_text
-                    pat = r"[^\w]+".join(re.escape(x) for x in words)
+                    # HTML-tolerant and punctuation-tolerant regex matching words of the 12-word shingle in new_text
+                    pat = r"(?:<[^>]+>|[^\w\s]|\s)+".join(re.escape(x) for x in words)
                     m_coll = re.search(pat, new_text, flags=re.IGNORECASE)
                     if m_coll:
                         mod_options = [

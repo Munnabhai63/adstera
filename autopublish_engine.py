@@ -332,7 +332,7 @@ Output this exact HTML structure with rich paragraphs:
 Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
 
 <h2>4. Step-by-Step Online Activation, Recharge & Porting Walkthrough</h2>
-<p>Follow this 5-stage activation and service verification process for {primary_kw}:</p>
+<p>Write an authoritative 35-word paragraph introducing the digital activation and service verification sequence for {primary_kw}:</p>
 <ol class='guide-steps'>
 <li><strong>Step 1 — Validity Audit & Plan Selection:</strong> Detailed 60-word instructions on checking active plan expiry, data balance, and choosing {primary_kw}.</li>
 <li><strong>Step 2 — Portal Selection & Payment Gateway Verification:</strong> Detailed 60-word instructions on using official operator apps (MyJio, Airtel Thanks, Vi App) or UPI portals to review cashback offers.</li>
@@ -342,7 +342,7 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 </ol>
 
 <h2>5. Real-World Case Study & 5 Costly Recharge Traps to Avoid</h2>
-<p>The following consumer case review illustrates tariff optimization and common traps for {primary_kw}:</p>
+<p>Write a detailed 35-word case study introduction analyzing tariff optimization and common subscription traps for {primary_kw}:</p>
 <ul class='checklist'>
 <li><strong>Mistake 1 — Paying for Unused OTT Subscriptions:</strong> Detailed breakdown of bundled streaming packs that duplicate existing home broadband or family subscriptions.</li>
 <li><strong>Mistake 2 — The 28-Day Cycle Extra Recharge Trap:</strong> Detailed breakdown of 28-day validity cycles resulting in 13 recharges per year instead of 12.</li>
@@ -420,7 +420,7 @@ Output this exact HTML structure with rich paragraphs:
 Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
 
 <h2>4. Step-by-Step Online Procurement & Mandi Trading Walkthrough</h2>
-<p>Follow this 5-stage procurement and auction execution protocol for {primary_kw}:</p>
+<p>Write an authoritative 35-word paragraph introducing the mandi procurement and electronic auction execution sequence for {primary_kw}:</p>
 <ol class='guide-steps'>
 <li><strong>Step 1 — Mandi Arrival Tracking & Price Verification:</strong> Detailed 60-word instructions on checking daily modal prices on Agmarknet and e-NAM for {primary_kw}.</li>
 <li><strong>Step 2 — Lot Inspection & Quality Assaying:</strong> Detailed 60-word instructions on sample extraction, testing moisture percentage, and verifying dockage before bidding.</li>
@@ -430,7 +430,7 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 </ol>
 
 <h2>5. Real-World Case Study & 5 Costly Mistakes to Avoid</h2>
-<p>The following commodity trading case study analyzes mandi procurement cost management and risk mitigation for {primary_kw}:</p>
+<p>Write a detailed 35-word case study introduction analyzing mandi trading cost management and risk mitigation for {primary_kw}:</p>
 <ul class='checklist'>
 <li><strong>Mistake 1 — Overlooking Moisture Content Differentials:</strong> Detailed breakdown of purchasing high-moisture lots leading to weight loss and spoilage during storage.</li>
 <li><strong>Mistake 2 — Ignoring Inter-State Mandi Cess & Transit Tolls:</strong> Detailed breakdown of hidden transport and cess costs that eliminate paper arbitrage margins.</li>
@@ -510,7 +510,7 @@ Output this exact HTML structure with rich paragraphs:
 Do NOT repeat the introduction or comparison table. Output this exact HTML structure with rich, practical detail:
 
 <h2>4. Step-by-Step Online Application & Verification Walkthrough</h2>
-<p>Executing a structured verification workflow ensures seamless onboarding for {primary_kw}:</p>
+<p>Write an authoritative 35-word paragraph introducing the application sequence and operational onboarding steps for {primary_kw}:</p>
 <ol class='guide-steps'>
 <li><strong>Step 1 — Initial Due Diligence & Requirements:</strong> Detailed 60-word actionable instructions tailored specifically to preparing for {primary_kw}.</li>
 <li><strong>Step 2 — Options Evaluation & Terms Audit:</strong> Detailed 60-word actionable instructions on comparing institutional terms and fee schedules for {primary_kw}.</li>
@@ -520,7 +520,7 @@ Do NOT repeat the introduction or comparison table. Output this exact HTML struc
 </ol>
 
 <h2>5. Real-World Case Study & 5 Costly Mistakes to Avoid</h2>
-<p>A detailed audit of common applicant oversights highlights key risk factors to mitigate when securing {primary_kw}:</p>
+<p>Write a detailed 35-word case study introduction detailing risk factors and common pitfalls to avoid for {primary_kw}:</p>
 <ul class='checklist'>
 <li><strong>Mistake 1 — Overlooking Hidden Operational or Service Add-Ons:</strong> Detailed breakdown of unnecessary bundled fees or cross-sold extras specifically relevant to {primary_kw}.</li>
 <li><strong>Mistake 2 — Miscalculating Effective Upfront Costs:</strong> Detailed breakdown of ancillary expenses and fee deductions impacting {primary_kw}.</li>
