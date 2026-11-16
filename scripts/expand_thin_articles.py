@@ -525,8 +525,34 @@ def run_batch_expansion(
         else:
             domain_at_floor[domain] = domain_at_floor.get(domain, 0) + 1
 
-    # D8 + D9: Round-robin domain balance prioritizing domains with < 2 at-floor articles first.
-    # Rank candidates within each domain by word count descending.
+    PRIORITY_SLUGS = [
+        # Priority A
+        "low-cibil-score-options-for-electricity-bill-payment-ca",
+        "rbi-guidelines-for-top-mutual-funds-sip-2026-in-india-s",
+        "how-to-compare-msme-business-loan-subsidy-interest-rate",
+        # Priority B
+        "how-to-claim-maximum-cashback-fee-waiver-on-silver-pric",
+        "sbi-vs-hdfc-tata-play-recharge-plan-1-month-real-intere",
+        "corporate-sim-to-personal-mnp-transfer-noc-format-billi",
+        "low-cibil-score-options-for-how-to-clear-credit-card-de",
+        "jio-best-84-days-plan-2026-2026-apply-online-eligibilit",
+        "sbi-vs-hdfc-urgent-cash-loan-today-real-interest-rate-c",
+        # Priority C (loanraaj)
+        "fleet-truck-insurance-cost-small-operators",
+        "semi-truck-insurance-cost-in-2026",
+        "trucking-insurance-quotes-how-i-compared-11-quotes",
+        "pmegp-loan-apply-now",
+        "will-ai-replace-truck-drivers",
+        "car-accident-lawyer-guide",
+        "term-insurance-guide",
+        "commercial-truck-insurance",
+        "business-loan-guide",
+        "low-interest-personal-loan",
+        "how-i-went-from-broke-to-80000-a-year-by-trucking",
+    ]
+
+    # D8 + D9: Round-robin domain balance prioritizing domains with < 2 at-floor articles first,
+    # then strictly following the audited candidate priority list.
     ranked_candidates: list[tuple[Path, str, str, int, int]] = []
     for domain, items in by_domain.items():
         items.sort(key=lambda x: -x[3])
@@ -536,7 +562,8 @@ def run_batch_expansion(
     ranked_candidates.sort(
         key=lambda item: (
             0 if domain_at_floor.get(item[1], 0) < 2 and item[4] == 0 else 1,
-            item[4],  # pick 1 from each domain, then pick 2, etc.
+            PRIORITY_SLUGS.index(item[2]) if item[2] in PRIORITY_SLUGS else 999,
+            item[4],
             1 if item[1] == "loanraaj.com" else 0,
             -item[3],
             str(item[0]),
