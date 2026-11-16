@@ -14,6 +14,7 @@ Audits all 279 real articles across the 10 publisher domains for on-page SEO com
   8. JSON-LD Article compliance (headline, datePublished, author)
   9. JSON-LD BreadcrumbList presence and taxonomy
  10. JSON-LD FAQPage entities match on-page H3 FAQs
+ 11. FAQ question shape (ends with ?, answer 40-80w)
 
 Usage:
   python scripts/seo_onpage_audit.py
@@ -285,6 +286,53 @@ def audit_article(path: Path | str) -> dict[str, Any]:
     )
     title_repeated_words_ok = not has_repeated_word
 
+    # 15. FAQ question shape check (ends with ?, answer 40-80w)
+    faq_shape_ok = True
+    faq_qs = soup.find_all(class_="faq-question")
+    faq_ans = soup.find_all(class_="faq-answer")
+    if prose_words >= ARTICLE_WORD_COUNT_FLOOR:
+        if not faq_qs or not faq_ans:
+            faq_shape_ok = False
+        else:
+            for q in faq_qs:
+                clean_q = q.get_text().strip().lstrip("❓? \t\n").strip()
+                if not clean_q.endswith("?"):
+                    faq_shape_ok = False
+                    break
+            if faq_shape_ok:
+                for a in faq_ans:
+                    w = len(a.get_text().strip().split())
+                    if w < 40 or w > 80:
+                        faq_shape_ok = False
+                        break
+            if faq_shape_ok and has_faq_page:
+                schema_questions = []
+                for js in json_scripts:
+                    try:
+                        data = json.loads(js.string or "{}")
+                        nodes = data.get("@graph", [data]) if isinstance(data, dict) else []
+                        for node in nodes:
+                            if "FAQPage" in str(node.get("@type", "")):
+                                for ent in node.get("mainEntity", []):
+                                    schema_questions.append(ent.get("name", "").strip())
+                    except Exception:
+                        pass
+                body_q_names = [q.get_text().strip().replace("❓", "").strip() for q in faq_qs]
+                if body_q_names != schema_questions:
+                    faq_shape_ok = False
+    elif faq_qs or faq_ans:
+        for q in faq_qs:
+            clean_q = q.get_text().strip().lstrip("❓? \t\n").strip()
+            if not clean_q.endswith("?"):
+                faq_shape_ok = False
+                break
+        if faq_shape_ok:
+            for a in faq_ans:
+                w = len(a.get_text().strip().split())
+                if w < 40 or w > 80:
+                    faq_shape_ok = False
+                    break
+
     return {
         "path": path,
         "domain": domain,
@@ -303,6 +351,7 @@ def audit_article(path: Path | str) -> dict[str, Any]:
         "article_schema_ok": has_article_schema,
         "breadcrumbs_ok": has_breadcrumbs,
         "faq_matches_ok": (faq_matches_h3 if has_faq_page else True),
+        "faq_shape_ok": faq_shape_ok,
         "prose_words": prose_words,
         "prose_floor_ok": prose_words >= ARTICLE_WORD_COUNT_FLOOR,
         "dup_headings_ok": dup_headings_ok,
@@ -330,6 +379,7 @@ def run_full_onpage_audit(sites_dir: Path | None = None) -> dict[str, Any]:
         "article_schema": sum(1 for r in results if not r["article_schema_ok"]),
         "breadcrumbs": sum(1 for r in results if not r["breadcrumbs_ok"]),
         "faq_h3_match": sum(1 for r in results if not r["faq_matches_ok"]),
+        "faq_shape": sum(1 for r in results if not r["faq_shape_ok"]),
         "duplicate_headings": sum(1 for r in results if not r["dup_headings_ok"]),
         "content_images": sum(1 for r in results if not r["content_images_ok"]),
         "title_repeated_words": sum(1 for r in results if not r["title_repeated_words_ok"]),
@@ -529,6 +579,7 @@ def print_audit_table(summary: dict[str, Any], label: str = "ON-PAGE AUDIT REPOR
         ("JSON-LD Article (headline, date, author)", fails["article_schema"]),
         ("JSON-LD BreadcrumbList taxonomy", fails["breadcrumbs"]),
         ("JSON-LD FAQPage matches on-page H3s", fails["faq_h3_match"]),
+        ("FAQ question shape (ends with ?, answer 40-80w)", fails["faq_shape"]),
         ("Duplicate H2 / FAQ blocks", fails["duplicate_headings"]),
         ("Content images inside article (>= 5)", fails["content_images"]),
         ("Title has no repeated word (Guide Guide)", fails["title_repeated_words"]),
