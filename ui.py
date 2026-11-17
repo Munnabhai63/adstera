@@ -3100,11 +3100,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
         if path in ("/crm/login", "/crm/login/"):
             from admin_ui import profile_auth
-            from admin_ui.views import render_login_view
+            from admin_ui.views import render_login_branded
             q = parse_qs(parsed.query)
             err = "Invalid operator credentials. Please try again." if q.get("error") else ""
             prof = profile_auth.load_profile()
-            self._send_html(render_login_view(prof, error_msg=err), extra_headers=[("Cache-Control", "no-store")])
+            self._send_html(render_login_branded(prof, error_msg=err), extra_headers=[("Cache-Control", "no-store")])
             return
 
         if path in ("/crm", "/crm/"):

@@ -7,6 +7,7 @@ from admin_ui.views.live_workflow import (
     render_workflow_dashboard_page,
 )
 from admin_ui.views.login import render_login_view
+from admin_ui.views.login_branded import render_login_branded
 from admin_ui.views.monetization import render_monetization_view
 from admin_ui.views.network import render_network_view
 from admin_ui.views.overview import render_overview_view
@@ -20,6 +21,7 @@ __all__ = [
     "render_live_workflow_view",
     "render_workflow_dashboard_page",
     "render_login_view",
+    "render_login_branded",
     "render_monetization_view",
     "render_network_view",
     "render_overview_view",
