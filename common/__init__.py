@@ -5,6 +5,7 @@ from common.paths import (
     atomic_write_json,
     get_safe_mode_path,
     read_safe_mode_state,
+    npx_bin,
 )
 from common.sqlite_utils import (
     DEFAULT_BUSY_TIMEOUT_MS,
@@ -21,4 +22,5 @@ __all__ = [
     "get_safe_mode_path",
     "read_safe_mode_state",
     "sqlite_write_context",
+    "npx_bin",
 ]

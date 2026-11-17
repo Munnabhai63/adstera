@@ -1,3 +1,6 @@
 https://www.loantau.com/* https://loantau.com/:splat 301
 http://www.loantau.com/* https://loantau.com/:splat 301
 http://loantau.com/* https://loantau.com/:splat 301
+/:slug.html /:slug 301
+/category/rural-schemes / 301
+/category/tractor-agri / 301

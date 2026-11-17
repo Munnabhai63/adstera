@@ -1,3 +1,6 @@
 https://www.karzseva.com/* https://karzseva.com/:splat 301
 http://www.karzseva.com/* https://karzseva.com/:splat 301
 http://karzseva.com/* https://karzseva.com/:splat 301
+/:slug.html /:slug 301
+/category/consolidation / 301
+/category/cibil-repair / 301

@@ -1,3 +1,5 @@
 https://www.tazarokda.com/* https://tazarokda.com/:splat 301
 http://www.tazarokda.com/* https://tazarokda.com/:splat 301
 http://tazarokda.com/* https://tazarokda.com/:splat 301
+/:slug.html /:slug 301
+/category/dividends-cash / 301

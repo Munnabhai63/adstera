@@ -8,6 +8,7 @@ import collections
 import json
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -2461,19 +2462,20 @@ HTML_PAGE = """<!DOCTYPE html>
           badge.style.borderColor = 'rgba(56, 189, 248, 0.35)';
           badge.innerText = `🔵 Auth Ready — Click Sync GSC`;
         } else {
-          badge.style.background = 'rgba(250, 204, 21, 0.15)';
-          badge.style.color = '#facc15';
-          badge.style.borderColor = 'rgba(250, 204, 21, 0.35)';
-          badge.innerText = '🟡 Estimate Mode (OAuth Pending)';
+          badge.style.background = 'rgba(239, 68, 68, 0.15)';
+          badge.style.color = '#ef4444';
+          badge.style.borderColor = 'rgba(239, 68, 68, 0.35)';
+          badge.innerText = '🔴 GSC NOT CONNECTED';
         }
       }
+      const isConnected = !!(auth.configured && sum.live_domains_count > 0);
       const liveEl = document.getElementById('gscLiveCount');
       const impEl = document.getElementById('gscTotalImps');
       const clkEl = document.getElementById('gscTotalClicks');
       const emailEl = document.getElementById('gscClientEmail');
-      if (liveEl) liveEl.innerText = `${sum.live_domains_count || 0} / ${sum.total_domains || 10}`;
-      if (impEl) impEl.innerText = (sum.total_impressions_7d || 0).toLocaleString();
-      if (clkEl) clkEl.innerText = (sum.total_clicks_7d || 0).toLocaleString();
+      if (liveEl) liveEl.innerText = isConnected ? `${sum.live_domains_count || 0} / ${sum.total_domains || 10}` : '—';
+      if (impEl) impEl.innerText = isConnected && sum.total_impressions_7d !== null ? (sum.total_impressions_7d || 0).toLocaleString() : '—';
+      if (clkEl) clkEl.innerText = isConnected && sum.total_clicks_7d !== null ? (sum.total_clicks_7d || 0).toLocaleString() : '—';
       if (emailEl) emailEl.innerText = auth.client_email || (auth.configured ? auth.auth_type : 'Not Configured');
 
       const tbody = document.getElementById('gscTbody');
@@ -2483,21 +2485,24 @@ HTML_PAGE = """<!DOCTYPE html>
           tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; color: var(--muted);">Click "Sync GSC" to populate domain metrics.</td></tr>';
         } else {
           tbody.innerHTML = rows.map(d => {
-            const isLive = d.data_source === 'google_search_console_api' && !d.is_mock;
+            const isLive = d.connected && d.data_source === 'google_search_console_api';
             const srcBadge = isLive
               ? '<span class="status-badge status-ok">LIVE GSC</span>'
-              : '<span class="status-badge" style="background: rgba(250, 204, 21, 0.15); color: #facc15; border: 1px solid rgba(250, 204, 21, 0.35);">ESTIMATE</span>';
+              : '<span class="status-badge" style="background: rgba(239, 68, 68, 0.15); color: #ef4444; border: 1px solid rgba(239, 68, 68, 0.35);">GSC NOT CONNECTED</span>';
             const topQ = d.top_queries && d.top_queries.length > 0 ? escGsc(d.top_queries[0].query) : '—';
-            const ctrPct = ((d.ctr || 0) * 100).toFixed(2) + '%';
+            const impsText = d.impressions !== null && d.impressions !== undefined ? Number(d.impressions).toLocaleString() : '—';
+            const clicksText = d.clicks !== null && d.clicks !== undefined ? Number(d.clicks).toLocaleString() : '—';
+            const ctrPct = d.ctr !== null && d.ctr !== undefined ? ((d.ctr || 0) * 100).toFixed(2) + '%' : '—';
+            const posText = d.avg_position !== null && d.avg_position !== undefined ? '#' + Number(d.avg_position).toFixed(1) : '—';
             return `
               <tr>
                 <td><strong>${escGsc(d.domain)}</strong></td>
                 <td>${srcBadge}</td>
-                <td style="font-size: 11px; color: var(--muted);">${escGsc(d.property_url || 'pending')}</td>
-                <td>${Number(d.impressions || 0).toLocaleString()}</td>
-                <td>${Number(d.clicks || 0).toLocaleString()}</td>
+                <td style="font-size: 11px; color: var(--muted);">${escGsc(d.property_url || '—')}</td>
+                <td>${impsText}</td>
+                <td>${clicksText}</td>
                 <td>${ctrPct}</td>
-                <td>#${Number(d.avg_position || 0).toFixed(1)}</td>
+                <td>${posText}</td>
                 <td style="font-size: 11px; color: #cbd5e1;">${topQ}</td>
               </tr>
             `;
@@ -2988,6 +2993,8 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         # Silence routine access logs
         pass
 
+    _json = lambda self, *a, **kw: self._send_json(*a, **kw)
+
     def _send_json(
         self,
         data: dict,
@@ -2998,7 +3005,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(raw)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin")
+        if origin and any(h in origin for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
         for h_k, h_v in (extra_headers or []):
             self.send_header(h_k, h_v)
         self.end_headers()
@@ -3034,7 +3044,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
     def _require_crm_unlocked(self) -> bool:
         from admin_ui import profile_auth
         if profile_auth.is_crm_locked(self.headers.get("Cookie")):
-            self._send_json({"ok": False, "locked": True, "error": "CRM session is locked."}, status=401)
+            self._send_json({"ok": False, "locked": True, "error": "unauthorized"}, status=401)
             return False
         return True
 
@@ -3121,6 +3131,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             self._send_html(AUTOPUBLISH_DASHBOARD_HTML)
             return
 
+        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev", "/api/autopublish/preview"}
+        if path.startswith("/api/") and path not in _PUBLIC_API:
+            if not self._require_crm_unlocked():
+                return
+
         if path == "/api/autopublish/stats":
             if not self._require_crm_unlocked():
                 return
@@ -3135,13 +3150,31 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/autopublish/preview":
+            query = parse_qs(parsed.query)
+            dom = query.get("domain", ["loanraaj"])[0]
+            slug = query.get("slug", [""])[0]
+            safe_mode = query.get("safe", ["0"])[0] == "1"
+
+            # S-1 Security Hardening: Strict parameter validation and path traversal rejection
+            if not re.match(r"^[a-z0-9.-]{1,60}$", dom, re.IGNORECASE) or ".." in dom or "/" in dom or "\\" in dom:
+                self._send_json({"error": "Invalid domain parameter: illegal characters"}, 400)
+                return
+
+            if slug:
+                # Reject traversal characters, encoded slashes, or non-whitelisted characters
+                if (
+                    ".." in slug
+                    or "/" in slug
+                    or "\\" in slug
+                    or "%" in slug
+                    or not re.match(r"^[a-z0-9-]{1,120}$", slug, re.IGNORECASE)
+                ):
+                    self._send_json({"error": "Invalid slug parameter: path traversal or illegal characters detected"}, 400)
+                    return
+
             try:
                 import html as _html
                 import autopublish_service
-                query = parse_qs(parsed.query)
-                dom = query.get("domain", ["loanraaj"])[0]
-                slug = query.get("slug", [""])[0]
-                safe_mode = query.get("safe", ["0"])[0] == "1"
                 html_content = autopublish_service.get_preview_html(dom, slug, safe=safe_mode)
                 if html_content:
                     self._send_html(html_content)
@@ -3149,9 +3182,11 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                     self._send_html(
                         f"<div style='font-family:sans-serif;padding:40px;text-align:center;'><h2>Preview Loading...</h2><p>Preview file for {_html.escape(dom)}/{_html.escape(slug)} not found or being generated.</p></div>"
                     )
+            except ValueError as ve:
+                self._send_json({"error": str(ve)}, 400)
             except Exception as e:
                 import html as _html
-                self._send_html(f"<h3>Preview Error: {_html.escape(str(e))}</h3>")
+                self._send_html(f"<h3>Preview Error: {_html.escape(str(e))}</h3>", 500)
             return
 
         DOMAIN_FOLDERS = {
@@ -3213,7 +3248,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                         self.send_response(200)
                         self.send_header("Content-Type", ctype)
                         self.send_header("Content-Length", str(len(raw_bytes)))
-                        self.send_header("Access-Control-Allow-Origin", "*")
+                        origin = self.headers.get("Origin")
+                        if origin and any(h in origin for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+                            self.send_header("Access-Control-Allow-Origin", origin)
+                            self.send_header("Access-Control-Allow-Credentials", "true")
                         if clean_p.endswith("sw.js"):
                             self.send_header("Service-Worker-Allowed", "/")
                         self.end_headers()
@@ -3254,10 +3292,6 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
             self._send_html(rendered)
             return
-
-        if path.startswith("/api/"):
-            if not self._require_crm_unlocked():
-                return
 
         if path == "/api/status":
             db.init()
@@ -3457,17 +3491,27 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/telegram/status":
-            from alert_bot import TelegramAlertBot
-            bot = TelegramAlertBot()
-            alerts = db.get_recent_alerts(limit=15)
-            summary = db.get_alert_summary_today()
-            self._send_json({
-                "success": True,
-                "configured": bot.is_live_configured(),
-                "bot_username": bot.bot_username,
-                "summary": summary,
-                "recent_alerts": alerts,
-            })
+            try:
+                from alert_bot import TelegramAlertBot
+                bot = TelegramAlertBot()
+                alerts = db.get_recent_alerts(limit=15)
+                summary = db.get_alert_summary_today()
+                self._send_json({
+                    "success": True,
+                    "configured": bot.is_live_configured(),
+                    "bot_username": bot.bot_username,
+                    "summary": summary,
+                    "recent_alerts": alerts,
+                })
+            except Exception as e:
+                logger.warning("Telegram status query error: %s", e)
+                self._send_json({
+                    "success": False,
+                    "configured": False,
+                    "error": str(e),
+                    "summary": {"INFO": 0, "WARNING": 0, "CRITICAL": 0, "SUCCESS": 0, "total": 0},
+                    "recent_alerts": [],
+                }, 200)
             return
 
         if path == "/api/failover/status":
@@ -3502,18 +3546,27 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 mon = GSCMonitor()
                 auth_status = mon.auth.get_status()
                 cached = mon._cached_metrics or {}
-                if not cached:
-                    mon.audit_all_domains()
-                    cached = mon._cached_metrics or {}
                 dom_rows = []
                 for dom in mon.domains:
                     clean_dom = str(dom.get("domain", dom) if isinstance(dom, dict) else dom).lower().replace("https://", "").replace("http://", "").rstrip("/")
-                    entry = cached.get(clean_dom) or mon._mock_estimate(clean_dom, 7, auth_status["configured"], "mock_estimate")
+                    entry = cached.get(clean_dom) or {
+                        "connected": False,
+                        "domain": clean_dom,
+                        "property_url": "",
+                        "period_days": 7,
+                        "impressions": None,
+                        "clicks": None,
+                        "ctr": None,
+                        "avg_position": None,
+                        "top_queries": [],
+                        "data_source": "not_configured",
+                    }
                     dom_rows.append(entry)
-                live_cnt = sum(1 for r in dom_rows if r.get("data_source") == "google_search_console_api" and not r.get("is_mock"))
-                tot_imps = sum(int(r.get("impressions", 0) or 0) for r in dom_rows)
-                tot_clks = sum(int(r.get("clicks", 0) or 0) for r in dom_rows)
-                avg_pos = round(sum(float(r.get("avg_position", 0) or 0) for r in dom_rows) / max(1, len(dom_rows)), 1)
+                live_cnt = sum(1 for r in dom_rows if r.get("connected") and r.get("data_source") == "google_search_console_api")
+                has_live = live_cnt > 0
+                tot_imps = sum(int(r.get("impressions", 0) or 0) for r in dom_rows if r.get("impressions") is not None) if has_live else None
+                tot_clks = sum(int(r.get("clicks", 0) or 0) for r in dom_rows if r.get("clicks") is not None) if has_live else None
+                avg_pos = round(sum(float(r.get("avg_position", 0) or 0) for r in dom_rows if r.get("avg_position") is not None) / max(1, live_cnt), 1) if has_live else None
                 weekly_state = {}
                 if mon.weekly_state_path.is_file():
                     try:
@@ -3526,10 +3579,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                     "summary": {
                         "total_domains": len(dom_rows),
                         "live_domains_count": live_cnt,
-                        "mock_domains_count": len(dom_rows) - live_cnt,
+                        "unconfigured_domains_count": len(dom_rows) - live_cnt,
                         "total_impressions_7d": tot_imps,
                         "total_clicks_7d": tot_clks,
-                        "fleet_ctr": round(tot_clks / tot_imps, 4) if tot_imps > 0 else 0.0,
+                        "fleet_ctr": round(tot_clks / tot_imps, 4) if (tot_imps and tot_clks) else None,
                         "avg_position": avg_pos,
                     },
                     "domains": dom_rows,
@@ -3673,7 +3726,10 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-cache, no-transform")
         self.send_header("Connection", "keep-alive")
         self.send_header("X-Accel-Buffering", "no")
-        self.send_header("Access-Control-Allow-Origin", "*")
+        origin = self.headers.get("Origin")
+        if origin and any(h in origin for h in ("localhost", "127.0.0.1", "0.0.0.0")):
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Access-Control-Allow-Credentials", "true")
         self.end_headers()
 
         try:
@@ -3709,6 +3765,33 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             return
         parsed = urlparse(self.path)
         path = parsed.path
+
+        # Validate Host header
+        host = (self.headers.get("Host") or "").strip()
+        if host:
+            host_name = host.split(":")[0].lower()
+            allowed_hosts = {"localhost", "127.0.0.1", "0.0.0.0", "loanraaj.com", "rechargetak.com", "rechargepur.com", "tazaloan.com", "loankiseva.com", "karzseva.com", "loantau.com", "tazabhav.com", "tazarokda.com", "rechargekar.com"}
+            if host_name not in allowed_hosts and not host_name.endswith(".local") and not host_name.endswith(".internal"):
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b"Invalid Host header")
+                return
+
+        # Validate Origin header
+        origin = self.headers.get("Origin")
+        if origin and not path.startswith("/crm-assets/"):
+            p_orig = urlparse(origin)
+            if p_orig.hostname not in {"localhost", "127.0.0.1", "0.0.0.0"} and p_orig.netloc != host:
+                self.send_response(403)
+                self.end_headers()
+                self.wfile.write(b"Cross-origin request forbidden")
+                return
+
+        # 1. Require CRM authentication for all POST endpoints outside _PUBLIC_API
+        _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev"}
+        if path.startswith("/api/") and path not in _PUBLIC_API:
+            if not self._require_crm_unlocked():
+                return
 
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length) if length > 0 else b"{}"
@@ -3765,6 +3848,9 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             return
 
         if path == "/api/auth/unlock-dev":
+            if os.environ.get("PHASE4_ALLOW_DEV_UNLOCK") != "1":
+                self._send_json({"ok": False, "error": "Forbidden: dev unlock disabled"}, status=403)
+                return
             from admin_ui import profile_auth
             ok, msg = profile_auth.unlock_without_password()
             self._send_json({"ok": ok, "msg": msg, "redirect": "/" if ok else ""}, status=200 if ok else 403)
@@ -4191,9 +4277,27 @@ class UIRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/api/proxies/fetch":
             import pool
+            import ipaddress
+            import socket
             api_url = payload.get("api_url", "").strip()
             if not api_url:
                 self._send_json({"ok": False, "error": "API URL is required"}, status=400)
+                return
+            p_url = urlparse(api_url)
+            if p_url.scheme.lower() != "https":
+                self._send_json({"ok": False, "error": "Only https:// proxy API URLs are allowed"}, status=400)
+                return
+            host_str = p_url.hostname or ""
+            try:
+                addr_info = socket.getaddrinfo(host_str, None)
+                for item in addr_info:
+                    ip_str = item[4][0]
+                    ip_obj = ipaddress.ip_address(ip_str)
+                    if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_reserved or ip_obj.is_link_local:
+                        self._send_json({"ok": False, "error": f"Access to private/loopback IP {ip_str} is forbidden"}, status=400)
+                        return
+            except Exception as e:
+                self._send_json({"ok": False, "error": f"Invalid host: {e}"}, status=400)
                 return
             try:
                 lines = pool.fetch_proxies_from_api(api_url)
@@ -4325,19 +4429,47 @@ def _start_background_sync_worker() -> None:
     t.start()
 
 
-def run_server(port: int = 5050, host: str = "127.0.0.1") -> None:
+SERVER_INSTANCE: Optional[ThreadingHTTPServer] = None
+
+
+def start_server(port: int = 5050, host: str = "127.0.0.1") -> ThreadingHTTPServer:
+    global SERVER_INSTANCE
+    try:
+        db.init()
+    except Exception as e:
+        logger.warning("db.init() during start_server warning: %s", e)
     server_address = (host, port)
     httpd = ThreadingHTTPServer(server_address, UIRequestHandler)
+    SERVER_INSTANCE = httpd
     _start_background_sync_worker()
+    t = threading.Thread(target=httpd.serve_forever, daemon=True, name="LiveUIServer")
+    t.start()
+    return httpd
+
+
+def stop_server() -> None:
+    global SERVER_INSTANCE
+    if SERVER_INSTANCE:
+        try:
+            SERVER_INSTANCE.shutdown()
+            SERVER_INSTANCE.server_close()
+        except Exception:
+            pass
+        SERVER_INSTANCE = None
+
+
+def run_server(port: int = 5050, host: str = "127.0.0.1") -> None:
+    httpd = start_server(port=port, host=host)
     print("\n" + "="*60)
     print(f">> QA Control Dashboard running at: http://{host}:{port}")
     print("="*60 + "\n")
     try:
-        httpd.serve_forever()
+        while True:
+            time.sleep(1)
     except KeyboardInterrupt:
         print("\nShutting down web dashboard…")
         RUNNER.stop()
-        httpd.server_close()
+        stop_server()
 
 
 if __name__ == "__main__":

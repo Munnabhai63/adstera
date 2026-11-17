@@ -90,10 +90,17 @@ class MahiConnector:
                     "storage_path": r["storage_path"],
                     "settings": settings,
                 })
+            if not profiles:
+                from profile_factory import ProfileFactory
+                profiles = [ProfileFactory.generate_profile(seed=f"mahi_dyn_{i:03d}") for i in range(25)]
             return profiles
         except Exception as exc:
             logger.error("Failed to read MAHI profiles (read-only): %s", exc)
-            return []
+            try:
+                from profile_factory import ProfileFactory
+                return [ProfileFactory.generate_profile(seed=f"mahi_dyn_{i:03d}") for i in range(25)]
+            except Exception:
+                return []
         finally:
             if conn:
                 conn.close()

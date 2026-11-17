@@ -89,10 +89,16 @@ async def _session_loop(cfg: dict, pool: ProxyPool, playwright, browser) -> None
             ^ int(time.time() * 1_000_000)
             ^ id(proxy)
         )
-        async with sem:
-            await worker.run_session(playwright, browser, proxy, cfg, rng)
-        pool.release(proxy)
-        _in_flight -= 1
+        ok = False
+        try:
+            async with sem:
+                await worker.run_session(playwright, browser, proxy, cfg, rng)
+            ok = True
+        finally:
+            if not ok and hasattr(pool, "mark_failure"):
+                pool.mark_failure(proxy)
+            pool.release(proxy)
+            _in_flight -= 1
 
     while not _SHUTDOWN.is_set():
         # SCHED-2: Atomic cap check — done_today + in_flight >= daily_cap → skip
@@ -180,6 +186,20 @@ async def main() -> None:
 
         failover_mgr = DualTransportManager(cfg)
         failover_mgr.set_sub_pools(mobile_pool=mobile_sub, proxy_pool=proxy_sub)
+        
+        proxy_count = len(proxy_sub) if proxy_sub else 0
+        has_mobile = False
+        try:
+            res = subprocess.run(["adb", "devices"], capture_output=True, text=True, timeout=3)
+            lines = [l.strip() for l in res.stdout.strip().splitlines()[1:] if l.strip() and not l.startswith("*")]
+            has_mobile = any("\tdevice" in l for l in lines)
+        except Exception:
+            has_mobile = False
+
+        if proxy_count == 0 and not has_mobile:
+            logger.error("No valid transports available in dual_failover mode! Neither residential proxies (in '%s') nor USB-tethered ADB Android devices are available. Please provide at least one valid transport.", cfg.get("proxy", {}).get("file", "proxies.txt"))
+            sys.exit(1)
+
         pool = failover_mgr
     elif net_mode == "mobile_tether":
         from pool import MobileTetherPool

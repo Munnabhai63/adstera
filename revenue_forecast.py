@@ -143,7 +143,12 @@ class RevenueForecaster:
         total = sum(self.predict_day(day_offset=i) for i in range(1, 31))
         return round(total, 2)
 
-    def detect_anomaly(self, actual_today: float, threshold_pct: float = 0.20) -> dict[str, Any]:
+    def detect_anomaly(
+        self,
+        actual_today: float,
+        threshold_pct: float = 0.20,
+        target_date: datetime.date | None = None,
+    ) -> dict[str, Any]:
         """
         Compare actual revenue achieved today against projected revenue.
         If actual is > threshold_pct (default 20%) below projected, return anomaly details.
@@ -151,17 +156,27 @@ class RevenueForecaster:
         if not self.fitted:
             self.fit()
 
-        projected_today = self.predict_day(day_offset=0, target_date=datetime.date.today())
+        eval_date = target_date or datetime.date.today()
+        projected_today = self.predict_day(day_offset=0, target_date=eval_date)
         if projected_today <= 0.05:
             return {"anomaly": False, "reason": "Insufficient baseline revenue"}
 
         deficit = projected_today - actual_today
         deficit_pct = deficit / projected_today
 
+        # Weekend seasonality calibration: On weekends (Sat/Sun), weekday_scale reduces
+        # the seasonal projection (0.72 / 0.66). Deficit severity is evaluated against
+        # both the seasonally adjusted expectation and the moving average baseline.
+        weekday_idx = eval_date.weekday()
+        multiplier = self.weekday_scale[weekday_idx] if weekday_idx < len(self.weekday_scale) else 1.0
+        crit_threshold = 0.45 * multiplier if multiplier < 1.0 else 0.45
+
         if deficit_pct > threshold_pct:
+            baseline_drop = (self.trailing_avg - actual_today) / self.trailing_avg if self.trailing_avg > 0 else deficit_pct
+            is_critical = (deficit_pct >= 0.45) or (deficit_pct >= crit_threshold and baseline_drop >= 0.45)
             return {
                 "anomaly": True,
-                "severity": "CRITICAL" if deficit_pct > 0.45 else "WARNING",
+                "severity": "CRITICAL" if is_critical else "WARNING",
                 "actual_today": round(actual_today, 4),
                 "projected_today": round(projected_today, 4),
                 "deficit_pct": round(deficit_pct * 100, 1),

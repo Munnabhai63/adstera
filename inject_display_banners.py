@@ -1,3 +1,5 @@
+from __future__ import annotations
+from common import npx_bin
 """
 Layer 1 Display Banner Idempotent Injector & Cloudflare Pages Deployer.
 
@@ -11,7 +13,6 @@ Unconfigured slots emit only invisible HTML comment markers so zero dummy UI box
 or fake keys appear on live pages. Re-running updates all markers in-place.
 """
 
-from __future__ import annotations
 
 import argparse
 import json
@@ -311,7 +312,7 @@ def deploy_cloudflare_sites(site_ids: list[str] | None = None) -> list[dict[str,
             results.append({"site_id": site_id, "ok": False, "error": f"Missing dir: {site_dir}"})
             continue
         cmd = [
-            "npx.cmd",
+            npx_bin(),
             "wrangler",
             "pages",
             "deploy",

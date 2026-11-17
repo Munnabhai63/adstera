@@ -218,17 +218,19 @@ browser:
   engine: mahi
   use_mahi_profiles: false
   block_resources: []
+  stealth:
+    mode: builtin
 android_cdp:
   enabled: true
   device_id: ''
   preferred_socket: chrome_devtools_remote
   port_min: 9222
   port_max: 9299
-  fail_closed: true
+  fail_closed: false
   dedicated_device: false
   prefer_for_mobile_only: true
 network:
-  mode: mobile_tether
+  mode: dual_failover
   airplane_mode_wait: 4
   require_ip_rotation: true
   max_rotation_attempts: 2
@@ -260,7 +262,7 @@ serp:
 telegram:
   enabled: true
   bot_token: ''
-  chat_id: '5812452868'
+  chat_id: '${TELEGRAM_CHAT_ID}' # Read from TELEGRAM_CHAT_ID env or .env
   heartbeat_hours: 2
   daily_report_hour: 8
   alert_on_ctr_threshold: 0.045
@@ -392,7 +394,13 @@ freellm:
   url: https://loanraaj.com
   edge_url: https://loanraaj.com
   local_url: http://127.0.0.1:3001
-  model: Qwen2.5-VL-72B-Instruct
+  model: "Mistral-Small-3.2-24B-Instruct-2506"
+  fallback_models:
+    - "Mistral-Small-3.2-24B-Instruct-2506"
+    - "Qwen2.5-VL-72B-Instruct"
+    - "llama-3.3-70b"
+    - "claude-sonnet-4-5"
+    - "gpt-oss-120b"
   timeout: 150.0
 gsc:
   enabled: true

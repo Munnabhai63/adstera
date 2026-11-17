@@ -17,7 +17,7 @@ from typing import Any
 import db
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DEFAULT_STATE_DIR = BASE_DIR / "state"
+DEFAULT_STATE_DIR = Path(os.environ.get("ADMIN_PROFILE_STATE_DIR") or (BASE_DIR / "state"))
 COOKIE_NAME = "adsterra_crm_session"
 PBKDF2_ITERATIONS = 200_000
 
@@ -79,7 +79,7 @@ def _default_record() -> dict[str, Any]:
         "updated_at": _utc_iso(),
         "auth": {
             "require_login": False,
-            "locked_now": False,
+            "locked_now": True,
             "password_hash": "",
             "password_salt": "",
             "password_updated_at": "",
@@ -101,6 +101,8 @@ def _atomic_write_json(path: Path, payload: dict[str, Any]) -> None:
 def _load_raw_profile(state_dir: Path | None = None) -> dict[str, Any]:
     sdir = state_dir or DEFAULT_STATE_DIR
     path = sdir / "admin_profile.json"
+    if not path.exists():
+        path = sdir / "profile.json"
     base = _default_record()
     if not path.exists():
         return base
@@ -244,6 +246,8 @@ def set_password(
     auth["password_updated_at"] = _utc_iso()
     if require_login is not None:
         auth["require_login"] = bool(require_login)
+    else:
+        auth["require_login"] = True
     _save_raw_profile(raw, state_dir)
     return True, "Operator password updated securely.", _public_profile(raw)
 
@@ -258,7 +262,7 @@ def clear_password(current_password: str, state_dir: Path | None = None) -> tupl
     auth["password_salt"] = ""
     auth["password_updated_at"] = ""
     auth["require_login"] = False
-    auth["locked_now"] = False
+    auth["locked_now"] = True
     _save_raw_profile(raw, state_dir)
     return True, "Password lock removed; CRM returned to open localhost mode.", _public_profile(raw)
 
@@ -377,7 +381,7 @@ def unlock_without_password(state_dir: Path | None = None) -> tuple[bool, str]:
     return True, "CRM session unlocked."
 
 
-def is_crm_locked(cookie_header: str | None, state_dir: Path | None = None) -> bool:
+def is_crm_locked(cookie_header: str | None = None, state_dir: Path | None = None) -> bool:
     """Return True if /crm must present the Vuexy Sign-In / Lock screen."""
     if state_dir is None and os.environ.get("PHASE4_FIRST_RUN_SETUP") == "1":
         return False

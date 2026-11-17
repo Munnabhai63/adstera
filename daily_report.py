@@ -147,6 +147,74 @@ def _get_publishing_stats(
     return stats
 
 
+def _get_gsc_indexing_stats(autopublish_db_path: Optional[Path] = None) -> dict[str, Any]:
+    """Fetch per-domain Search Console indexing health, impressions, clicks from autopublish.db (P3-7)."""
+    ap_path = Path(autopublish_db_path) if autopublish_db_path is not None else AUTOPUBLISH_DB_PATH
+    res: dict[str, Any] = {
+        "total_organic_clicks": 0,
+        "total_organic_impressions": 0,
+        "domains_monitored": 0,
+        "low_indexing_alerts": [],
+        "domain_breakdown": [],
+    }
+    if not ap_path.is_file():
+        return res
+
+    con = None
+    try:
+        con = sqlite3.connect(ap_path)
+        con.row_factory = sqlite3.Row
+        tables = {r[0] for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+        if "gsc_domain_metrics" in tables:
+            rows = con.execute(
+                """
+                SELECT m.*
+                FROM gsc_domain_metrics m
+                INNER JOIN (
+                    SELECT domain, MAX(recorded_at) as max_rec
+                    FROM gsc_domain_metrics
+                    GROUP BY domain
+                ) r ON m.domain = r.domain AND m.recorded_at = r.max_rec
+                """
+            ).fetchall()
+            for r in rows:
+                dom = r["domain"]
+                pub = int(r["published_pages"] or 0)
+                idx = int(r["indexed_pages"] or 0)
+                imps = int(r["impressions"] or 0)
+                clks = int(r["clicks"] or 0)
+                ratio = float(r["indexing_ratio"] or (idx / pub if pub > 0 else 1.0))
+
+                res["total_organic_clicks"] += clks
+                res["total_organic_impressions"] += imps
+                res["domains_monitored"] += 1
+                res["domain_breakdown"].append({
+                    "domain": dom,
+                    "published": pub,
+                    "indexed": idx,
+                    "ratio": ratio,
+                    "impressions": imps,
+                    "clicks": clks,
+                })
+                if pub > 0 and ratio < 0.3:
+                    res["low_indexing_alerts"].append({
+                        "domain": dom,
+                        "published": pub,
+                        "indexed": idx,
+                        "ratio": ratio,
+                    })
+    except Exception as exc:
+        logger.debug("Failed to read GSC stats from autopublish.db: %s", exc)
+    finally:
+        if con is not None:
+            try:
+                con.close()
+            except Exception:
+                pass
+
+    return res
+
+
 def get_daily_fleet_stats(
     target_date: Optional[str] = None,
     cpm_rate: float = 2.50,
@@ -291,6 +359,7 @@ def get_daily_fleet_stats(
     worst_domain = domains_data[-1]["domain"] if len(domains_data) > 1 else top_domain
 
     pub_stats = _get_publishing_stats(date_str, target_date, autopublish_db_path=autopublish_db_path)
+    gsc_stats = _get_gsc_indexing_stats(autopublish_db_path=autopublish_db_path)
 
     return {
         "date": date_str,
@@ -310,6 +379,7 @@ def get_daily_fleet_stats(
         "worst_domain": worst_domain,
         "domains": domains_data,
         "daemon_errors_today": daemon_errors_today,
+        "gsc_stats": gsc_stats,
         **pub_stats,
     }
 
@@ -334,6 +404,23 @@ def format_telegram_report(stats: dict[str, Any]) -> str:
         else f"📡 {idx_total} indexed overall"
     )
     err_badge = "🟢 0" if err_cnt == 0 else f"🚨 {err_cnt}"
+
+    gsc = stats.get("gsc_stats", {})
+    gsc_section = ""
+    if gsc and gsc.get("domains_monitored", 0) > 0:
+        gsc_lines = [
+            f"━━━━━━━━━━━━━━━━━━━━━",
+            f"🔍 <b>GSC Indexing & Organic Search:</b>",
+            f"   • Organic Clicks (7d): <b>{gsc.get('total_organic_clicks', 0):,}</b>",
+            f"   • Organic Impressions (7d): <b>{gsc.get('total_organic_impressions', 0):,}</b>",
+            f"   • Domains Monitored: <b>{gsc.get('domains_monitored', 0)}</b>",
+        ]
+        low_alerts = gsc.get("low_indexing_alerts", [])
+        if low_alerts:
+            gsc_lines.append("   ⚠️ <b>Low Indexing Ratio (&lt;30%):</b>")
+            for a in low_alerts:
+                gsc_lines.append(f"     - {a['domain']}: {a['indexed']}/{a['published']} indexed ({a['ratio']:.1%})")
+        gsc_section = "\n".join(gsc_lines) + "\n"
 
     return (
         f"📊 <b>DAILY FLEET PERFORMANCE REPORT</b>\n"
@@ -361,6 +448,7 @@ def format_telegram_report(stats: dict[str, Any]) -> str:
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"🏆 <b>Top Domain:</b> {html.escape(str(stats['top_domain']))}\n"
         f"📉 <b>Lowest Domain:</b> {html.escape(str(stats['worst_domain']))}\n"
+        f"{gsc_section}"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"🛡️ <i>Autonomous Enterprise Fleet Autopilot</i>"
     )

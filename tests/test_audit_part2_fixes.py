@@ -29,10 +29,21 @@ import phase3.tests.test_b1_client as b1_test_mod
 
 def test_farm_failed_taps_mark_session_failed_and_increment_counter(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     """Failed live taps must raise RuntimeError, record failure, and never mark session as completed."""
+    from common.paths import atomic_write_json
     monkeypatch.setenv("PHASE3_LIVE_CONFIRM_TOKEN", "CONFIRM_LIVE_EXECUTION")
     
     cfg = load_phase3_config()
     cfg.phase3.db_path = str(tmp_path / "farm_tap_test.db")
+    cfg.phase3.state_dir = str(tmp_path / "state_phase3")
+
+    # T-1 Clean Clone Isolation: initialize safe_mode.json in tmp_path to avoid relying on gitignored files
+    safe_path = Path(cfg.phase3.state_dir) / "ai_engine" / "safe_mode.json"
+    atomic_write_json(
+        safe_path,
+        {"active": False, "entry_reason": "", "entry_ts": 0.0, "clean_window_count": 0},
+    )
+    monkeypatch.setenv("PHASE4_SAFE_MODE_PATH", str(safe_path))
+
     store = Phase3Store(cfg.phase3.db_path)
 
     from phase3.b2_farm.farm import DeviceFarm
@@ -210,3 +221,95 @@ def test_accounts_txt_gitignore_and_untracked():
     """Verify accounts.txt is in .gitignore and untracked in Git."""
     gitignore_text = Path(".gitignore").read_text(encoding="utf-8")
     assert "accounts.txt" in gitignore_text
+
+
+def test_s1_autopublish_preview_path_traversal_hardened():
+    """DEFECT S-1 Security Test: Path traversal attempts must return HTTP 400 Bad Request."""
+    import http.cookiejar
+    import urllib.error
+    import urllib.request
+    import autopublish_service
+
+    # 1. Direct service containment tests
+    with pytest.raises(ValueError, match="Path traversal"):
+        autopublish_service.get_preview_html("loanraaj", "../../../../tmp/sentinel/secret")
+
+    with pytest.raises(ValueError, match="Path traversal"):
+        autopublish_service.get_preview_html("loanraaj", "..%2f..%2fetc/passwd")
+
+    with pytest.raises(ValueError, match="Path traversal"):
+        autopublish_service.get_preview_html("../loanraaj", "test-slug")
+
+    # 2. Live HTTP endpoint tests against running server
+    traversal_urls = [
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=../../etc/passwd",
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=..%2f..%2fx",
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=../../../../tmp/sentinel/secret",
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=../loanraaj&slug=test",
+        "http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=bad%20chars!",
+    ]
+
+    for bad_url in traversal_urls:
+        try:
+            with urllib.request.urlopen(bad_url, timeout=5) as resp:
+                raise AssertionError(f"Expected HTTP 400 for {bad_url}, got {resp.status}")
+        except urllib.error.HTTPError as err:
+            assert err.code == 400, f"Expected HTTP 400 for {bad_url}, got {err.code}"
+
+    # 3. Legitimate slug returns HTTP 200
+    with urllib.request.urlopen("http://127.0.0.1:5050/api/autopublish/preview?domain=loanraaj&slug=", timeout=5) as resp:
+        assert resp.status == 200
+
+    # 4. POST to /api/autopublish/preview is NOT allowed without auth
+    post_req = urllib.request.Request(
+        "http://127.0.0.1:5050/api/autopublish/preview",
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    cj = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    try:
+        with opener.open(post_req, timeout=5) as resp:
+            raise AssertionError("POST /api/autopublish/preview unexpectedly succeeded")
+    except urllib.error.HTTPError as err:
+        assert err.code in (400, 401, 404, 405)
+
+
+def test_admin_profile_state_unmutated_after_test_suite(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """DEFECT W-1 / X-2: Verify admin profile state isolation property and byte-level immutability on clean clones."""
+    # 1. Test the isolation property: create an isolated profile in tmp_path, point ADMIN_PROFILE_STATE_DIR at it,
+    # verify that calling auth functions and live server logic does not mutate disk state or unlock without password.
+    isolated_state_dir = tmp_path / "auth_state"
+    isolated_state_dir.mkdir(parents=True, exist_ok=True)
+    isolated_profile = isolated_state_dir / "admin_profile.json"
+
+    canonical_data = {
+        "auth": {
+            "locked_now": True,
+            "password_hash": "sha256$test$abcdef0123456789",
+            "salt": "test_salt_1234",
+            "created_at": "2026-11-14T00:00:00Z",
+        },
+        "version": 1,
+    }
+    isolated_profile.write_text(json.dumps(canonical_data, indent=2), encoding="utf-8")
+    expected_bytes = isolated_profile.read_bytes()
+
+    monkeypatch.setenv("ADMIN_PROFILE_STATE_DIR", str(isolated_state_dir))
+
+    from admin_ui import profile_auth
+    # Verify is_crm_locked evaluates correctly without writing or mutating the file
+    assert profile_auth.is_crm_locked(None, state_dir=isolated_state_dir) is True
+    assert isolated_profile.read_bytes() == expected_bytes, "Profile state was mutated during lock check"
+
+    # 2. Check checkout disk state: if state/admin_profile.json exists on this machine,
+    # assert it remained locked_now=True and was not modified by conftest fixtures.
+    real_profile = Path("state/admin_profile.json")
+    if real_profile.exists():
+        disk_data = json.loads(real_profile.read_text(encoding="utf-8"))
+        assert disk_data.get("auth", {}).get("locked_now") is True, "Real state/admin_profile.json must remain locked_now=True"
+    else:
+        # On a fresh clone, state/admin_profile.json is gitignored and does not exist.
+        # Confirm that running the test suite did NOT leak or create an unwanted state/admin_profile.json
+        assert not real_profile.exists(), "Test suite leaked unwanted admin_profile.json into gitignored state/"

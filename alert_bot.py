@@ -240,15 +240,16 @@ class TelegramAlertBot:
 
     def send_circuit_breaker_warning(self, domain: str, ctr: float) -> dict[str, Any]:
         """
-        Triggered when a domain's CTR reaches or exceeds 4.40%.
+        Triggered when a domain's CTR reaches or exceeds 4.40% (0.044).
         Throttles click probability by 80% to keep the account completely safe.
         """
         now = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+        ctr_pct = ctr * 100.0 if ctr <= 1.0 else ctr
         msg = (
             "⚠️ <b>CIRCUIT BREAKER WARNING: CTR SPIKE</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
             f"🌐 <b>Domain:</b> <code>{domain}</code>\n"
-            f"📈 <b>Current CTR:</b> <b>{ctr:.2f}%</b> (Ceiling: 4.40%)\n"
+            f"📈 <b>Current CTR:</b> <b>{ctr_pct:.2f}%</b> (Ceiling: 4.40%)\n"
             "🛡️ <b>Defensive Action:</b> Dynamic click probability throttled by 80%.\n"
             "🔄 <b>Mode:</b> Dilution traffic accelerated to protect domain.\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
@@ -258,15 +259,16 @@ class TelegramAlertBot:
 
     def send_circuit_breaker_emergency(self, domain: str, ctr: float) -> dict[str, Any]:
         """
-        Triggered when a domain's CTR reaches or exceeds 5.00%.
+        Triggered when a domain's CTR reaches or exceeds 5.00% (0.050).
         Immediately halts 100% of clicks for that domain.
         """
         now = datetime.now(timezone.utc).strftime("%H:%M:%S UTC")
+        ctr_pct = ctr * 100.0 if ctr <= 1.0 else ctr
         msg = (
             "🚨 <b>CRITICAL EMERGENCY: CIRCUIT BREAKER TRIP</b>\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
             f"🌐 <b>Domain:</b> <code>{domain}</code>\n"
-            f"🔥 <b>Current CTR:</b> <b>{ctr:.2f}%</b> (EXCEEDED 5.00% MAXIMUM!)\n"
+            f"🔥 <b>Current CTR:</b> <b>{ctr_pct:.2f}%</b> (EXCEEDED 5.00% MAXIMUM!)\n"
             "🛑 <b>Defensive Action:</b> 100% Ad Clicks PAUSED immediately.\n"
             "🛡️ Pure dwell and impression dilution active until CTR drops &lt; 3.5%.\n"
             "━━━━━━━━━━━━━━━━━━━━━\n"
@@ -374,7 +376,9 @@ def check_and_trigger_circuit_breaker(domain: str, bot: TelegramAlertBot | None 
         bot = TelegramAlertBot()
 
     safety = db.check_domain_safety(domain)
-    ctr = safety.get("current_ctr", 0.0)
+    ctr_ratio = float(safety.get("ctr_ratio", safety.get("current_ctr", 0.0)))
+    if ctr_ratio > 1.0:
+        ctr_ratio = ctr_ratio / 100.0
     status = safety.get("status", "OPTIMAL")
 
     now_ts = datetime.now(timezone.utc).timestamp()
@@ -382,18 +386,19 @@ def check_and_trigger_circuit_breaker(domain: str, bot: TelegramAlertBot | None 
 
     # 15-minute cooldown between repeated warnings for the same domain
     if now_ts - last_ts < 900:
-        return {"status": "cooldown", "ctr": ctr, "domain": domain}
+        return {"status": "cooldown", "ctr": ctr_ratio, "domain": domain}
 
-    if status == "PAUSED" or ctr >= 5.00:
+    ctr_pct = round(ctr_ratio * 100.0, 2)
+    if status == "PAUSED" or ctr_ratio >= 0.050:
         bot._last_alert_ts[domain] = now_ts
-        res = bot.send_circuit_breaker_emergency(domain, ctr)
-        return {"status": "emergency_sent", "ctr": ctr, "res": res}
-    elif status == "GUARD_ACTIVE" or ctr >= 4.40:
+        res = bot.send_circuit_breaker_emergency(domain, ctr_ratio)
+        return {"status": "emergency_sent", "ctr": ctr_pct, "ctr_ratio": ctr_ratio, "res": res}
+    elif status == "GUARD_ACTIVE" or ctr_ratio >= 0.044:
         bot._last_alert_ts[domain] = now_ts
-        res = bot.send_circuit_breaker_warning(domain, ctr)
-        return {"status": "warning_sent", "ctr": ctr, "res": res}
+        res = bot.send_circuit_breaker_warning(domain, ctr_ratio)
+        return {"status": "warning_sent", "ctr": ctr_pct, "ctr_ratio": ctr_ratio, "res": res}
 
-    return {"status": "normal", "ctr": ctr, "domain": domain}
+    return {"status": "normal", "ctr": ctr_pct, "ctr_ratio": ctr_ratio, "domain": domain}
 
 
 def main() -> None:

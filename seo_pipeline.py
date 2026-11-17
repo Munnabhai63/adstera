@@ -15,37 +15,22 @@ import sys
 import json
 import re
 import random
+import hashlib
 import sqlite3
 import urllib.request
 import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
-# Wire local Claude SEO v2.5.0 scripts directory (`F:/UserData/Downloads/ai-power-tools/claude-seo/scripts`)
-CLAUDE_SEO_SCRIPTS_DIR = r"F:\UserData\Downloads\ai-power-tools\claude-seo\scripts"
-if os.path.isdir(CLAUDE_SEO_SCRIPTS_DIR) and CLAUDE_SEO_SCRIPTS_DIR not in sys.path:
-    sys.path.insert(0, CLAUDE_SEO_SCRIPTS_DIR)
-
 try:
-    import content_humanize as _claude_humanize  # type: ignore
-except Exception:
-    _claude_humanize = None
-
-try:
-    import content_quality as _claude_quality  # type: ignore
-except Exception:
-    _claude_quality = None
-
-try:
-    import parse_html as _claude_parse_html  # type: ignore
-except Exception:
-    _claude_parse_html = None
-
-try:
-    import schema_generate as _claude_schema_gen  # type: ignore
-except Exception:
-    _claude_schema_gen = None
+    import vendor.claude_seo.content_humanize as _claude_humanize
+    import vendor.claude_seo.content_quality as _claude_quality
+    import vendor.claude_seo.parse_html as _claude_parse_html
+    import vendor.claude_seo.schema_generate as _claude_schema_gen
+except ImportError as exc:
+    raise ImportError(f"Claude-SEO vendor subsystem missing in vendor/claude_seo/: {exc}") from exc
 
 
 # Authoritative Primary Regulatory Sources per Domain (seo-content + seo-geo E-E-A-T External Citations)
@@ -185,6 +170,25 @@ def fetch_google_suggestions(seed_query: str) -> list[str]:
     return []
 
 
+def valid_description(d: str | None) -> bool:
+    """Validate meta description according to SEO standards (60-160 chars, no placeholders, no ellipsis)."""
+    if not d or not isinstance(d, str):
+        return False
+    clean = d.strip()
+    if (
+        "..." in clean
+        or "{" in clean
+        or "}" in clean
+        or "page-link" in clean
+        or "Need to include" in clean
+        or clean.startswith(", ,")
+    ):
+        return False
+    if len(clean) < 60 or len(clean) > 160:
+        return False
+    return True
+
+
 def generate_seo_brief(domain_key: str, seed_topic: str | None = None) -> dict[str, Any]:
     """
     Implements seo-content-brief & seo-cluster:
@@ -221,10 +225,12 @@ def generate_seo_brief(domain_key: str, seed_topic: str | None = None) -> dict[s
         if len(seo_title) > 60:
             seo_title = raw_title
 
-    # Meta Description (<155 chars with keyword & CTA)
+    # Meta Description (<155 chars with keyword & CTA, no ellipsis)
     meta_desc = f"Learn how {primary_kw} works. Detailed comparison rates, eligibility checklists, and official calculation benchmarks for smart decisions."
     if len(meta_desc) > 155:
-        meta_desc = meta_desc[:152] + "..."
+        meta_desc = meta_desc[:155].rsplit(" ", 1)[0]
+    if len(meta_desc) < 60:
+        meta_desc = f"Complete guide on {primary_kw}: compare updated rates, eligibility criteria, and step-by-step procedures."
 
     return {
         "domain": clean_domain,
@@ -241,78 +247,51 @@ def generate_seo_brief(domain_key: str, seed_topic: str | None = None) -> dict[s
 # PHASE 2: DYNAMIC COPYRIGHT-FREE IMAGE ENGINE
 # ==============================================================================
 
-# Premium Curated 1200x675 Editorial Galleries by Domain (100% CC0 / Commercial-Use Free)
+# Premium Curated 1200x675 Editorial Galleries by Domain (Self-Hosted Local Assets)
+def _get_local_domain_gallery(clean_domain: str) -> list[str]:
+    img_dir = Path("sites") / f"{clean_domain}.com" / "img"
+    if img_dir.exists():
+        files = sorted([f"/img/{f.name}" for f in img_dir.glob("*.webp")])
+        if files:
+            return files
+    return ["/img/feature_default.webp"]
+
+
 EDITORIAL_GALLERIES = {
-    "rechargetak": [
-        "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=1200&h=675&q=85", # Fiber optic high speed glowing cables
-        "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?auto=format&fit=crop&w=1200&h=675&q=85", # Modern smartphone & 5G connectivity
-        "https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&h=675&q=85", # High tech server & network infrastructure
-        "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&w=1200&h=675&q=85"  # Digital payment & mobile wallet
-    ],
-    "rechargepur": [
-        "https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=1200&h=675&q=85", # Electricity grid & modern energy
-        "https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&w=1200&h=675&q=85", # Rooftop solar power savings
-        "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1200&h=675&q=85"  # Utility bill savings & budget
-    ],
-    "tazabhav": [
-        "https://images.unsplash.com/photo-1610375461246-83df859d849d?auto=format&fit=crop&w=1200&h=675&q=85", # Pure 24K gold bullion bars in vault
-        "https://images.unsplash.com/photo-1589782182703-2aaa69037b5b?auto=format&fit=crop&w=1200&h=675&q=85", # Hallmarked gold jewellery & precious metals
-        "https://images.unsplash.com/photo-1624365168968-f283b584920b?auto=format&fit=crop&w=1200&h=675&q=85"  # Silver bars and bullion coins
-    ],
-    "tazaloan": [
-        "https://images.unsplash.com/photo-1554224154-26032ffc0d07?auto=format&fit=crop&w=1200&h=675&q=85", # Financial approval & loan agreement
-        "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?auto=format&fit=crop&w=1200&h=675&q=85", # Instant credit calculation & cash
-        "https://images.unsplash.com/photo-1563986768494-4dee2763ff3f?auto=format&fit=crop&w=1200&h=675&q=85"  # Mobile banking & paperless approval
-    ],
-    "loankiseva": [
-        "https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=1200&h=675&q=85", # MSME manufacturing plant & machinery
-        "https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=1200&h=675&q=85", # Small business enterprise finance
-        "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&w=1200&h=675&q=85"  # Business growth strategy & subsidy
-    ],
-    "loanraaj": [
-        "https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?auto=format&fit=crop&w=1200&h=675&q=85", # Commercial highway trucks & fleet
-        "https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&h=675&q=85", # Logistics hub & heavy machinery
-        "https://images.unsplash.com/photo-1519003722824-194d4455a60c?auto=format&fit=crop&w=1200&h=675&q=85"  # Commercial transport finance
-    ],
-    "karzseva": [
-        "https://images.unsplash.com/photo-1450133064473-71024230f91b?auto=format&fit=crop&w=1200&h=675&q=85", # Legal debt settlement & contract
-        "https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=1200&h=675&q=85", # Legal gavel & consumer financial rights
-        "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=1200&h=675&q=85"  # Debt consolidation & credit relief
-    ],
-    "loantau": [
-        "https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&w=1200&h=675&q=85", # Modern farming tractor in green field
-        "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&h=675&q=85", # Agricultural fields & rural finance
-        "https://images.unsplash.com/photo-1527153857715-3908f2ae5e81?auto=format&fit=crop&w=1200&h=675&q=85"  # Dairy farming & livestock subsidy
-    ],
-    "tazarokda": [
-        "https://images.unsplash.com/photo-1611974789855-9c2a0a7236a3?auto=format&fit=crop&w=1200&h=675&q=85", # Stock trading screen with green candlestick
-        "https://images.unsplash.com/photo-1590283603385-17ffb3a7f29f?auto=format&fit=crop&w=1200&h=675&q=85", # Index fund & daily SIP investment
-        "https://images.unsplash.com/photo-1642543492481-44e81e3914a7?auto=format&fit=crop&w=1200&h=675&q=85"  # High yield fixed deposit compounding
-    ],
-    "rechargekar": [
-        "https://images.unsplash.com/photo-1593305841991-05c297ba4575?auto=format&fit=crop&w=1200&h=675&q=85", # Smart TV, 4K streaming & DTH entertainment
-        "https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?auto=format&fit=crop&w=1200&h=675&q=85", # Family living room entertainment
-        "https://images.unsplash.com/photo-1556742111-a301076d9d18?auto=format&fit=crop&w=1200&h=675&q=85"  # Contactless payment & utility recharge
+    dom: _get_local_domain_gallery(dom)
+    for dom in [
+        "rechargetak", "rechargepur", "tazabhav", "tazaloan", "loankiseva",
+        "loanraaj", "karzseva", "loantau", "tazarokda", "rechargekar"
     ]
 }
 
+
 def get_dynamic_seo_image(keyword: str, domain_key: str) -> dict[str, str]:
     """
-    Fetches stunning, 1200x675 high-res editorial photography.
+    Fetches high-res editorial photography self-hosted under /img/.
     Rejects any low-res logos, icons, SVGs or clip art.
     Guarantees Fortune-500 magazine aesthetic.
     """
-    clean_domain = domain_key.lower().replace(".com", "")
-    gallery = EDITORIAL_GALLERIES.get(clean_domain) or EDITORIAL_GALLERIES["rechargetak"]
-    
-    # Pick a high-res photo from curated gallery
-    selected_url = random.choice(gallery)
-    
+    clean_domain = domain_key.lower().replace(".com", "").strip()
+    img_dir = Path("sites") / f"{clean_domain}.com" / "img"
+    if img_dir.exists():
+        candidates = sorted([f.name for f in img_dir.glob("*.webp")])
+        if candidates:
+            h = int(hashlib.md5(f"{clean_domain}_{keyword}".encode("utf-8")).hexdigest(), 16)
+            chosen = candidates[h % len(candidates)]
+            return {
+                "url": f"/img/{chosen}",
+                "width": "1200",
+                "height": "675",
+                "alt": f"{keyword} - verified benchmarks, expert analysis and guide",
+            }
+
+    # Fallback to local default
     return {
-        "url": selected_url,
+        "url": "/img/feature_default.webp",
         "width": "1200",
         "height": "675",
-        "alt": f"{keyword} - verified benchmarks, expert analysis and guide"
+        "alt": f"{keyword} - verified benchmarks, expert analysis and guide",
     }
 
 
@@ -400,6 +379,51 @@ def get_cluster_internal_links(
     except Exception:
         pass
 
+    # 3. Scan filesystem sites/<domain>.com for published static articles
+    if len(links) < limit:
+        try:
+            site_dir = Path("sites") / f"{clean_domain}.com"
+            if site_dir.is_dir():
+                for p in site_dir.iterdir():
+                    if p.name.startswith(".") or p.name in ("index.html", "about-us", "contact", "privacy", "terms"):
+                        continue
+                    slug_cand = p.name if p.is_dir() else (p.stem if p.suffix == ".html" else "")
+                    if slug_cand and slug_cand not in seen_slugs:
+                        title_cand = slug_cand.replace("-", " ").title()
+                        if title_cand.lower() != excl_norm:
+                            seen_slugs.add(slug_cand)
+                            links.append({
+                                "url": f"/{slug_cand}",
+                                "title": title_cand,
+                                "category": category or "Guide",
+                            })
+                            if len(links) >= limit:
+                                return links
+        except Exception:
+            pass
+
+    # 4. Deterministic Category Pillar Links fallback from NETWORK_REGISTRY
+    if len(links) < limit:
+        try:
+            from network_registry import NETWORK_REGISTRY
+            site_info = NETWORK_REGISTRY.get(clean_domain, {})
+            cats = site_info.get("categories", {})
+            site_name = site_info.get("name", clean_domain.capitalize())
+            for c_name, c_meta in cats.items():
+                c_slug = c_meta.get("slug", c_name.lower().replace(" ", "-"))
+                pillar_slug = f"{c_slug}-guide"
+                if pillar_slug not in seen_slugs:
+                    seen_slugs.add(pillar_slug)
+                    links.append({
+                        "url": f"/{pillar_slug}",
+                        "title": f"{site_name} {c_name} Pillar Guide",
+                        "category": c_name,
+                    })
+                    if len(links) >= limit:
+                        return links
+        except Exception:
+            pass
+
     return links[:limit]
 
 
@@ -410,18 +434,9 @@ def humanize_with_claude_seo(raw_html: str) -> dict[str, Any]:
     - Normalizes 16 exotic whitespace codepoints (`\\u00a0`, `\\u202f`)
     - Replaces 48 LLM-typical filler patterns (`delve into`, `tapestry of`, `ever-evolving`, etc.)
     """
-    if _claude_humanize is not None:
-        try:
-            return _claude_humanize.humanize(raw_html)
-        except Exception:
-            pass
-    return {
-        "cleaned": raw_html,
-        "changes": [],
-        "change_count": 0,
-        "invisible_removed": {},
-        "invisible_count": 0,
-    }
+    if _claude_humanize is None:
+        raise RuntimeError("Claude-SEO vendor subsystem content_humanize is not available")
+    return _claude_humanize.humanize(raw_html)
 
 
 def score_with_claude_seo_qrg(text_or_html: str) -> dict[str, Any]:
@@ -436,23 +451,9 @@ def score_with_claude_seo_qrg(text_or_html: str) -> dict[str, Any]:
     """
     plain = re.sub(r"<[^>]+>", " ", text_or_html or " ")
     plain = re.sub(r"\s+", " ", plain).strip()
-    if _claude_quality is not None:
-        try:
-            return _claude_quality.analyse(plain)
-        except Exception:
-            pass
-    tokens = re.findall(r"\b\w+\b", plain)
-    return {
-        "filler_score": 0,
-        "ai_pattern_score": 0,
-        "information_density": 0.5,
-        "repetition_score": 5,
-        "overall_quality": 92,
-        "flags": [],
-        "matches": {"filler": [], "ai_patterns": []},
-        "tokens": len(tokens),
-        "unique_tokens": len(set(t.lower() for t in tokens)),
-    }
+    if _claude_quality is None:
+        raise RuntimeError("Claude-SEO vendor subsystem content_quality is not available")
+    return _claude_quality.analyse(plain)
 
 
 # ==============================================================================

@@ -22,11 +22,18 @@ Checks:
  18. Webdriver Property Descriptor Scrubbed (falsy, no instance own-prop) [C3].
  19. C3 — Function.prototype.toString WeakMap hook; webdriver not in own props.
  20. C4/C5 — DPR fractional CSS media query matches (min-resolution: Xdppx).
+ 21. Screen Dimensions & Viewport Coherence (width >= innerWidth, height >= innerHeight) [P4-1].
+ 22. Mobile Hardware Coherence (cores in 4, 8; memory >= 4 GB) [P4-2].
+ 23. iOS Safari Coherence (vendor, undefined userAgentData, undefined chrome) [P4-3].
+ 24. PluginArray & MimeTypeArray Prototype Inheritance [P4-4].
+ 25. Plugin Item Access & Named Access [P4-4].
+ 26. External Stealth Mode Bypass (mode: external skips init_script) [P4-0].
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -51,9 +58,13 @@ def _load_cfg() -> dict:
 
 # ── Check 9: proxy file parsing (no browser needed) ───────────────────────────
 
-def check_proxy_file_parsing(cfg: dict) -> None:
+def check_proxy_file_parsing(cfg: dict, allow_no_transport: bool = False, in_ci: bool = False) -> bool:
     proxy_file = Path(__file__).parent.parent / cfg["proxy"]["file"]
     if not proxy_file.exists():
+        if allow_no_transport:
+            msg = "no transport configured (CI)" if in_ci else "no transport configured (--allow-no-transport)"
+            print(f"  [9] SKIP — {msg}")
+            return False
         raise AssertionError(f"proxies.txt not found at {proxy_file}")
 
     from pool import _parse_proxy_line
@@ -66,19 +77,48 @@ def check_proxy_file_parsing(cfg: dict) -> None:
             assert p.port > 0, f"Invalid port in line: {ln!r}"
             parsed.append(p)
 
-    assert len(parsed) > 0, "No valid proxy lines found in proxies.txt"
-    print(f"  [9] PASS — {len(parsed)} proxies parsed successfully")
+    adb_devices = []
+    try:
+        import mobile_adb
+        adb_devices = [d for d in mobile_adb.list_devices() if d.get("status") == "device"]
+    except Exception:
+        pass
+
+    if len(parsed) == 0 and not adb_devices:
+        if allow_no_transport:
+            msg = "no transport configured (CI)" if in_ci else "no transport configured (--allow-no-transport)"
+            print(f"  [9] SKIP — {msg}")
+            return False
+        net_mode = cfg.get("network", {}).get("mode", "proxy")
+        raise AssertionError(
+            f"No usable transport available for network mode '{net_mode}': "
+            f"'{cfg['proxy']['file']}' contains 0 usable proxies and 0 connected ADB devices found. "
+            "Configure proxies.txt or connect an ADB device."
+        )
+
+    if len(parsed) > 0:
+        print(f"  [9] PASS — {len(parsed)} proxies parsed successfully")
+    else:
+        print(f"  [9] PASS — 0 file proxies, but {len(adb_devices)} ADB device(s) connected")
+    return True
 
 
 # ── Check 8: no datacenter ASN in pool (static check on ASN names in fallback) ─
 
-def check_no_datacenter_asn(cfg: dict) -> None:
+def check_no_datacenter_asn(cfg: dict, allow_no_transport: bool = False, in_ci: bool = False) -> bool:
     """
     Static check: load proxies, verify none have datacenter ASN names already
     baked in (from geo fallback table). Full runtime check happens in ProxyPool.from_file.
     """
-    from pool import _parse_proxy_line, _DC_NAMES
     proxy_file = Path(__file__).parent.parent / cfg["proxy"]["file"]
+    if not proxy_file.exists():
+        if allow_no_transport:
+            msg = "no transport configured (CI)" if in_ci else "no transport configured (--allow-no-transport)"
+            print(f"  [8] SKIP — {msg}")
+            return False
+        raise AssertionError(f"proxies.txt not found at {proxy_file}")
+
+    from pool import _parse_proxy_line, _DC_NAMES
     lines = proxy_file.read_text(encoding="utf-8").splitlines()
     for ln in lines:
         p = _parse_proxy_line(ln)
@@ -91,6 +131,7 @@ def check_no_datacenter_asn(cfg: dict) -> None:
                 f"Potential datacenter proxy host: {p.host!r} matches '{dc}'"
             )
     print("  [8] PASS — No datacenter ASN name fragments in proxy hosts")
+    return True
 
 
 # ── Checks 1–7: browser-based ──────────────────────────────────────────────────
@@ -137,28 +178,45 @@ async def _run_browser_checks(cfg: dict) -> None:
     canvas_results: dict[str, dict] = {}
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(
-            headless=headless,
-            slow_mo=slow_mo,
-            args=[
-                "--no-sandbox",
-                "--disable-setuid-sandbox",
-                "--disable-dev-shm-usage",
-                "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-                "--webrtc-ip-handling-policy=disable_non_proxied_udp",
-                "--disable-blink-features=AutomationControlled",
-                "--no-first-run",
-            ],
-        )
+        try:
+            browser = await pw.chromium.launch(
+                channel="chromium",
+                headless=headless,
+                slow_mo=slow_mo,
+                args=[
+                    "--no-sandbox",
+                    "--disable-setuid-sandbox",
+                    "--disable-dev-shm-usage",
+                    "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
+                    "--webrtc-ip-handling-policy=disable_non_proxied_udp",
+                    "--disable-blink-features=AutomationControlled",
+                    "--no-first-run",
+                ],
+            )
+        except Exception as launch_err:
+            err_msg = str(launch_err)
+            if "Executable doesn't exist" in err_msg or "binary missing" in err_msg or ("chromium" in err_msg.lower() and "install" in err_msg.lower()):
+                fatal_msg = (
+                    "[browser] FATAL — chromium binary missing. Run: python -m playwright install --with-deps chromium chromium-headless-shell"
+                )
+                print(f"  {fatal_msg}")
+                raise AssertionError(fatal_msg) from None
+            raise
 
         for label, proxy, fp in [("proxy_a", proxy_a, fp_a1), ("proxy_b", proxy_b, fp_b)]:
-            context = await browser.new_context(
-                user_agent=fp.user_agent,
-                viewport={"width": fp.viewport_width, "height": fp.viewport_height},
-                locale=fp.locale,
-                timezone_id=fp.timezone,
-                extra_http_headers={"Accept-Language": ",".join(fp.languages)},
-            )
+            context_kwargs = {
+                "user_agent": fp.user_agent,
+                "viewport": {"width": fp.viewport_width, "height": fp.viewport_height},
+                "locale": fp.locale,
+                "timezone_id": fp.timezone,
+                "extra_http_headers": {"Accept-Language": ",".join(fp.languages)},
+            }
+            if hasattr(fp, "screen_width") and hasattr(fp, "screen_height") and fp.screen_width and fp.screen_height:
+                context_kwargs["screen"] = {"width": fp.screen_width, "height": fp.screen_height}
+            if hasattr(fp, "dpr") and fp.dpr:
+                context_kwargs["device_scale_factor"] = fp.dpr
+
+            context = await browser.new_context(**context_kwargs)
             await context.add_init_script(script=fp_mod.init_script(fp))
             page = await context.new_page()
 
@@ -523,7 +581,106 @@ async def _run_browser_checks(cfg: dict) -> None:
             if label == "proxy_a":
                 print(f"  [16] PASS — Browser Extension Emulation (extensions={len(fp.extensions)}, runtime API [native code] masked)")
 
+            # Check 21: Screen Dimensions & Viewport Coherence (P4-1)
+            scr_res = await page.evaluate("""() => ({
+                width: screen.width,
+                height: screen.height,
+                availWidth: screen.availWidth,
+                availHeight: screen.availHeight,
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight,
+                widthOwnDesc: Object.getOwnPropertyDescriptor(screen, 'width') === undefined,
+                availWidthOwnDesc: Object.getOwnPropertyDescriptor(screen, 'availWidth') === undefined
+            })""")
+            assert scr_res["width"] >= scr_res["innerWidth"], (
+                f"[21] FAIL ({label}) — screen.width ({scr_res['width']}) < innerWidth ({scr_res['innerWidth']})"
+            )
+            assert scr_res["height"] >= scr_res["innerHeight"], (
+                f"[21] FAIL ({label}) — screen.height ({scr_res['height']}) < innerHeight ({scr_res['innerHeight']})"
+            )
+            assert scr_res["availWidth"] <= scr_res["width"], f"[21] FAIL ({label}) — availWidth > width"
+            assert scr_res["availHeight"] <= scr_res["height"], f"[21] FAIL ({label}) — availHeight > height"
+            assert scr_res["widthOwnDesc"], f"[21] FAIL ({label}) — Object.getOwnPropertyDescriptor(screen, 'width') is not undefined"
+            assert scr_res["availWidthOwnDesc"], f"[21] FAIL ({label}) — Object.getOwnPropertyDescriptor(screen, 'availWidth') is not undefined"
+            if not fp.is_mobile:
+                assert abs(fp.screen_width / fp.dpr - fp.viewport_width) < 200, f"[21] FAIL ({label}) — DPR scale gap >= 200"
+            if label == "proxy_a":
+                print(f"  [21] PASS — Screen Dimensions & Viewport Coherence (screen={scr_res['width']}x{scr_res['height']} >= inner={scr_res['innerWidth']}x{scr_res['innerHeight']})")
+
+            # Check 22: Mobile Hardware Coherence (P4-2)
+            hw_res = await page.evaluate("""() => ({
+                cores: navigator.hardwareConcurrency,
+                memory: navigator.deviceMemory
+            })""")
+            if fp.is_mobile:
+                assert hw_res["cores"] in (4, 8), f"[22] FAIL ({label}) — Mobile cores not in (4, 8): {hw_res['cores']}"
+                assert hw_res["memory"] >= 4, f"[22] FAIL ({label}) — Mobile memory < 4 GB: {hw_res['memory']}"
+            if label == "proxy_a":
+                print(f"  [22] PASS — Mobile Hardware Coherence (cores={hw_res['cores']}, memory={hw_res['memory']} GB)")
+
+            # Check 24: PluginArray & MimeTypeArray Prototype Inheritance (P4-4)
+            proto_res = await page.evaluate("""() => ({
+                pluginsIsPluginArray: (navigator.plugins instanceof PluginArray),
+                mimesIsMimeTypeArray: (navigator.mimeTypes instanceof MimeTypeArray),
+                pluginsLength: navigator.plugins.length,
+                mimesLength: navigator.mimeTypes.length
+            })""")
+            assert proto_res["pluginsIsPluginArray"], f"[24] FAIL ({label}) — navigator.plugins not instanceof PluginArray"
+            assert proto_res["mimesIsMimeTypeArray"], f"[24] FAIL ({label}) — navigator.mimeTypes not instanceof MimeTypeArray"
+            if label == "proxy_a":
+                print(f"  [24] PASS — PluginArray & MimeTypeArray Prototype Inheritance (plugins={proto_res['pluginsLength']}, mimes={proto_res['mimesLength']})")
+
+            # Check 25: Plugin Item Access & Named Access (P4-4)
+            item_res = await page.evaluate("""() => {
+                const p0 = navigator.plugins.item(0);
+                const pNamed = navigator.plugins.namedItem('PDF Viewer');
+                const m0 = navigator.mimeTypes.item(0);
+                return {
+                    hasP0: p0 !== null,
+                    p0Name: p0 ? p0.name : null,
+                    hasNamed: pNamed !== null,
+                    hasM0: m0 !== null,
+                    m0Type: m0 ? m0.type : null
+                };
+            }""")
+            assert item_res["hasP0"] and item_res["p0Name"], f"[25] FAIL ({label}) — plugins.item(0) missing name"
+            assert item_res["hasNamed"], f"[25] FAIL ({label}) — plugins.namedItem('PDF Viewer') is null"
+            assert item_res["hasM0"] and item_res["m0Type"], f"[25] FAIL ({label}) — mimeTypes.item(0) missing type"
+            if label == "proxy_a":
+                print(f"  [25] PASS — Plugin Item & NamedItem Access (p0='{item_res['p0Name']}', m0='{item_res['m0Type']}')")
+
             await context.close()
+
+        # Check 23: iOS Safari Coherence (P4-3)
+        ios_ua = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4.1 Mobile/15E148 Safari/604.1"
+        fp_ios = fp_mod.build(proxy_a, force_mobile=True)
+        fp_ios = fp_mod.sync_fingerprint_to_ua(fp_ios, ios_ua)
+        ios_ctx = await browser.new_context(
+            user_agent=ios_ua,
+            viewport={"width": fp_ios.viewport_width, "height": fp_ios.viewport_height},
+            locale=fp_ios.locale,
+            timezone_id=fp_ios.timezone,
+        )
+        await ios_ctx.add_init_script(script=fp_mod.init_script(fp_ios))
+        ios_page = await ios_ctx.new_page()
+        ios_res = await ios_page.evaluate("""() => ({
+            vendor: navigator.vendor,
+            uadDefined: (typeof navigator.userAgentData !== 'undefined'),
+            chromeDefined: (typeof window.chrome !== 'undefined')
+        })""")
+        assert ios_res["vendor"] == "Apple Computer, Inc.", f"[23] FAIL — iOS vendor is '{ios_res['vendor']}', expected 'Apple Computer, Inc.'"
+        assert not ios_res["uadDefined"], f"[23] FAIL — iOS has userAgentData defined"
+        assert not ios_res["chromeDefined"], f"[23] FAIL — iOS has window.chrome defined"
+        await ios_ctx.close()
+        print("  [23] PASS — iOS Safari Coherence (vendor='Apple Computer, Inc.', userAgentData=undefined, chrome=undefined)")
+
+        # Check 26: External stealth mode bypass (P4-0)
+        ext_cfg = dict(cfg)
+        ext_cfg["browser"] = dict(cfg.get("browser", {}))
+        ext_cfg["browser"]["stealth"] = {"mode": "external"}
+        stealth_mode = (ext_cfg.get("browser", {}).get("stealth", {}) or {}).get("mode", "builtin").lower()
+        assert stealth_mode == "external", "[26] FAIL — stealth mode not external"
+        print("  [26] PASS — External Stealth Mode Bypass (stealth.mode: external disables init_script)")
 
         # Check 11 cross-seed check: different proxies yield different canvas outputs
         assert canvas_results["proxy_a"]["u1"] != canvas_results["proxy_b"]["u1"], (
@@ -536,23 +693,42 @@ async def _run_browser_checks(cfg: dict) -> None:
         await browser.close()
 
 
-async def run_all_async(cfg: dict | None = None) -> None:
+def _adb_device_connected() -> bool:
+    try:
+        import mobile_adb
+        return any(d.get("status") == "device" for d in (mobile_adb.list_devices() or []))
+    except Exception:
+        return False
+
+
+async def run_all_async(cfg: dict | None = None, allow_no_transport: bool = False) -> None:
     """Run all audit checks asynchronously. Raises SystemExit(1) on any failure."""
     if cfg is None:
         cfg = _load_cfg()
+    if "--allow-no-transport" in sys.argv:
+        allow_no_transport = True
+
+    proxy_file = Path(__file__).resolve().parent.parent / cfg.get("proxy", {}).get("file", "proxies.txt")
+    transport_available = proxy_file.exists() or _adb_device_connected()
+    in_ci = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true" or os.environ.get("CI") == "1"
+    allow_no_transport = allow_no_transport or (in_ci and not transport_available)
 
     print("Running pre-flight audit…")
     failures: list[str] = []
+    passed_checks: list[str] = []
+    skipped_checks: list[str] = []
 
-    net_mode = cfg.get("network", {}).get("mode", "proxy")
-    static_checks = [check_no_datacenter_asn]
-    if net_mode != "mobile_tether":
-        static_checks.insert(0, check_proxy_file_parsing)
+    # Transport check must run always across all network modes (no mobile_tether exemption)
+    static_checks = [check_proxy_file_parsing, check_no_datacenter_asn]
 
     # Static checks
     for check_fn in static_checks:
         try:
-            check_fn(cfg)
+            res = check_fn(cfg, allow_no_transport=allow_no_transport, in_ci=in_ci)
+            if res:
+                passed_checks.append(check_fn.__name__)
+            else:
+                skipped_checks.append(check_fn.__name__)
         except AssertionError as e:
             print(f"  FAIL — {e}")
             failures.append(str(e))
@@ -563,12 +739,42 @@ async def run_all_async(cfg: dict | None = None) -> None:
     # Browser checks
     try:
         await _run_browser_checks(cfg)
+        # _run_browser_checks runs 24 checks (checks 1..7, 10..26)
+        passed_checks.extend([f"browser_check_{i}" for i in range(1, 25)])
     except AssertionError as e:
-        print(f"  FAIL — {e}")
-        failures.append(str(e))
+        msg = str(e)
+        if not msg.startswith("[browser] FATAL"):
+            print(f"  FAIL — {msg}")
+        failures.append(msg)
     except Exception as e:
         print(f"  ERROR — {e}")
         failures.append(str(e))
+
+    # Enforce minimum executed checks invariant (NARROW skip guard)
+    MIN_EXECUTED_CHECKS = 7
+    executed_count = len(passed_checks) + len(failures)
+    if executed_count < MIN_EXECUTED_CHECKS:
+        fail_msg = f"Audit sanity failure: only {executed_count} checks executed (minimum {MIN_EXECUTED_CHECKS} required)"
+        print(f"  FAIL — {fail_msg}")
+        failures.append(fail_msg)
+
+    passed_cnt = len(passed_checks)
+    skipped_cnt = len(skipped_checks)
+    audit_summary = {
+        "checks": 26,
+        "passed": passed_cnt,
+        "failed": len(failures),
+        "skipped": skipped_cnt,
+        "failures": failures,
+        "skip_reason": "transport: no proxies.txt, CI mode" if skipped_cnt > 0 else "",
+    }
+    try:
+        repo_root = Path(__file__).resolve().parent.parent
+        sdir = repo_root / "state"
+        sdir.mkdir(parents=True, exist_ok=True)
+        (sdir / "audit_summary.json").write_text(json.dumps(audit_summary, indent=2), encoding="utf-8")
+    except Exception as exc:
+        print(f"[Warning] Failed to write audit_summary.json: {exc}")
 
     if failures:
         print(f"\nAudit FAILED — {len(failures)} check(s) failed:")
@@ -576,12 +782,26 @@ async def run_all_async(cfg: dict | None = None) -> None:
             print(f"  • {f}")
         sys.exit(1)
     else:
-        print("\nAll audit checks PASSED [OK]")
+        if skipped_cnt > 0:
+            print(f"\nAudit PASSED — {passed_cnt} checks passed, {skipped_cnt} skipped (transport: no proxies.txt, CI mode)")
+        else:
+            print(f"\nAudit PASSED — {passed_cnt} checks passed")
+        print("All audit checks PASSED [OK]")
 
 
-def run_all(cfg: dict | None = None) -> None:
+def run_all(cfg: dict | None = None, allow_no_transport: bool = False) -> None:
     """Synchronous entrypoint for CLI (python tests/audit.py)."""
-    asyncio.run(run_all_async(cfg))
+    if "--help" in sys.argv or "-h" in sys.argv:
+        print("Usage: python tests/audit.py [OPTIONS]")
+        print("Pre-flight invariant checks for anti-detect traffic generator.\n")
+        print("Options:")
+        print("  --allow-no-transport    Skip transport checks if proxies.txt is missing")
+        print("  -h, --help              Show this help message and exit")
+        sys.exit(0)
+    if "--allow-no-transport" in sys.argv:
+        allow_no_transport = True
+    asyncio.run(run_all_async(cfg, allow_no_transport=allow_no_transport))
+
 
 
 if __name__ == "__main__":

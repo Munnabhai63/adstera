@@ -23,10 +23,16 @@ logger = logging.getLogger("tunnel_daemon")
 BASE_DIR = Path(__file__).parent.resolve()
 CLOUDFLARED_BIN = BASE_DIR / "bin" / "cloudflared.exe"
 
-TUNNEL_TOKEN = os.environ.get(
-    "CLOUDFLARE_TUNNEL_TOKEN",
-    "eyJhIjoiMWE1N2JlNzk3ZTJjOGM5ZTZiMjc4NDAwNDZkMTY2MjIiLCJ0IjoiM2ZkNjAxYzctMjg4Zi00OTZjLTlmOTMtZGIwZDM3ODIyMDc2IiwicyI6InJSODBMUGRxOU9mWm5JUW9JcVFUL2pydW9DQjcwbUQyakV4TlNPaXZpKzA9In0=",
-)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(BASE_DIR / ".env")
+except Exception:
+    pass
+
+TUNNEL_TOKEN = os.environ.get("CLOUDFLARE_TUNNEL_TOKEN", "").strip()
+if not TUNNEL_TOKEN:
+    logger.error("CLOUDFLARE_TUNNEL_TOKEN is not set — refusing to start")
+    sys.exit(1)
 
 
 def run_tunnel() -> None:

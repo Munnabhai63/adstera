@@ -1,3 +1,4 @@
+from common import npx_bin
 import os
 import subprocess
 import urllib.request
@@ -61,7 +62,7 @@ print("="*60)
 for proj, domain in PROJECTS:
     site_dir = os.path.join("sites", f"{proj}.com")
     print(f"\nDeploying {proj} ({site_dir}) to Cloudflare Pages...")
-    cmd = ["npx.cmd", "wrangler", "pages", "deploy", site_dir, f"--project-name={proj}", "--branch=main", "--commit-dirty=true"]
+    cmd = [npx_bin(), "wrangler", "pages", "deploy", site_dir, f"--project-name={proj}", "--branch=main", "--commit-dirty=true"]
     try:
         res = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="ignore")
         if res.returncode == 0:

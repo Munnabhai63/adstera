@@ -10,9 +10,12 @@ IndexNow Protocol:
 """
 
 from __future__ import annotations
-import os
+import asyncio
 import glob
 import json
+import logging
+import os
+from pathlib import Path
 import sqlite3
 import threading
 import xml.etree.ElementTree as ET
@@ -20,6 +23,8 @@ from datetime import datetime
 from typing import Any
 import httpx
 from network_registry import NETWORK_REGISTRY
+
+logger = logging.getLogger("instant_indexer")
 
 INDEXNOW_KEY = "adstera8291a0c7e5bf4182bdc6019a"
 INDEXNOW_ENDPOINTS = [
@@ -58,7 +63,7 @@ def _provision_verification_keys_unlocked(sites_dir: str) -> None:
 
             # 1. IndexNow Verification File
             key_file = os.path.join(d, f"{INDEXNOW_KEY}.txt")
-            with open(key_file, "w", encoding="utf-8") as f:
+            with open(key_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(INDEXNOW_KEY)
 
             # 2. robots.txt (Claude-SEO v2.5.0 `seo-geo` + `seo-agentic`: separate AI Search, User-Agent & Training groups + Content-Signal)
@@ -102,7 +107,7 @@ Allow: /
 
 Sitemap: https://{domain}/sitemap.xml
 """
-            with open(robots_file, "w", encoding="utf-8") as f:
+            with open(robots_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(robots_content)
 
             # 3. llms.txt (Claude-SEO `seo-geo` & `seo-agentic` standard for AI answer engines)
@@ -127,48 +132,55 @@ Sitemap: https://{domain}/sitemap.xml
 - [Canonical XML Sitemap](https://{domain}/sitemap.xml): Full index of all published guides.
 - [IndexNow Verification Key](https://{domain}/{INDEXNOW_KEY}.txt): Instant indexing verification endpoint.
 """
-            with open(llms_file, "w", encoding="utf-8") as f:
+            with open(llms_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(llms_content)
 
-            # 4. Cloudflare Pages _redirects (enforce non-www canonical 301 redirect)
+            # 4. Cloudflare Pages _redirects (enforce non-www canonical 301 redirect and .html to clean URL)
             redirects_file = os.path.join(d, "_redirects")
             redirects_content = (
                 f"https://www.{domain}/* https://{domain}/:splat 301\n"
                 f"http://www.{domain}/* https://{domain}/:splat 301\n"
                 f"http://{domain}/* https://{domain}/:splat 301\n"
+                f"/:slug.html /:slug 301\n"
             )
-            with open(redirects_file, "w", encoding="utf-8") as f:
+            with open(redirects_file, "w", encoding="utf-8", newline="\n") as f:
                 f.write(redirects_content)
 
             # 5. Cloudflare 24x7 Serverless Edge Gateway on loanraaj.com (/v1/models & /v1/chat/completions)
             if site_key == "loanraaj":
                 worker_file = os.path.join(d, "_worker.js")
                 worker_js = """// Cloudflare Pages 24x7 Serverless FreeLLMAPI Edge Gateway + Static Asset Router
-const GATEWAY_TOKEN = "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f";
+const GATEWAY_TOKEN = env.GATEWAY_TOKEN || "__GATEWAY_TOKEN__";
 
 const UPSTREAM_ROUTES = [
-  { provider: "ovh", model: "Qwen2.5-VL-72B-Instruct", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
+  { provider: "ovh", model: "Qwen/Qwen2.5-VL-72B-Instruct", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
   { provider: "ovh", model: "Mistral-Small-3.2-24B-Instruct-2506", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
   { provider: "ovh", model: "gpt-oss-120b", url: "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions" },
   { provider: "kilo", model: "cohere/north-mini-code:free", url: "https://api.kilo.ai/api/gateway/v1/chat/completions" },
   { provider: "kilo", model: "nvidia/nemotron-3.5-lightning:free", url: "https://api.kilo.ai/api/gateway/v1/chat/completions" }
 ];
 
-function checkAuth(request) {
+function checkAuth(request, gatewayToken) {
+  if (!gatewayToken || gatewayToken === "__GATEWAY_TOKEN__") return false;
   const auth = (request.headers.get("Authorization") || "").trim();
-  return auth === `Bearer ${GATEWAY_TOKEN}` || auth === GATEWAY_TOKEN;
+  return auth === `Bearer ${gatewayToken}` || auth === gatewayToken;
+}` || auth === GATEWAY_TOKEN;
 }
 
 export default {
   async fetch(request, env) {
+    const GATEWAY_TOKEN = env.GATEWAY_TOKEN;
     const url = new URL(request.url);
+    if (url.pathname.startsWith("/v1/") && !GATEWAY_TOKEN) {
+      return new Response(JSON.stringify({ error: "GATEWAY_TOKEN not configured" }), { status: 503, headers: { "Content-Type": "application/json" } });
+    }
     if (url.hostname === "www.loanraaj.com") {
       url.hostname = "loanraaj.com";
       return Response.redirect(url.toString(), 301);
     }
 
     if (url.pathname === "/v1/models" && request.method === "GET") {
-      if (!checkAuth(request)) {
+      if (!checkAuth(request, GATEWAY_TOKEN)) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
       }
       const data = UPSTREAM_ROUTES.map((r) => ({
@@ -185,7 +197,7 @@ export default {
     }
 
     if (url.pathname === "/v1/chat/completions" && request.method === "POST") {
-      if (!checkAuth(request)) {
+      if (!checkAuth(request, GATEWAY_TOKEN)) {
         return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "Content-Type": "application/json" } });
       }
       let body;
@@ -258,7 +270,7 @@ export default {
   }
 };
 """
-                with open(worker_file, "w", encoding="utf-8") as f:
+                with open(worker_file, "w", encoding="utf-8", newline="\n") as f:
                     f.write(worker_js)
 
     print("[Instant Indexer] IndexNow verification keys, robots.txt, llms.txt, _redirects, and Edge Gateway provisioned across all domains.")
@@ -288,7 +300,7 @@ def update_sitemap_xml(site_id: str, new_url: str) -> None:
 
         if "</urlset>" in content:
             updated = content.replace("</urlset>", url_node_str + "</urlset>")
-            with open(sitemap_path, "w", encoding="utf-8") as f:
+            with open(sitemap_path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(updated)
 
 
@@ -324,21 +336,61 @@ def submit_to_indexnow(clean_domain: str, url_list: list[str]) -> bool:
     return success
 
 
-def ping_google_sitemap(clean_domain: str) -> bool:
-    """Submit updated sitemap via Google Search Console Sitemaps API when configured."""
+def ping_google_sitemap(clean_domain: str, fallback_deprecated: bool = False) -> dict[str, Any]:
+    """
+    Submit updated sitemap via Google Search Console Sitemaps API when configured.
+    Never returns True/success without a verified outcome.
+
+    Returns a structured outcome dict:
+      - {"status": "submitted", "verified": True}
+      - {"status": "submitted", "verified": False, "reason": "deprecated endpoint"}
+      - {"status": "skipped", "reason": "no credentials"}
+      - {"status": "failed", "reason": "<actual error>"}
+    """
     sitemap_url = f"https://{clean_domain}/sitemap.xml"
+    is_configured = False
     try:
         from gsc_auth import GSCAuthManager
-        if GSCAuthManager().is_configured():
-            return True
-    except Exception:
-        pass
-    ping_url = f"https://www.google.com/ping?sitemap={sitemap_url}"
-    try:
-        r = httpx.get(ping_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
-        return r.status_code in (200, 202)
-    except Exception:
-        return False
+        is_configured = GSCAuthManager().is_configured()
+    except Exception as exc:
+        logger.debug("GSCAuthManager check exception for %s: %s", clean_domain, exc)
+
+    if is_configured:
+        try:
+            from gsc_submitter import GoogleIndexingSubmitter
+            sub = GoogleIndexingSubmitter()
+
+            async def _submit() -> bool:
+                return await sub.submit_sitemap(sitemap_url, mock_fallback=False)
+
+            try:
+                asyncio.get_running_loop()
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    ok = pool.submit(asyncio.run, _submit()).result(timeout=15)
+            except RuntimeError:
+                ok = asyncio.run(_submit())
+
+            if ok:
+                return {"status": "submitted", "verified": True}
+            else:
+                return {"status": "failed", "reason": "GSC Sitemaps API rejected or returned unverified status"}
+        except Exception as exc:
+            logger.warning("GSC Sitemaps API exception for %s: %s", clean_domain, exc)
+            return {"status": "failed", "reason": str(exc)}
+
+    # Unconfigured fallback path:
+    if fallback_deprecated:
+        ping_url = f"https://www.google.com/ping?sitemap={sitemap_url}"
+        try:
+            r = httpx.get(ping_url, headers={"User-Agent": "Mozilla/5.0"}, timeout=8)
+            if r.status_code in (200, 202):
+                return {"status": "submitted", "verified": False, "reason": "deprecated endpoint"}
+            return {"status": "failed", "reason": f"Deprecated ping returned HTTP {r.status_code}"}
+        except Exception as exc:
+            return {"status": "failed", "reason": str(exc)}
+
+    return {"status": "skipped", "reason": "no credentials"}
 
 
 def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
@@ -363,7 +415,21 @@ def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
     ]
 
     indexnow_ok = submit_to_indexnow(clean_domain, urls)
-    google_ok = ping_google_sitemap(clean_domain)
+    google_res = ping_google_sitemap(clean_domain)
+    if isinstance(google_res, dict):
+        google_ok = bool(google_res.get("status") == "submitted" and google_res.get("verified"))
+        st = google_res.get("status")
+        if st == "skipped":
+            print(f"[GSC Sitemap Notice] Google sitemap submission skipped for {clean_domain}: {google_res.get('reason')}")
+        elif st == "submitted" and not google_res.get("verified"):
+            print(f"[GSC Sitemap Notice] Google sitemap attempted via deprecated endpoint for {clean_domain} (unverified)")
+        elif st == "submitted" and google_res.get("verified"):
+            print(f"[GSC Sitemap SUCCESS] Google sitemap verified and accepted via GSC API for {clean_domain}")
+        elif st == "failed":
+            print(f"[GSC Sitemap Warning] Google sitemap submission failed for {clean_domain}: {google_res.get('reason')}")
+    else:
+        google_ok = bool(google_res)
+
     try:
         from gsc_auth import GSCAuthManager
         if GSCAuthManager().is_configured():
@@ -409,9 +475,30 @@ def broadcast_new_post(site_id: str, new_post_url: str) -> bool:
     return indexnow_ok or google_ok
 
 
-def broadcast_all_network_sites() -> dict[str, int]:
-    """Broadcast all existing pages from all 10 sites to IndexNow for immediate indexing."""
-    provision_verification_keys()
+STATIC_SLUGS = {
+    "about-us",
+    "contact-us",
+    "disclaimer",
+    "privacy-policy",
+    "terms-and-conditions",
+    "calculator",
+    "emi-calculator",
+    "personal-loan-guide",
+    "credit-card-apply",
+}
+
+
+def broadcast_all_network_sites(limit: int | None = None, dry_run: bool = False) -> dict[str, int]:
+    """Broadcast all existing pages from all 10 sites to IndexNow for immediate indexing.
+    
+    Walks the directory tree to discover both:
+      - sites/<domain>/<slug>/index.html -> https://<domain>/<slug>/
+      - sites/<domain>/<slug>.html       -> https://<domain>/<slug>
+    Excludes domain root index.html, calculator.html, google*.html, and STATIC_SLUGS.
+    Deduplicates URLs and respects optional limit.
+    """
+    if not dry_run:
+        provision_verification_keys()
     results = {}
 
     for site_key, site_info in NETWORK_REGISTRY.items():
@@ -420,33 +507,88 @@ def broadcast_all_network_sites() -> dict[str, int]:
         
         urls_to_submit = [
             f"https://{clean_domain}/",
-            f"https://{clean_domain}/calculator",
             f"https://{clean_domain}/sitemap.xml",
         ]
 
-        # Scan HTML files
+        # Scan HTML files across directory tree
         if os.path.exists(site_dir):
-            for f in glob.glob(os.path.join(site_dir, "*.html")):
-                basename = os.path.basename(f)
-                if basename in ("index.html", "calculator.html"):
+            site_path = Path(site_dir)
+            for root, dirs, files in os.walk(site_dir):
+                root_path = Path(root)
+                if any(part in ("layouts", "_default") for part in root_path.parts):
                     continue
-                slug = basename.replace(".html", "")
-                urls_to_submit.append(f"https://{clean_domain}/{slug}")
+                for filename in files:
+                    if not filename.endswith(".html"):
+                        continue
+                    if filename.startswith("google"):
+                        continue
+                    if filename == "calculator.html":
+                        continue
+                    
+                    file_path = root_path / filename
+                    rel = file_path.relative_to(site_path)
+                    rel_parts = rel.parts
+                    
+                    if filename == "index.html":
+                        if len(rel_parts) == 1:
+                            # Skip domain root index.html (already included as https://clean_domain/)
+                            continue
+                        slug = "/".join(rel_parts[:-1])
+                        if slug in STATIC_SLUGS or any(part in STATIC_SLUGS for part in rel_parts[:-1]):
+                            continue
+                        urls_to_submit.append(f"https://{clean_domain}/{slug}/")
+                    else:
+                        # Skip flat <slug>.html file if sibling directory <slug>/index.html exists
+                        sibling_dir = file_path.with_suffix("")
+                        if (sibling_dir / "index.html").exists():
+                            continue
+                        slug = rel.with_suffix("").as_posix()
+                        if slug in STATIC_SLUGS or any(part in STATIC_SLUGS for part in rel_parts):
+                            continue
+                        urls_to_submit.append(f"https://{clean_domain}/{slug}")
 
-        urls_to_submit = list(set(urls_to_submit))
+        # Deduplicate URLs per domain preserving order
+        urls_to_submit = list(dict.fromkeys(urls_to_submit))
+
+        if limit is not None and limit > 0:
+            urls_to_submit = urls_to_submit[:limit]
+
+        if dry_run:
+            print(f"[Instant Indexer (Dry-Run)] Discovered {len(urls_to_submit)} URLs for {clean_domain}")
+            results[clean_domain] = len(urls_to_submit)
+            continue
+
         print(f"\n[Instant Indexer] Broadcasting {len(urls_to_submit)} URLs for {clean_domain}...")
         ok = submit_to_indexnow(clean_domain, urls_to_submit)
-        ping_google_sitemap(clean_domain)
+        google_res = ping_google_sitemap(clean_domain)
+        if isinstance(google_res, dict):
+            st = google_res.get("status")
+            if st == "skipped":
+                print(f"  [GSC Sitemap Notice] Google sitemap submission skipped for {clean_domain}: {google_res.get('reason')}")
+            elif st == "submitted" and not google_res.get("verified"):
+                print(f"  [GSC Sitemap Notice] Google sitemap attempted via deprecated endpoint for {clean_domain} (unverified)")
+            elif st == "submitted" and google_res.get("verified"):
+                print(f"  [GSC Sitemap SUCCESS] Google sitemap verified and accepted via GSC API for {clean_domain}")
+            elif st == "failed":
+                print(f"  [GSC Sitemap Warning] Google sitemap submission failed for {clean_domain}: {google_res.get('reason')}")
         results[clean_domain] = len(urls_to_submit) if ok else 0
 
     return results
 
 
 if __name__ == "__main__":
-    print("="*60)
-    print("EXECUTING INSTANT INDEXER BROADCAST ACROSS ALL 10 SITES")
-    print("="*60)
-    res = broadcast_all_network_sites()
+    import argparse
+    parser = argparse.ArgumentParser(description="Instant Indexer Broadcast across publisher network")
+    parser.add_argument("--dry-run", action="store_true", help="Scan and print discovered URLs per domain without submitting")
+    parser.add_argument("--limit", type=int, default=None, help="Cap URLs discovered per domain")
+    args = parser.parse_args()
+
+    mode_str = "DRY-RUN SCAN" if args.dry_run else "BROADCAST ACROSS ALL 10 SITES"
+    print("=" * 60)
+    print(f"EXECUTING INSTANT INDEXER ({mode_str})")
+    print("=" * 60)
+    res = broadcast_all_network_sites(limit=args.limit, dry_run=args.dry_run)
     print("\nSummary of indexed submissions:")
     for dom, count in res.items():
-        print(f"  [OK] {dom}: {count} URLs submitted to IndexNow")
+        status_label = "URLs Discovered (Dry-Run)" if args.dry_run else "URLs submitted to IndexNow"
+        print(f"  [OK] {dom}: {count} {status_label}")

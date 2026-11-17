@@ -92,7 +92,7 @@ def test_forecast_7_days_and_monthly():
 
 
 def test_forecast_anomaly_detection():
-    """detect_anomaly flags drops >20% and ignores minor deviations."""
+    """detect_anomaly flags drops >20% and ignores minor deviations across weekdays and weekends."""
     history = [{"date": "2026-11-01", "total_revenue": 50.0}] * 7
     forecaster = RevenueForecaster().fit(history=history)
 
@@ -100,12 +100,31 @@ def test_forecast_anomaly_detection():
     normal_res = forecaster.detect_anomaly(actual_today=45.0, threshold_pct=0.20)
     assert not normal_res["anomaly"]
 
-    # Actual $20 vs projected ~$50 is 60% drop -> CRITICAL anomaly
+    # Actual $20.0 vs projected ~$50 is a significant revenue drop -> CRITICAL anomaly
     alert_res = forecaster.detect_anomaly(actual_today=20.0, threshold_pct=0.20)
     assert alert_res["anomaly"]
     assert alert_res["severity"] == "CRITICAL"
     assert "Revenue dropped" in alert_res["message"]
-    print(f"  [OK] Anomaly detector correctly flagged {alert_res['deficit_pct']}% deficit")
+
+    # Explicit Weekday case (Wednesday, Nov 4, 2026): projected ~$54, actual $20 is >60% drop -> CRITICAL
+    weekday_dt = datetime.date(2026, 11, 4)
+    res_wd = forecaster.detect_anomaly(actual_today=20.0, threshold_pct=0.20, target_date=weekday_dt)
+    assert res_wd["anomaly"] is True
+    assert res_wd["severity"] == "CRITICAL"
+
+    # Explicit Weekend case (Saturday, Nov 7, 2026): projected ~$36, actual $20 is 44.4% drop -> CRITICAL
+    weekend_sat = datetime.date(2026, 11, 7)
+    res_sat = forecaster.detect_anomaly(actual_today=20.0, threshold_pct=0.20, target_date=weekend_sat)
+    assert res_sat["anomaly"] is True
+    assert res_sat["severity"] == "CRITICAL"
+
+    # Explicit Weekend case (Sunday, Nov 8, 2026): projected ~$33, actual $20 is 39.4% drop -> CRITICAL
+    weekend_sun = datetime.date(2026, 11, 8)
+    res_sun = forecaster.detect_anomaly(actual_today=20.0, threshold_pct=0.20, target_date=weekend_sun)
+    assert res_sun["anomaly"] is True
+    assert res_sun["severity"] == "CRITICAL"
+
+    print(f"  [OK] Anomaly detector correctly flagged {alert_res['deficit_pct']}% deficit across weekdays and weekends")
 
 
 def test_db_get_daily_revenue_history():

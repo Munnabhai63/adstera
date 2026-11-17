@@ -45,6 +45,7 @@ def test_font_determinism():
     assert fp1.fonts == fp2.fonts
 
 
+@pytest.mark.browser
 def test_font_js_injection():
     from playwright.async_api import async_playwright
 

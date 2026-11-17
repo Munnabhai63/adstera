@@ -3,6 +3,7 @@ tests/test_extension_emulation.py — Tests for Step 3.3: Browser Extension Emul
 Verifies extension seeding, desktop vs mobile handling, and runtime API behavior in Chromium.
 """
 import asyncio
+import pytest
 from pool import Proxy, GeoInfo
 import fingerprint as fp_mod
 
@@ -30,6 +31,7 @@ def test_extension_determinism():
     assert fp1.extensions == fp2.extensions
 
 
+@pytest.mark.browser
 def test_extension_runtime_apis():
     from playwright.async_api import async_playwright
 

@@ -102,7 +102,7 @@ def test_live_sites_dir_has_exact_ten_canonical_domains() -> None:
     loanraaj_dir = sites_root / "loanraaj.com"
     assert (loanraaj_dir / "index.html").is_file()
     assert (loanraaj_dir / "google31976c4df01121b2.html").is_file()
-    assert (loanraaj_dir / "21-machines-to-start-a-profitable-home-business.html").is_file()
+    assert (loanraaj_dir / "21-machines-to-start-a-profitable-home-business.html").is_file() or (loanraaj_dir / "21-machines-to-start-a-profitable-home-business" / "index.html").is_file()
 
 
 def test_active_modules_use_canonical_com_directories() -> None:

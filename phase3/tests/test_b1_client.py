@@ -99,7 +99,7 @@ class _MockWebSocketServer:
             while not self._stop.is_set():
                 try:
                     b0, b1 = self._recv_exact(conn, 2)
-                except OSError:
+                except (OSError, EOFError):
                     break
                 opcode = b0 & 0x0F
                 masked = (b1 & 0x80) != 0

@@ -1,7 +1,9 @@
+from common import npx_bin
 # autopublish_daemon.py - 24/7 Autonomous Publishing Engine with Anti-AI Gate & Search Console Automation
 import os
 import sys
 import json
+import logging
 import re
 import html
 import sqlite3
@@ -15,22 +17,55 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 import yaml
+import hashlib
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
+logger = logging.getLogger("autopublish_daemon")
+
 from site_templates import render_master_page, render_sidebar
 from adsterra_links import render_native_ad_card, get_adsterra_config
 from autopublish_engine import AntiAIDetectionGate, query_freellmapi, ping_search_engines, generate_claude_seo_article
+from content_quality_gate import (
+    ARTICLE_TARGET_MIN,
+    ARTICLE_TARGET_MAX,
+    ARTICLE_WORD_COUNT_FLOOR,
+    count_prose_words,
+    check_word_count_floor,
+)
 import seo_pipeline
 import topic_intelligence
+from common.paths import AUTOPUBLISH_DB_PATH, STATE_DIR
 
-DB_PATH = os.path.join("state", "autopublish.db")
+DB_PATH = str(AUTOPUBLISH_DB_PATH)
 CONFIG_PATH = Path(__file__).parent / "config.yaml"
-os.makedirs("state", exist_ok=True)
+os.makedirs(str(STATE_DIR), exist_ok=True)
+
+# 5-Wave Cutover timestamp: only deep articles published after this ISO cutover count towards daily domain limits
+WAVE_CUTOVER_ISO: str = "2026-11-11T21:10:00"
 
 _GIT_SYNC_LOCK = threading.Lock()
 _QUEUE_CLAIM_LOCK = threading.Lock()
+
+def valid_description(d: str | None) -> bool:
+    """Validate meta description according to SEO standards (60-160 chars, no placeholders, no ellipsis)."""
+    if not d or not isinstance(d, str):
+        return False
+    clean = d.strip()
+    if (
+        "..." in clean
+        or "{" in clean
+        or "}" in clean
+        or "page-link" in clean
+        or "Need to include" in clean
+        or clean.startswith(", ,")
+    ):
+        return False
+    if len(clean) < 60 or len(clean) > 160:
+        return False
+    return True
+
 
 DEFAULT_AUTOPUBLISH_CFG = {
     "interval_minutes": 20,
@@ -49,6 +84,45 @@ DEFAULT_AUTOPUBLISH_CFG = {
     "wave_domain_gap_seconds": 300,
     "discover_20_before_publish": True,
 }
+DEFAULT_CONFIG = DEFAULT_AUTOPUBLISH_CFG
+
+
+def validate_autopublish_config(cfg: dict) -> None:
+    """Startup consistency guard ensuring code and config.yaml agree, and quota/wave math is valid."""
+    if CONFIG_PATH.exists():
+        try:
+            data = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            ap_file = data.get("autopublish") or {}
+            if isinstance(ap_file, dict):
+                f_per_dom = ap_file.get("articles_per_domain_per_day")
+                c_per_dom = DEFAULT_AUTOPUBLISH_CFG.get("articles_per_domain_per_day")
+                if f_per_dom is not None and c_per_dom is not None:
+                    assert int(f_per_dom) == int(c_per_dom), (
+                        f"Config mismatch: config.yaml has articles_per_domain_per_day={f_per_dom} "
+                        f"but DEFAULT_AUTOPUBLISH_CFG has {c_per_dom}"
+                    )
+                f_target = ap_file.get("daily_total_target")
+                c_target = DEFAULT_AUTOPUBLISH_CFG.get("daily_total_target")
+                if f_target is not None and c_target is not None:
+                    assert int(f_target) == int(c_target), (
+                        f"Config mismatch: config.yaml has daily_total_target={f_target} "
+                        f"but DEFAULT_AUTOPUBLISH_CFG has {c_target}"
+                    )
+        except AssertionError:
+            raise
+        except Exception:
+            pass
+
+    per_domain = int(cfg.get("articles_per_domain_per_day", 5))
+    daily_target = int(cfg.get("daily_total_target", 50))
+    wave_hours = cfg.get("wave_hours_ist") or []
+
+    assert per_domain * 10 == daily_target, (
+        f"Inconsistent quota: per_domain ({per_domain}) x 10 domains == {per_domain * 10} != daily_total_target ({daily_target})"
+    )
+    assert len(wave_hours) == per_domain, (
+        f"Inconsistent waves: len(wave_hours_ist) ({len(wave_hours)}) != articles_per_domain_per_day ({per_domain})"
+    )
 
 
 def _load_autopublish_config() -> dict:
@@ -61,6 +135,7 @@ def _load_autopublish_config() -> dict:
                 cfg.update({k: v for k, v in ap.items() if v is not None})
     except Exception:
         pass
+    validate_autopublish_config(cfg)
     return cfg
 
 
@@ -98,12 +173,13 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         domain TEXT,
         category TEXT,
-        topic TEXT UNIQUE,
+        topic TEXT,
         status TEXT DEFAULT 'pending',
         priority_score REAL DEFAULT 0.0,
         created_at TIMESTAMP
     )
     """)
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_topic_domain ON topic_queue(domain, topic)")
     cols = {r[1] for r in cur.execute("PRAGMA table_info(topic_queue)").fetchall()}
     if "priority_score" not in cols:
         cur.execute("ALTER TABLE topic_queue ADD COLUMN priority_score REAL DEFAULT 0.0")
@@ -196,8 +272,17 @@ def seed_queue(fetch_live: bool = True):
     for site, topics in INITIAL_TOPICS.items():
         for cat, topic in topics:
             try:
+                # Cross-domain check
+                norm = re.sub(r"[^a-z0-9]", "", topic.lower()[:40])
+                dup = cur.execute("SELECT 1 FROM published_posts WHERE domain != ? AND LOWER(title) LIKE ?", (site, f"%{topic[:30]}%")).fetchone()
+                if dup:
+                    continue
                 cur.execute(
-                    "INSERT OR IGNORE INTO topic_queue (domain, category, topic, status, priority_score, created_at) VALUES (?, ?, ?, 'pending', 60.0, ?)",
+                    """
+                    INSERT INTO topic_queue (domain, category, topic, status, priority_score, created_at)
+                    VALUES (?, ?, ?, 'pending', 60.0, ?)
+                    ON CONFLICT(domain, topic) DO UPDATE SET priority_score = MAX(COALESCE(priority_score, 0), 60.0)
+                    """,
                     (site, cat, topic, now),
                 )
                 if cur.rowcount > 0:
@@ -257,10 +342,11 @@ def recover_and_kick_stuck_domains(target_domains=None, fetch_live: bool = False
     )
 
 # 3. ARTICLE GENERATION ENGINE (Using FreeLLMAPI)
+# DEAD: not called; live path is generate_claude_seo_article()
 def generate_article_content(site_id, site_info, category, topic):
     site_name = site_info["name"]
     system_prompt = f"""You are a senior investigative economic and technical journalist writing for {site_name}.
-Your mission is to produce an exhaustive, authoritative, deeply researched 1400-1800 word practical consumer guide.
+Your mission is to produce an exhaustive, authoritative, deeply researched {ARTICLE_TARGET_MIN}-{ARTICLE_TARGET_MAX} word practical consumer guide.
 
 CRITICAL RULES:
 1. Write 100% in English with professional, direct editorial clarity.
@@ -330,11 +416,15 @@ def sync_github(site_id: str, slug: str, topic: str) -> None:
             clean_title = re.sub(r'[\'"]', '', topic)[:50]
             commit_msg = f"AutoPublish: Published '{clean_title}' to {site_id}"
             subprocess.run(["git", "commit", "-m", commit_msg], capture_output=True, encoding="utf-8", errors="ignore", timeout=30)
-            res = subprocess.run(["git", "push", "origin", "master"], capture_output=True, encoding="utf-8", errors="ignore", timeout=60)
+            branch = os.environ.get("AUTOPUBLISH_GIT_BRANCH", "master")
+            subprocess.run(["git", "pull", "--rebase", "origin", branch], capture_output=True, encoding="utf-8", errors="ignore", timeout=60)
+            res = subprocess.run(["git", "push", "origin", f"HEAD:{branch}"], capture_output=True, encoding="utf-8", errors="ignore", timeout=60)
             if res.returncode == 0:
-                print(f"[{site_id}] GitHub automatically synced with new post! (origin/master updated)")
+                print(f"[{site_id}] GitHub automatically synced with new post! (origin/{branch} updated)")
             else:
-                print(f"[{site_id}] Git push note: {(res.stderr or '')[:100]}")
+                err_msg = (res.stderr or "")[-300:]
+                print(f"[{site_id}] Git push note: {err_msg[:100]}")
+                _notify_pipeline_error("git_sync", err_msg, domain=site_id)
         except Exception as e:
             print(f"[{site_id}] Git sync exception: {e}")
 
@@ -451,7 +541,11 @@ def _ensure_unique_slug(site_id: str, base_slug: str) -> str:
     site_dir = os.path.join("sites", f"{site_id}.com")
     candidate = slug
     suffix = 2
-    while candidate in used or os.path.exists(os.path.join(site_dir, f"{candidate}.html")):
+    while (
+        candidate in used
+        or os.path.exists(os.path.join(site_dir, f"{candidate}.html"))
+        or os.path.exists(os.path.join(site_dir, candidate, "index.html"))
+    ):
         candidate = f"{slug[:48]}-{suffix}"
         suffix += 1
     return candidate
@@ -467,9 +561,28 @@ def _reset_topic_pending(q_id: int) -> None:
         pass
 
 
-def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_20: bool = False):
+def ensure_shingle_guard_index():
+    """Startup verification: ensure 12-word prose shingle index is populated. Never publish with an empty shingle index."""
+    from shingle_guard import get_shared_index, SHINGLE_INDEX_PATH
+    from scripts.build_shingle_index import build_shingle_index
+
+    idx = get_shared_index()
+    if not idx.index or len(idx.index) == 0:
+        logger.info("Startup check: shingle index missing or empty; auto-rebuilding from corpus...")
+        print("[ShingleGuard] Startup check: Index empty/missing. Auto-rebuilding from corpus...")
+        build_shingle_index(output_path=SHINGLE_INDEX_PATH)
+        idx.load()
+    if not idx.index or len(idx.index) == 0:
+        raise RuntimeError("FATAL: Shingle index is empty! Refusing to publish without active shingle guard.")
+    print(f"[ShingleGuard] Startup check: verified index with {len(idx.index)} unique shingles.")
+    return idx
+
+
+def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_20: bool = False, dry_run: bool = False):
     from network_registry import NETWORK_REGISTRY
     MASTER_SITES = NETWORK_REGISTRY
+
+    ensure_shingle_guard_index()
 
     if discover_fresh_20 and specific_site:
         clean_dom = specific_site.replace(".com", "").strip().lower()
@@ -520,7 +633,11 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
         seo_brief = seo_pipeline.generate_seo_brief(site_id, topic)
         seo_title = seo_brief["seo_title"]
         meta_desc = seo_brief["meta_description"]
-        primary_kw = seo_brief["primary_keyword"]
+        primary_kw = seo_brief.get("primary_keyword", topic)
+        if not valid_description(meta_desc):
+            meta_desc = f"Complete guide on {primary_kw}: compare updated rates, eligibility criteria, and step-by-step procedures."
+            if len(meta_desc) > 155:
+                meta_desc = meta_desc[:155].rsplit(" ", 1)[0]
 
         # PHASE 2: Dynamic CC0 Image
         dynamic_img = seo_pipeline.get_dynamic_seo_image(primary_kw, site_id)
@@ -528,7 +645,22 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
         img_alt = dynamic_img["alt"]
 
         # PHASE 3: Claude-SEO Content Generation
-        raw_content_html, raw_faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+        try:
+            raw_content_html, raw_faqs = generate_claude_seo_article(site_id, site_info, seo_brief)
+        except Exception as gen_err:
+            print(f"[{site_id}] Article generation failed: {gen_err}")
+            _notify_pipeline_error("article_generation", f"LLM error for topic '{topic[:120]}': {gen_err}", domain=site_id)
+            topic_intelligence.update_pipeline_stage(
+                domain=site_id,
+                stage_num=2,
+                stage_name="Queued for Fast-Track Publish",
+                active_topic=topic,
+                status_message=f"Generation failed ({gen_err}); returned topic cleanly to pending queue",
+                db_path=DB_PATH,
+            )
+            _reset_topic_pending(q_id)
+            return False
+
         if not raw_content_html:
             _notify_pipeline_error("article_generation", f"Empty LLM output for topic: {topic[:120]}", domain=site_id)
             topic_intelligence.update_pipeline_stage(
@@ -539,6 +671,7 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
                 status_message="Generation empty; returned topic cleanly to pending queue",
                 db_path=DB_PATH,
             )
+            _reset_topic_pending(q_id)
             return False
 
         # PHASE 4: Anti-AI, Claude-SEO `content_humanize.py` + `content_quality.py` & Finish-Gate Audit
@@ -553,6 +686,31 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             site_name=name,
         )
         words_count = quality_meta["word_count"]
+        floor_ok, floor_msg = check_word_count_floor(words_count)
+        leak_ok = bool(quality_meta.get("no_leaks", True))
+        if not floor_ok or not leak_ok:
+            reasons = []
+            if not floor_ok:
+                reasons.append(floor_msg)
+            if not leak_ok:
+                reasons.append("prompt leak detected in body (no_leaks=False)")
+            reason = "; ".join(reasons)
+            logger.warning(f"[{site_id}] PUBLISH BLOCKED: {reason}")
+            try:
+                topic_intelligence.update_pipeline_stage(
+                    domain=site_id,
+                    stage_num=4,
+                    stage_name="Quality Gate Refused",
+                    active_topic=topic,
+                    status_message=reason[:180],
+                    words_written=words_count,
+                    anti_ai_score=float(quality_meta.get("score", 0.0)),
+                    db_path=DB_PATH,
+                )
+            except Exception:
+                pass
+            _reset_topic_pending(q_id)
+            return False
         print(
             f"[{site_id}] Content Quality Finish-Gate Score: {quality_meta['score']}/100 "
             f"| Claude-SEO QRG Quality: {quality_meta.get('qrg_overall_quality', 92)}/100 "
@@ -575,6 +733,45 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
         base_slug = re.sub(r'[^a-z0-9]+', '-', primary_kw.lower()).strip('-')[:55]
         slug = _ensure_unique_slug(site_id, base_slug)
         canonical_url = f"{domain_url}/{slug}"
+
+        # PHASE 4B: Distribute 6-9 self-hosted <figure> images between <h2> sections (P3-1)
+        local_img_dir = Path("sites") / f"{site_id}.com" / "img"
+        available_imgs = [f.name for f in local_img_dir.glob("*.webp")] if local_img_dir.exists() else []
+        if available_imgs:
+            h2_split_re = re.compile(r'(<h2[^>]*>.*?</h2>)', re.IGNORECASE | re.DOTALL)
+            h2_parts = h2_split_re.split(content_html)
+            if len(h2_parts) > 2:
+                num_figs = min(len(available_imgs), max(6, min(9, len(h2_parts) // 2)))
+                h = int(hashlib.md5(slug.encode("utf-8")).hexdigest(), 16)
+                figs_inserted = 0
+                new_h2_parts = []
+                for part in h2_parts:
+                    if h2_split_re.match(part) and figs_inserted < num_figs:
+                        fig_fn = available_imgs[(h + figs_inserted * 7) % len(available_imgs)]
+                        h2_clean = re.sub(r"<[^>]+>", "", part).strip()
+                        h2_clean = re.sub(r"^\d+\.\s*", "", h2_clean).strip()
+                        h2_words = [w for w in re.sub(r"[^\w\s-]", " ", h2_clean).split() if len(w) > 2]
+                        h2_snippet = " ".join(h2_words[:5]).title() if h2_words else slug.replace("-", " ").title()
+                        alt_variants = [
+                            f"{h2_snippet} procedural framework and operational guidelines",
+                            f"Official {h2_snippet} data verification and benchmarks",
+                            f"{h2_snippet} detailed structural review and parameters",
+                            f"Statutory {h2_snippet} compliance checklist and standards",
+                            f"{h2_snippet} analytical criteria and assessment summary",
+                            f"Key {h2_snippet} documentation criteria and process flow",
+                        ]
+                        cand_alt = alt_variants[figs_inserted % len(alt_variants)]
+                        fig_alt = html.escape(cand_alt)
+                        fig_html = (
+                            f'\n<figure class="article-figure" style="margin:28px 0; text-align:center;">\n'
+                            f'    <img src="/img/{fig_fn}" alt="{fig_alt}" loading="lazy" width="1200" height="675" style="width:100%; height:auto; border-radius:8px;">\n'
+                            f'    <figcaption style="font-size:13px; color:var(--text-muted); margin-top:8px;">Verified benchmarks and documentation analysis for {seo_title}.</figcaption>\n'
+                            f'</figure>\n'
+                        )
+                        new_h2_parts.append(fig_html)
+                        figs_inserted += 1
+                    new_h2_parts.append(part)
+                content_html = "".join(new_h2_parts)
 
         # Schema.org JSON-LD (`seo-schema` + `schema_generate.py` @graph)
         site_domain_clean = domain_url.replace("https://", "").replace("http://", "").rstrip("/")
@@ -662,11 +859,52 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             f"SchemaEntities={claude_seo_audit['schema_entities']})"
         )
 
+        if dry_run:
+            import tempfile
+            for proof_base in [Path("/tmp/round7_proof"), Path("C:/tmp/round7_proof"), Path(tempfile.gettempdir()) / "round7_proof"]:
+                try:
+                    proof_base.mkdir(parents=True, exist_ok=True)
+                    (proof_base / f"{slug}.html").write_text(full_html, encoding="utf-8")
+                except Exception:
+                    pass
+            dry_dir = Path("/tmp/round7_proof")
+            dry_file = dry_dir / f"{slug}.html"
+            
+            imgs = [i for i in re.findall(r'<img[^>]+src="([^"]+)"', full_html) if 'logo' not in i.lower()]
+            q_score = float(quality_meta.get("score", 99.5))
+            print(f"[DRY-RUN] Success! Article generated for site: {site_id} | slug: {slug}")
+            print(f"[DRY-RUN] Output written to: {dry_file}")
+            print(f"[DRY-RUN] Word count: {words_count} | Quality score: {q_score} | Image count: {len(imgs)}")
+            return True
+
+        # PHASE 5B: Shingle Guard & Domain Vocabulary Integrity Gate (D2 - right before article write)
+        try:
+            from shingle_guard import get_shared_index, DuplicateContentError
+            shingle_idx = get_shared_index()
+            shingle_idx.register_article(site_id, slug, full_html)
+            print(f"[{site_id}] Shingle Guard Verified: registered '{site_id}/{slug}' without duplicate collisions.")
+        except DuplicateContentError as dup_err:
+            logger.error("[%s] Shingle Guard REJECTED article '%s': %s", site_id, slug, dup_err)
+            print(f"[{site_id}] ABORT PUBLISHING: Duplicate prose shingle detected in '{slug}': {dup_err}")
+            _notify_pipeline_error("duplicate_shingle", f"Duplicate prose shingle: {dup_err}", domain=site_id)
+            _reset_topic_pending(q_id)
+            try:
+                topic_intelligence.update_pipeline_stage(
+                    domain=site_id,
+                    stage_num=4,
+                    stage_name="Shingle Guard Rejected",
+                    active_topic=topic,
+                    status_message=f"Duplicate content collision: {str(dup_err)[:180]}",
+                    words_written=words_count,
+                    anti_ai_score=0.0,
+                    db_path=DB_PATH,
+                )
+            except Exception:
+                pass
+            return False
+
         site_dirs = [os.path.join("sites", f"{site_id}.com")]
         for s_dir in site_dirs:
-            os.makedirs(s_dir, exist_ok=True)
-            with open(os.path.join(s_dir, f"{slug}.html"), "w", encoding="utf-8") as f:
-                f.write(full_html)
             os.makedirs(os.path.join(s_dir, slug), exist_ok=True)
             with open(os.path.join(s_dir, slug, "index.html"), "w", encoding="utf-8") as f:
                 f.write(full_html)
@@ -691,7 +929,7 @@ def publish_next_post(specific_site=None, exclude_domains=None, discover_fresh_2
             pass
 
         # Deploy to Cloudflare Pages
-        deploy_cmd = ["npx.cmd", "wrangler", "pages", "deploy", os.path.join("sites", f"{site_id}.com"), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
+        deploy_cmd = [npx_bin(), "wrangler", "pages", "deploy", os.path.join("sites", f"{site_id}.com"), f"--project-name={site_id}", "--branch=main", "--commit-dirty=true"]
         try:
             res = subprocess.run(deploy_cmd, capture_output=True, encoding="utf-8", errors="ignore", timeout=120)
             cf_success = 1 if res.returncode == 0 else 0
@@ -811,12 +1049,12 @@ def publish_parallel_batch(parallel_domains: int | None = None, specific_sites: 
 
 # 5. 24-HOUR 5-WAVE SEQUENTIAL SCHEDULER (10 DOMAINS x 5 ARTICLES/DAY = 50 ARTICLES/DAY)
 def get_today_domain_counts() -> dict[str, int]:
-    """Return number of deep (1,000+ word) articles published today (after 5-Wave cutover) per domain."""
+    """Return number of deep (3,000+ word ARTICLE_WORD_COUNT_FLOOR) articles published today (after 5-Wave cutover) per domain."""
     today_prefix = datetime.now().strftime("%Y-%m-%d")
     conn = _connect_db()
     rows = conn.execute(
-        "SELECT domain, COUNT(*) FROM published_posts WHERE published_at LIKE ? AND published_at >= '2026-11-11T21:10:00' AND COALESCE(words, 0) >= 1000 GROUP BY domain",
-        (f"{today_prefix}%",),
+        "SELECT domain, COUNT(*) FROM published_posts WHERE published_at LIKE ? AND published_at >= ? AND COALESCE(words, 0) >= ? GROUP BY domain",
+        (f"{today_prefix}%", WAVE_CUTOVER_ISO, ARTICLE_WORD_COUNT_FLOOR),
     ).fetchall()
     conn.close()
     return {str(r[0]): int(r[1]) for r in rows if r[0]}
@@ -841,8 +1079,12 @@ def select_next_wave_domain(per_domain_cap: int = 5) -> str | None:
 def run_daemon(interval_minutes=None, parallel_domains=None):
     ap_cfg = _load_autopublish_config()
     schedule_mode = str(ap_cfg.get("schedule_mode", "5_wave_24h"))
-    per_dom_cap = int(ap_cfg.get("articles_per_domain_per_day", 5))
-    daily_target = int(ap_cfg.get("daily_total_target", 50))
+    if "articles_per_domain_per_day" not in ap_cfg:
+        print("[WARNING] 'articles_per_domain_per_day' missing in config, using safe fallback: 1")
+    if "daily_total_target" not in ap_cfg:
+        print("[WARNING] 'daily_total_target' missing in config, using safe fallback: 10")
+    per_dom_cap = int(ap_cfg.get("articles_per_domain_per_day", 1))
+    daily_target = int(ap_cfg.get("daily_total_target", 10))
     wave_hours = [str(w) for w in (ap_cfg.get("wave_hours_ist") or ["07:00", "11:30", "16:00", "20:00", "00:00"])]
     discover_20 = bool(ap_cfg.get("discover_20_before_publish", True))
 
@@ -927,7 +1169,20 @@ def run_daemon(interval_minutes=None, parallel_domains=None):
 
 if __name__ == "__main__":
     init_db()
-    if len(sys.argv) > 1 and sys.argv[1] == "--kick-stuck":
+    ensure_shingle_guard_index()
+    if "--dry-run" in sys.argv:
+        site_arg = "loanraaj"
+        if "--site" in sys.argv:
+            idx = sys.argv.index("--site")
+            if idx + 1 < len(sys.argv):
+                site_arg = sys.argv[idx + 1]
+        seed_queue(fetch_live=False)
+        print(f"Executing DRY-RUN 5-Stage deep auto-publish run (Site: {site_arg})...")
+        success = publish_next_post(specific_site=site_arg, discover_fresh_20=False, dry_run=True)
+        if not success:
+            print("[ERROR] Auto-publish dry-run failed. Exiting non-zero.")
+            sys.exit(1)
+    elif len(sys.argv) > 1 and sys.argv[1] == "--kick-stuck":
         seed_queue(fetch_live=False)
         res = recover_and_kick_stuck_domains(fetch_live=False)
         print(json.dumps(res, indent=2))
@@ -940,6 +1195,9 @@ if __name__ == "__main__":
         seed_queue(fetch_live=False)
         site_arg = sys.argv[2] if len(sys.argv) > 2 else select_next_wave_domain(per_domain_cap=5)
         print(f"Executing single 5-Stage deep auto-publish run (Site: {site_arg or 'Next in Queue'})...")
-        publish_next_post(specific_site=site_arg, discover_fresh_20=True)
+        success = publish_next_post(specific_site=site_arg, discover_fresh_20=True)
+        if not success:
+            print("[ERROR] Auto-publish run failed. Exiting non-zero.")
+            sys.exit(1)
     else:
         run_daemon()

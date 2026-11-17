@@ -3,6 +3,7 @@ import sqlite3
 import os
 import json
 import re
+from pathlib import Path
 from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 
@@ -320,19 +321,30 @@ def sanitize_preview_html(raw_html: str) -> str:
 
 def get_preview_html(domain: str, slug: str, safe: bool = False) -> Optional[str]:
     """Loads exact rendered HTML file for iframe preview (optionally script-sanitized for sandboxed CRM previews)."""
-    domain_clean = domain.replace(".com", "")
+    # S-1 Security Hardening: Reject path traversal sequences immediately
+    if ".." in slug or ".." in domain or "/" in slug or "\\" in slug or "%" in slug:
+        raise ValueError("Path traversal sequence detected in preview request")
+
+    domain_clean = domain.replace(".com", "").strip()
     folder = f"{domain_clean}.com"
+    sites_root = Path("sites").resolve()
 
     # Try exact post html
     candidates = [
-        os.path.join("sites", folder, f"{slug}.html"),
-        os.path.join("sites", folder, slug, "index.html"),
-        os.path.join("sites", folder, "index.html")
+        os.path.join("sites", folder, f"{slug}.html") if slug else None,
+        os.path.join("sites", folder, slug, "index.html") if slug else None,
+        os.path.join("sites", folder, "index.html"),
     ]
 
-    for path in candidates:
-        if os.path.isfile(path):
-            with open(path, "r", encoding="utf-8", errors="replace") as f:
+    for path in filter(None, candidates):
+        resolved = Path(path).resolve()
+        # Enforce strict containment under sites/ root
+        if not resolved.is_relative_to(sites_root):
+            raise ValueError(f"Security containment violation: {resolved} escapes sites root")
+        if resolved.suffix != ".html":
+            continue
+        if resolved.is_file():
+            with open(resolved, "r", encoding="utf-8", errors="replace") as f:
                 content = f.read()
                 return sanitize_preview_html(content) if safe else content
 

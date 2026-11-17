@@ -122,14 +122,38 @@ def init_candidate_tables(db_path: Optional[str] = None) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             domain TEXT,
             category TEXT,
-            topic TEXT UNIQUE,
+            topic TEXT,
             status TEXT DEFAULT 'pending',
             priority_score REAL DEFAULT 0.0,
             created_at TIMESTAMP
         )
         """
     )
+    cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_topic_domain ON topic_queue(domain, topic)")
     _ensure_column(cur, "topic_queue", "priority_score", "priority_score REAL DEFAULT 0.0")
+    # P3-3: Migrate global UNIQUE(topic) to composite ux_topic_domain(domain, topic)
+    try:
+        tq_info = cur.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='topic_queue'").fetchone()
+        if tq_info and "topic TEXT UNIQUE" in tq_info[0]:
+            cur.execute("""
+            CREATE TABLE topic_queue_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                domain TEXT,
+                category TEXT,
+                topic TEXT,
+                status TEXT DEFAULT 'pending',
+                priority_score REAL DEFAULT 0.0,
+                created_at TIMESTAMP
+            );
+            """)
+            cur.execute("INSERT INTO topic_queue_new SELECT id, domain, category, topic, status, priority_score, created_at FROM topic_queue;")
+            cur.execute("DROP TABLE topic_queue;")
+            cur.execute("ALTER TABLE topic_queue_new RENAME TO topic_queue;")
+            cur.execute("CREATE UNIQUE INDEX IF NOT EXISTS ux_topic_domain ON topic_queue(domain, topic);")
+            conn.commit()
+    except Exception:
+        pass
+
     cur.execute(
         """
         CREATE TABLE IF NOT EXISTS topic_candidates (
@@ -284,20 +308,52 @@ def _build_candidate_pool(
     s1 = seed_keywords[1 % len(seed_keywords)].title()
     s2 = seed_keywords[2 % len(seed_keywords)].title()
     s3 = seed_keywords[3 % len(seed_keywords)].title()
-    high_cpc_templates = [
-        f"{s0} {year}: Apply Online, Eligibility Criteria & Lowest APR Guide",
-        f"How to Compare {s1} Interest Rate Slab & Zero Processing Fee ({year})",
-        f"{s2} Complete Calculation, ₹ Charges & Fast Approval Checklist ({year})",
-        f"SBI vs HDFC {s0}: Real Interest Rate, Cashback & Foreclosure Rules Compared",
-        f"RBI Guidelines for {s1} in India: Step-by-Step Approval & Limits ({year})",
-        f"{s3} {year}: Complete Documentation, Tax Rules & Direct Benefit Guide",
-        f"Low CIBIL Score Options for {s0}: Eligibility Criteria & Settlement Impact",
-        f"How to Claim Maximum Cashback & Fee Waiver on {s1} Online ({year})",
-        f"{s2} Balance Transfer vs Top-Up Guide: Exact ₹ Annual Savings Math",
-        f"Pre-Closure & Foreclosure Charges on {s0}: RBI & Bank Schedule ({year})",
-        f"Step-by-Step Online Verification for {s3} with Instant Approval Status",
-        f"Public vs Private Sector Benchmarks for {s1}: Effective APR & Rewards",
-    ]
+    niche_cat = niche_data.get("category", "finance_loans")
+    if niche_cat == "recharge_utility":
+        high_cpc_templates = [
+            f"{s0} {year}: Best Plans, Validity, Speed & Cashback Offers Compared",
+            f"How to Claim {s1} Promo Code, Instant Discount & ₹ Cashback ({year})",
+            f"{s2} Complete Breakdown, Extra Data Slabs & Fast Recharge Checklist",
+            f"Jio vs Airtel {s0}: Real Data Limits, OTT Bundles & Network Coverage Compared",
+            f"TRAI Guidelines for {s1} in India: Tariff Rules & Consumer Rights ({year})",
+            f"{s3} {year}: Complete Plan Details, Validity & Family Pool Benefits",
+            f"Best Annual Packs for {s0}: Daily Cost Calculations & Savings Math",
+            f"How to Claim Maximum Cashback on {s1} Online via UPI ({year})",
+            f"{s2} vs Alternative Plans: Exact ₹ Annual Recharge Savings",
+            f"FUP Limits & Speed After Quota for {s0}: Latest Carrier Schedule ({year})",
+            f"Step-by-Step Online Recharge for {s3} with Instant Confirmation",
+            f"Prepaid vs Postpaid Benchmarks for {s1}: Effective Monthly Cost & Rewards",
+        ]
+    elif niche_cat == "market_rates":
+        high_cpc_templates = [
+            f"{s0} Today ({year}): 24K vs 22K Rates, Making Charges & Purity Guide",
+            f"How to Compare {s1} Spot Prices, GST & Digital Gold Vault Charges ({year})",
+            f"{s2} Market Analysis, Price Movement Drivers & Investment Checklist",
+            f"Physical vs Digital {s0}: Sovereign Gold Bonds, ETFs & Coins Compared",
+            f"Bureau of Indian Standards Guidelines for {s1}: 6-Digit HUID Hallmarking ({year})",
+            f"{s3} {year}: Complete Historical Trends, Price Slabs & Return Projections",
+            f"Best Time to Buy {s0}: Seasonal Demand & Market Volatility Analysis",
+            f"How to Avoid Hidden Jeweler Margins on {s1} ({year})",
+            f"{s2} vs Sovereign Gold Bonds: Exact ₹ Yield & Capital Gains Tax Math",
+            f"Purity Testing Standards for {s0}: XRF Karatometer & Resale Value ({year})",
+            f"Step-by-Step Buying Guide for {s3} with Invoice & Certificate Verification",
+            f"Wholesale vs Retail Benchmarks for {s1}: Spot Premiums & Spread Analysis",
+        ]
+    else:
+        high_cpc_templates = [
+            f"{s0} {year}: Apply Online, Eligibility Criteria & Lowest APR Guide",
+            f"How to Compare {s1} Interest Rate Slab & Zero Processing Fee ({year})",
+            f"{s2} Complete Calculation, ₹ Charges & Fast Approval Checklist ({year})",
+            f"SBI vs HDFC {s0}: Real Interest Rate, Cashback & Foreclosure Rules Compared",
+            f"RBI Guidelines for {s1} in India: Step-by-Step Approval & Limits ({year})",
+            f"{s3} {year}: Complete Documentation, Tax Rules & Direct Benefit Guide",
+            f"Low CIBIL Score Options for {s0}: Eligibility Criteria & Settlement Impact",
+            f"How to Claim Maximum Cashback & Fee Waiver on {s1} Online ({year})",
+            f"{s2} Balance Transfer vs Top-Up Guide: Exact ₹ Annual Savings Math",
+            f"Pre-Closure & Foreclosure Charges on {s0}: RBI & Bank Schedule ({year})",
+            f"Step-by-Step Online Verification for {s3} with Instant Approval Status",
+            f"Public vs Private Sector Benchmarks for {s1}: Effective APR & Rewards",
+        ]
     for idx, fb in enumerate(high_cpc_templates):
         raw_candidates.append((fb, idx, True))
 
@@ -346,10 +402,24 @@ def sync_winners_to_queue(
                 (score, domain_clean, topic),
             )
             continue
+        # P3-3 Cross-domain duplicate guard: check if topic already published on another domain
+        norm = re.sub(r"[^a-z0-9]", "", topic.lower()[:40])
+        pub_rows = cur.execute("SELECT title, slug FROM published_posts WHERE domain != ?", (domain_clean,)).fetchall()
+        is_dup = False
+        for pr in pub_rows:
+            p_norm = re.sub(r"[^a-z0-9]", "", str(pr[0] or "").lower()[:40])
+            s_norm = re.sub(r"[^a-z0-9]", "", str(pr[1] or "").lower()[:40])
+            if norm == p_norm or (len(norm) >= 20 and (norm in p_norm or p_norm in norm)):
+                is_dup = True
+                break
+        if is_dup:
+            continue
+
         cur.execute(
             """
-            INSERT OR IGNORE INTO topic_queue (domain, category, topic, status, priority_score, created_at)
+            INSERT INTO topic_queue (domain, category, topic, status, priority_score, created_at)
             VALUES (?, ?, ?, 'pending', ?, ?)
+            ON CONFLICT(domain, topic) DO UPDATE SET priority_score = MAX(COALESCE(priority_score, 0), excluded.priority_score)
             """,
             (domain_clean, w.get("category", "General"), topic, score, now_iso),
         )

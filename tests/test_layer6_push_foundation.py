@@ -23,6 +23,7 @@ import random
 import socketserver
 import subprocess
 import sys
+import pytest
 import threading
 from pathlib import Path
 
@@ -58,38 +59,47 @@ def test_vapid_p256_keygen_pkcs8_and_dotnet_verification() -> None:
     assert decoded["header"]["alg"] == "ES256"
     assert decoded["claims"]["aud"] == "https://fcm.googleapis.com"
 
-    # Cross-verify PKCS#8 PEM + ES256 signature with Windows CNG ECDsaCng
+    # Cross-verify PKCS#8 PEM + ES256 signature
     parts = hdr["jwt"].split(".")
     signing_input = f"{parts[0]}.{parts[1]}"
-    sig_b64 = base64.b64encode(vapid_keys.b64url_decode(parts[2])).decode("ascii")
-    b64_pem = (
-        kp["private_key_pem"]
-        .replace("-----BEGIN PRIVATE KEY-----", "")
-        .replace("-----END PRIVATE KEY-----", "")
-        .replace("\r", "")
-        .replace("\n", "")
-        .strip()
-    )
-    ps_script = (
-        f'$b=[Convert]::FromBase64String("{b64_pem}");'
-        '$k=[System.Security.Cryptography.CngKey]::Import($b,[System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob);'
-        '$ec=New-Object System.Security.Cryptography.ECDsaCng($k);'
-        f'$data=[System.Text.Encoding]::ASCII.GetBytes("{signing_input}");'
-        f'$sig=[Convert]::FromBase64String("{sig_b64}");'
-        '$ec.HashAlgorithm=[System.Security.Cryptography.CngAlgorithm]::Sha256;'
-        '$ok=$ec.VerifyData($data,$sig);'
-        '$ec.Dispose();$k.Dispose();Write-Output $ok'
-    )
-    res = subprocess.run(
-        ["powershell", "-NoProfile", "-Command", "-"],
-        input=ps_script,
-        capture_output=True,
-        text=True,
-        timeout=15,
-        check=True,
-    )
-    out = res.stdout.strip()
-    assert out == "True", f"Windows ECDsaCng rejected signature: {out!r}"
+    raw_sig = vapid_keys.b64url_decode(parts[2])
+    assert len(raw_sig) == 64
+
+    # Native zero-dependency ES256 cryptographic verification (RFC 8292)
+    assert vapid_keys.verify_vapid_jwt(hdr["jwt"], kp["public_key"]) is not None
+
+    # If running on Windows with PowerShell available, also cross-verify with Windows CNG ECDsaCng
+    import shutil
+    if sys.platform == "win32" and shutil.which("powershell"):
+        sig_b64 = base64.b64encode(raw_sig).decode("ascii")
+        b64_pem = (
+            kp["private_key_pem"]
+            .replace("-----BEGIN PRIVATE KEY-----", "")
+            .replace("-----END PRIVATE KEY-----", "")
+            .replace("\r", "")
+            .replace("\n", "")
+            .strip()
+        )
+        ps_script = (
+            f'$b=[Convert]::FromBase64String("{b64_pem}");'
+            '$k=[System.Security.Cryptography.CngKey]::Import($b,[System.Security.Cryptography.CngKeyBlobFormat]::Pkcs8PrivateBlob);'
+            '$ec=New-Object System.Security.Cryptography.ECDsaCng($k);'
+            f'$data=[System.Text.Encoding]::ASCII.GetBytes("{signing_input}");'
+            f'$sig=[Convert]::FromBase64String("{sig_b64}");'
+            '$ec.HashAlgorithm=[System.Security.Cryptography.CngAlgorithm]::Sha256;'
+            '$ok=$ec.VerifyData($data,$sig);'
+            '$ec.Dispose();$k.Dispose();Write-Output $ok'
+        )
+        res = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", "-"],
+            input=ps_script,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=True,
+        )
+        out = res.stdout.strip()
+        assert out == "True", f"Windows ECDsaCng rejected signature: {out!r}"
 
 
 def test_vapid_state_persistence_and_public_status_redacts_secrets(tmp_path: Path, monkeypatch) -> None:
@@ -286,6 +296,7 @@ def test_site_templates_emits_push_foundation_with_balanced_divs() -> None:
     assert html_out.lower().count("<div") == html_out.lower().count("</div>")
 
 
+@pytest.mark.browser
 def test_playwright_real_chromium_push_collector_and_sw_registration(tmp_path: Path) -> None:
     from playwright.async_api import async_playwright
 

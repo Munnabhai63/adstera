@@ -51,29 +51,44 @@ def _offline_monitor(state_path: Optional[Path] = None) -> GSCMonitor:
 
 
 def test_gsc_fetch_domain_performance():
-    """fetch_domain_performance returns valid organic SEO metrics."""
+    """fetch_domain_performance returns None for metrics when unconfigured."""
     monitor = _offline_monitor()
     perf = monitor.fetch_domain_performance("loanraaj.com")
 
     assert perf["domain"] == "loanraaj.com"
-    assert perf["impressions"] > 0
-    assert perf["clicks"] >= 0
-    assert 0.0 <= perf["ctr"] <= 1.0
-    assert perf["avg_position"] > 0.0
-    assert perf["is_indexed"]
-    assert perf["is_mock"] is True
-    assert perf["data_source"] == "mock_estimate"
-    print(f"  [OK] GSC performance for loanraaj.com: {perf['impressions']} imps, {perf['clicks']} clicks, pos {perf['avg_position']}")
+    assert perf["connected"] is False
+    assert perf["impressions"] is None
+    assert perf["clicks"] is None
+    assert perf["ctr"] is None
+    assert perf["avg_position"] is None
+    assert perf["is_indexed"] is None
+    assert perf["top_queries"] == []
+    assert perf["data_source"] == "not_configured"
+    print(f"  [OK] GSC unconfigured verified for loanraaj.com: metrics are None")
+
+
+def test_gsc_unconfigured_has_no_fake_numbers():
+    """Negative test: assert no numeric values appear when unconfigured."""
+    monitor = _offline_monitor()
+    perf = monitor.fetch_domain_performance("loanraaj.com")
+    numeric_keys = ["impressions", "clicks", "ctr", "avg_position", "indexed_pages"]
+    for k in numeric_keys:
+        assert perf.get(k) is None, f"Expected {k} to be None when unconfigured, got {perf.get(k)}"
+    assert perf.get("connected") is False
+    assert perf.get("data_source") == "not_configured"
+    assert perf.get("top_queries") == []
 
 
 def test_gsc_audit_all_domains_aggregation():
-    """audit_all_domains checks all 10 domains and aggregates clicks and impressions."""
+    """audit_all_domains checks all 10 domains and aggregates without fake metrics."""
     monitor = _offline_monitor()
     report = monitor.audit_all_domains()
 
     assert report["total_domains"] >= 10
-    assert report["total_organic_impressions_7d"] > 0
-    assert report["total_organic_clicks_7d"] > 0
+    assert report["live_domains_count"] == 0
+    assert report["unconfigured_domains_count"] >= 10
+    assert report["total_organic_impressions_7d"] is None
+    assert report["total_organic_clicks_7d"] is None
     assert report["deindexed_count"] == 0
     print(f"  [OK] GSC fleet audit verified across {report['total_domains']} domains")
 
@@ -85,13 +100,14 @@ def test_gsc_deindexed_alert():
         mock_fetch.return_value = {
             "domain": "penalty-site.com",
             "period_days": 7,
+            "connected": True,
             "impressions": 0,
             "clicks": 0,
             "ctr": 0.0,
             "avg_position": 0.0,
             "indexed_pages": 0,
             "is_indexed": False,
-            "is_mock": False,
+            "data_source": "google_search_console_api",
             "last_synced": "2026-11-10T00:00:00",
         }
         with patch("alert_bot.TelegramAlertBot") as MockBot:

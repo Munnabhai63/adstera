@@ -15,11 +15,17 @@ from admin_ui.views import render_login_view
 
 def test_profile_and_auth_lifecycle_isolated(tmp_path: Path) -> None:
     sdir = tmp_path / "state"
-    # 1. Default profile is unlocked
+    # 1. Default profile is locked until password is set (P2-3 secure by default)
     prof = profile_auth.load_profile(sdir)
     assert prof["require_login"] is False
     assert prof["has_password"] is False
+    assert profile_auth.is_crm_locked("", sdir) is True
+
+    # Escape hatch for initial setup
+    import os
+    os.environ["PHASE4_FIRST_RUN_SETUP"] = "1"
     assert profile_auth.is_crm_locked("", sdir) is False
+    del os.environ["PHASE4_FIRST_RUN_SETUP"]
 
     # 2. Cannot enable Sign-In gate without a password first
     ok, _, _ = profile_auth.set_require_login(True, sdir)
@@ -76,7 +82,7 @@ def test_profile_and_auth_lifecycle_isolated(tmp_path: Path) -> None:
     ok, _, prof_cleared = profile_auth.clear_password("StrongPass9!", sdir)
     assert ok is True
     assert prof_cleared["has_password"] is False
-    assert profile_auth.is_crm_locked("", sdir) is False
+    assert profile_auth.is_crm_locked("", sdir) is True
 
 
 def test_connections_never_leak_secrets(tmp_path: Path) -> None:

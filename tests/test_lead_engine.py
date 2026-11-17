@@ -60,6 +60,7 @@ def test_offline_conversion_database_persistence():
     assert records[0]["email"] == res["email"]
 
 
+@pytest.mark.browser
 def test_lead_form_detection_and_human_submission():
     async def _test():
         fixture_path = Path("tests/fixtures/advertiser_lead_page.html").resolve()
@@ -136,6 +137,12 @@ def test_ua_pool_27k_and_4d_hardware_lock():
     assert len(d_pool) >= 8000
     assert len(m_pool) >= 18000
     assert len(d_pool) + len(m_pool) >= 27000
+    assert len(set(d_pool)) >= 0.99 * len(d_pool), f"Desktop diversity too low: {len(set(d_pool))}/{len(d_pool)}"
+    assert len(set(m_pool)) >= 0.99 * len(m_pool), f"Mobile diversity too low: {len(set(m_pool))}/{len(m_pool)}"
+
+    # Real-use check: 3000 distinct seed keys must yield >= 2700 distinct desktop UAs
+    seeds = [ua_provider.get_matching_ua("131", is_mobile=False, seed_key=f"slot_{i}") for i in range(3000)]
+    assert len(set(seeds)) >= 2700, f"Seed diversity too low: {len(set(seeds))}/3000 distinct desktop UAs"
 
     # Verify deterministic seed_key rotation across the 27,103 pool
     ua_1 = ua_provider.get_matching_ua("131", is_mobile=True, seed_key="ip_slot_1")

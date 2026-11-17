@@ -2,9 +2,9 @@ name: Fleet CI & Automated Deployment Gate
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [ master, main, "round*" ]
   pull_request:
-    branches: [ master, main ]
+    branches: [ master, main, "round*" ]
 
 jobs:
   test_and_verify:
@@ -33,17 +33,47 @@ jobs:
 
       - name: Install Playwright Browsers
         run: |
-          playwright install chromium --with-deps
+          python -m playwright install --with-deps chromium chromium-headless-shell
+
+      - name: Rebuild 12-Word Shingle Index
+        run: |
+          python scripts/build_shingle_index.py
+          python -m pytest tests/test_shingle_guard.py -v
+
+      - name: Run Fast-Fail Bug Invariants
+        env:
+          CI: "true"
+          FREELLMAPI_TOKEN: "ci-dummy-token-not-a-secret"
+        run: |
+          python -m pytest tests/test_bug*.py -v
+
+      - name: Run Preflight SEO Tests
+        env:
+          CI: "true"
+          FREELLMAPI_TOKEN: "ci-dummy-token-not-a-secret"
+        run: |
+          python -m pytest tests/test_preflight_seo.py -v
+
+      - name: Run Layer 7 Autopublish Tests
+        env:
+          CI: "true"
+          FREELLMAPI_TOKEN: "dummy"
+        run: |
+          python -m pytest tests/test_layer7_autopublish_speed.py -v -m "not live"
 
       - name: Run Test Suite
         env:
           CI: "true"
+          FREELLMAPI_TOKEN: "ci-dummy-token-not-a-secret"
+          CLOUDFLARE_TUNNEL_TOKEN: "ci-dummy-tunnel-token"
         run: |
-          xvfb-run -a python -m pytest -v
+          xvfb-run -a python -m pytest -v -m "not live"
 
       - name: Run Pre-Flight Invariant Audit
         env:
           CI: "true"
+          FREELLMAPI_TOKEN: "ci-dummy-token-not-a-secret"
+          CLOUDFLARE_TUNNEL_TOKEN: "ci-dummy-tunnel-token"
         run: |
           xvfb-run -a python tests/audit.py
 

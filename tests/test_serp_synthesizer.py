@@ -52,6 +52,7 @@ def test_should_use_organic_serp_probability():
     assert engine.should_use_organic_serp(rng=rng_no) is False
 
 
+@pytest.mark.browser
 def test_navigate_via_serp_with_playwright_fixture():
     async def _test():
         fixture_path = str(Path("tests/fixtures/serp_results_page.html").resolve())

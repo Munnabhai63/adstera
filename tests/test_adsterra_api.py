@@ -115,3 +115,19 @@ def test_three_layer_zero_waste_audit_and_diagnostics():
     assert diag_zero_clicks["health"] == "LOW_CTR_FLOOR_CPM"
     assert "0 Clicks" in diag_zero_clicks["diagnosis"]
 
+
+def test_adsterra_maps_missing_file_fallback_and_warning(caplog):
+    """When banner file is missing from state and fixtures, loader returns fallback map and logs warning."""
+    import logging
+    from adsterra_api import load_local_adsterra_ZeroWaste_maps
+
+    with caplog.at_level(logging.WARNING):
+        dom_map, place_map = load_local_adsterra_ZeroWaste_maps(
+            banner_file_path="state/nonexistent_banners_file_xyz.json"
+        )
+    # Returns default fallback domains and smart-link placement
+    assert dom_map.get("6190730") == "tazarokda.com"
+    assert "32152060" in place_map
+    assert any("not found" in r.message for r in caplog.records)
+
+

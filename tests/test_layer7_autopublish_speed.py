@@ -126,6 +126,13 @@ def test_parallel_two_domain_batch_concurrency_and_isolation(tmp_path: Path, mon
     monkeypatch.setattr(autopublish_daemon, "CONFIG_PATH", repo_cfg)
     autopublish_daemon.init_db()
 
+    # Seed isolated ShingleGuard index in tmp_path to prevent side-effects on repo state
+    shingle_file = tmp_path / "state" / "prose_shingles.json"
+    shingle_file.parent.mkdir(parents=True, exist_ok=True)
+    shingle_file.write_text('{"seed_hash": {"domain": "seed", "slug": "seed", "page_id": "seed/seed", "first_seen": "2026-11-15T00:00:00"}}', encoding="utf-8")
+    import shingle_guard
+    monkeypatch.setattr(shingle_guard, "SHINGLE_INDEX_PATH", shingle_file)
+
     # Seed empty sites dirs + sitemap for tazaloan & loankiseva
     for dom in ("tazaloan", "loankiseva", "loanraaj", "karzseva"):
         d = tmp_path / "sites" / f"{dom}.com"
@@ -161,15 +168,88 @@ def test_parallel_two_domain_batch_concurrency_and_isolation(tmp_path: Path, mon
         lambda kw, site: {"url": "https://example.com/hero.jpg", "alt": "hero"},
     )
 
+    domain_timing: dict[str, tuple[float, float]] = {}
+
+    def _generate_domain_long_article(site_id: str) -> tuple[str, list[dict[str, str]]]:
+        if "taza" in site_id:
+            parts = ["<p class='lead'>Tazaloan provides comprehensive empirical benchmarks analyzing salaried personal borrowing rates and consumer debt structures in 2026.</p>"]
+            sections = [
+                "Personal Borrowing Standards",
+                "Salaried Credit Frameworks",
+                "Consumer Risk Evaluation",
+                "Direct Disbursement Metrics",
+                "Statutory Repayment Terms",
+            ]
+            for i, s in enumerate(sections, 1):
+                parts.append(f"<h2>{i}. {s}</h2>")
+                parts.append(f"<p>Tazaloan Section {i} reviews personal credit card limits, consumer credit bureau scores, and monthly instalment affordability for prime applicants.</p>")
+                for j in range(25):
+                    parts.append(
+                        f"<p>Under Tazaloan personal review tier {i}-{j}, salaried applicants submit salary slips, income tax documentation, and employer identity proofs for cycle {j}. "
+                        f"Tazaloan underwriting officer {j} examines net take-home compensation to ensure monthly EMI outlays do not exceed forty percent of disposable earnings in cohort {i}. "
+                        f"Furthermore, Tazaloan risk model {i} evaluates revolving balance ratios to ensure retail borrowers maintain prime credit standing across Indian banking channel {j}.</p>"
+                    )
+            parts.append("""
+            <div class='table-responsive'>
+                <table class='article-table'>
+                    <thead><tr><th>Tazaloan Slab</th><th>APR</th><th>Tenure</th></tr></thead>
+                    <tbody><tr><td>Tier 1 Salaried</td><td>8.5%</td><td>60 Months</td></tr></tbody>
+                </table>
+            </div>
+            """)
+            parts.append("<h3>How does Tazaloan process personal loans?</h3>")
+            parts.append("<p>Tazaloan checks income tax filings and salary credit history for prime applicants.</p>")
+            parts.append("<h3>What documentation is required by Tazaloan?</h3>")
+            parts.append("<p>Tazaloan requires PAN, Aadhaar, and three months certified bank account salary slips.</p>")
+            faqs = [
+                {"question": "How does Tazaloan process personal loans?", "answer": "Tazaloan checks income tax filings and salary credit history for prime applicants."},
+                {"question": "What documentation is required by Tazaloan?", "answer": "Tazaloan requires PAN, Aadhaar, and three months certified bank account salary slips."}
+            ]
+            return "\n".join(parts), faqs
+        else:
+            parts = ["<p class='lead'>Loankiseva offers specialized technical analysis regarding central government industrial subsidies, MSME working capital, and enterprise credit allocations.</p>"]
+            sections = [
+                "Enterprise Subsidy Directives",
+                "Mudra Working Capital Structures",
+                "Commercial Machinery Hypothecation",
+                "State Industrial Grants",
+                "Corporate Collateral Benchmarks",
+            ]
+            for i, s in enumerate(sections, 1):
+                parts.append(f"<h2>{i}. {s}</h2>")
+                parts.append(f"<p>Loankiseva Section {i} investigates factory equipment financing, enterprise turnover thresholds, and statutory nodal ministry certifications for manufacturing units.</p>")
+                for j in range(25):
+                    parts.append(
+                        f"<p>Within Loankiseva industrial evaluation stage {i}-{j}, business entrepreneurs furnish audited balance sheets, GST returns, and factory registration certificates for phase {j}. "
+                        f"Loankiseva commercial credit committee {j} assesses debt service coverage ratios to confirm enterprise cash flows adequately support long-term debt servicing obligations in bracket {i}. "
+                        f"Additionally, Loankiseva nodal analyst {i} verifies central ministry subsidy eligibility to facilitate capital grant disbursements for expanding commercial entities under schedule {j}.</p>"
+                    )
+            parts.append("""
+            <div class='table-responsive'>
+                <table class='article-table'>
+                    <thead><tr><th>Loankiseva Scheme</th><th>Subsidized Rate</th><th>Moratorium</th></tr></thead>
+                    <tbody><tr><td>Mudra Industrial Grant</td><td>7.2%</td><td>12 Months</td></tr></tbody>
+                </table>
+            </div>
+            """)
+            parts.append("<h3>How does Loankiseva verify MSME subsidies?</h3>")
+            parts.append("<p>Loankiseva reviews GST portal returns and central nodal ministry sanction orders.</p>")
+            parts.append("<h3>Which enterprises qualify for Loankiseva assistance?</h3>")
+            parts.append("<p>Registered micro and small manufacturing units with active Udyam portal certificates.</p>")
+            faqs = [
+                {"question": "How does Loankiseva verify MSME subsidies?", "answer": "Loankiseva reviews GST portal returns and central nodal ministry sanction orders."},
+                {"question": "Which enterprises qualify for Loankiseva assistance?", "answer": "Registered micro and small manufacturing units with active Udyam portal certificates."}
+            ]
+            return "\n".join(parts), faqs
+        return "\n".join(parts), faqs
+
     def _slow_article(site_id, site_info, brief):
+        t_start = time.perf_counter()
         time.sleep(0.35)
-        html_snip = (
-            "<p class='lead'>Direct empirical guide with ₹10,000 savings and 9.5% APR rules from RBI.</p>"
-            "<h2>Comparison</h2><div class='table-responsive'><table class='article-table'><thead><tr><th>Option</th><th>Rate</th></tr></thead>"
-            "<tbody><tr><td>SBI</td><td>9.5%</td></tr><tr><td>HDFC</td><td>10.2%</td></tr></tbody></table></div>"
-            "<h3>Question one?</h3><p>Verified answer with ₹500 fee detail.</p>"
-        )
-        return html_snip, [{"question": "Question one?", "answer": "Verified answer."}]
+        html_snip, faqs = _generate_domain_long_article(site_id)
+        t_end = time.perf_counter()
+        domain_timing[site_id] = (t_start, t_end)
+        return html_snip, faqs
 
     monkeypatch.setattr(autopublish_daemon, "generate_claude_seo_article", _slow_article)
     monkeypatch.setattr(autopublish_daemon, "_notify_pipeline_error", lambda *a, **k: None)
@@ -191,8 +271,28 @@ def test_parallel_two_domain_batch_concurrency_and_isolation(tmp_path: Path, mon
     assert res["published_count"] == 2
     assert set(res["attempted_sites"]) == {"tazaloan", "loankiseva"}
     assert set(git_calls) == {"tazaloan", "loankiseva"}
-    # Parallel proof: 2 x 0.35s serialized = >= 0.70s; concurrent finishes well under serialized time + overhead check
-    assert res["elapsed_seconds"] < 1.2
+
+    # Concurrency verification (replaces brittle wall clock assert res["elapsed_seconds"] < 2.5):
+    # 1. Windows overlap: both domains ran concurrently in parallel worker threads
+    start_a, end_a = domain_timing["tazaloan"]
+    start_b, end_b = domain_timing["loankiseva"]
+    overlap = min(end_a, end_b) - max(start_a, start_b)
+    dur_a = end_a - start_a
+    dur_b = end_b - start_b
+    concurrency_span = max(end_a, end_b) - min(start_a, start_b)
+
+    print(
+        f"\n[CONCURRENCY TIMING] Overlap: {overlap:.4f}s | Tazaloan duration: {dur_a:.4f}s | "
+        f"Loankiseva duration: {dur_b:.4f}s | Concurrency span: {concurrency_span:.4f}s | "
+        f"Batch elapsed: {res['elapsed_seconds']:.4f}s"
+    )
+
+    assert overlap > 0, f"Expected concurrency overlap > 0, got {overlap:.4f}s"
+    # 2. Parallel vs serial: concurrent execution span is strictly less than serial execution sum
+    assert concurrency_span < (dur_a + dur_b), (
+        f"Concurrency span {concurrency_span:.4f}s must be less than serial sum {dur_a + dur_b:.4f}s"
+    )
+    assert not (start_b >= end_a or start_a >= end_b), "Execution was sequential, not concurrent"
 
     with sqlite3.connect(ap_db) as con:
         pub_doms = {r[0] for r in con.execute("SELECT domain FROM published_posts").fetchall()}
@@ -202,8 +302,8 @@ def test_parallel_two_domain_batch_concurrency_and_isolation(tmp_path: Path, mon
     assert pub_doms == {"tazaloan", "loankiseva"}
     assert stages["tazaloan"] == "Cloudflare & GSC"
     assert stages["loankiseva"] == "Cloudflare & GSC"
-    assert (tmp_path / "sites" / "tazaloan.com" / "tazaloan-interest-rate-guide.html").exists()
-    assert (tmp_path / "sites" / "loankiseva.com" / "loankiseva-interest-rate-guide.html").exists()
+    assert (tmp_path / "sites" / "tazaloan.com" / "tazaloan-interest-rate-guide.html").exists() or (tmp_path / "sites" / "tazaloan.com" / "tazaloan-interest-rate-guide" / "index.html").exists()
+    assert (tmp_path / "sites" / "loankiseva.com" / "loankiseva-interest-rate-guide.html").exists() or (tmp_path / "sites" / "loankiseva.com" / "loankiseva-interest-rate-guide" / "index.html").exists()
 
 
 def test_publish_failure_resets_processing_topic_cleanly(tmp_path: Path, monkeypatch) -> None:
@@ -274,6 +374,12 @@ def test_claude_seo_v2_5_full_subsystem_on_article() -> None:
     assert "\u200b" not in sanitized
     assert "delve" not in sanitized.lower()
 
+    from autopublish_engine import strip_invisible_artifacts
+    assert "hello world" == strip_invisible_artifacts("hello\u200bworld")
+    assert "a  b" == strip_invisible_artifacts("a\u00a0 b")
+    assert "<pre>a\u200b</pre>" == strip_invisible_artifacts("<pre>a\u200b</pre>")
+    assert "<code>code\u200bval</code>" == strip_invisible_artifacts("<code>code\u200bval</code>")
+
     formatted_html, faqs, meta = ContentQualityFinishGate.format_editorial_layout(
         clean_html=sanitized,
         title="SBI Commercial Truck Loan 2026: Complete Guide",
@@ -320,4 +426,83 @@ def test_claude_seo_v2_5_full_subsystem_on_article() -> None:
     audit = seo_pipeline.run_full_claude_seo_audit(full_page, canonical, formatted_html)
     assert audit["claude_seo_score"] == 100.0
     assert all(audit["checks"].values())
+
+
+def test_dry_run_meets_length_floor_mocked(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify dry-run genuinely produces at least 3000 words (ARTICLE_WORD_COUNT_FLOOR) with mocked LLM generation."""
+    import io
+    import contextlib
+    import re
+    from content_quality_gate import ARTICLE_WORD_COUNT_FLOOR
+    import autopublish_daemon
+
+    # Build rich HTML with >= 3000 words, sections, table, and summary
+    sections = []
+    for i in range(8):
+        h2 = f"<h2>{i+1}. Regulatory and Operational Guidelines for Section {i+1}</h2>"
+        p = "<p>" + f"Section {i+1} comprehensive documentation provides in-depth analysis of credit metrics, borrower underwriting protocols, statutory disclosures under Reserve Bank of India mandates, and detailed empirical evaluation of commercial debt obligations. " * 16 + "</p>"
+        sections.append(h2 + p)
+
+    table = '<div class="table-responsive"><table class="article-table"><tr><th>Institution</th><th>APR</th><th>Tenure</th></tr><tr><td>State Bank of India</td><td>10.5%</td><td>60 mos</td></tr><tr><td>HDFC Bank</td><td>11.2%</td><td>48 mos</td></tr></table></div>'
+    summary = '<div class="summary-box"><h3>Executive Summary</h3><p>Executive overview of commercial borrowing standards, statutory compliance obligations, and risk parameters across leading financial institutions in India.</p></div>'
+    raw_html = summary + "".join(sections) + table
+    faqs = [
+        {"question": "What are the statutory guidelines for commercial borrowing?", "answer": "Guidelines are set by regulatory frameworks established by the Reserve Bank of India."},
+        {"question": "How is borrower eligibility assessed across financial institutions?", "answer": "Eligibility depends on credit metrics, bureau ratings, debt-to-income ratios, and verified cash flow."}
+    ]
+
+    monkeypatch.setattr(autopublish_daemon, "generate_claude_seo_article", lambda *a, **k: (raw_html, faqs))
+    monkeypatch.setattr(autopublish_daemon, "ping_search_engines", lambda *a, **k: None)
+
+    f = io.StringIO()
+    with contextlib.redirect_stdout(f):
+        success = autopublish_daemon.publish_next_post(specific_site="loanraaj", dry_run=True)
+    out = f.getvalue()
+
+    assert success is True, f"Dry-run failed: {out}"
+
+    wc_match = re.search(r"Word count:\s*(\d+)", out)
+    score_match = re.search(r"Quality score:\s*([\d.]+)", out)
+    assert wc_match is not None, f"Word count not found in output: {out}"
+    assert score_match is not None, f"Quality score not found in output: {out}"
+
+    wc = int(wc_match.group(1))
+    score = float(score_match.group(1))
+
+    assert wc >= ARTICLE_WORD_COUNT_FLOOR, f"Word count {wc} below single source floor {ARTICLE_WORD_COUNT_FLOOR}"
+    assert score >= 90.0, f"Quality score {score} below 90.0"
+
+
+@pytest.mark.live
+def test_dry_run_meets_length_floor_live(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Verify live dry-run genuinely produces at least 3000 words using live LLM when available."""
+    import sys
+    import re
+    import subprocess
+    from content_quality_gate import ARTICLE_WORD_COUNT_FLOOR
+
+    token = os.environ.get("FREELLMAPI_TOKEN", "")
+    if not token and Path(".env").exists():
+        for line in Path(".env").read_text(encoding="utf-8").splitlines():
+            if line.startswith("FREELLMAPI_TOKEN="):
+                token = line.split("=", 1)[1].strip()
+                break
+    if not token or token.startswith("dummy") or token.startswith("ci-"):
+        pytest.skip("live LLM token required for dry-run length floor verification")
+
+    cmd = [sys.executable, "autopublish_daemon.py", "--dry-run", "--site", "loanraaj"]
+    res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8")
+    assert res.returncode == 0, f"Dry-run exited non-zero: {res.stdout}"
+
+    wc_match = re.search(r"Word count:\s*(\d+)", res.stdout)
+    score_match = re.search(r"Quality score:\s*([\d.]+)", res.stdout)
+    assert wc_match is not None, f"Word count not found in output: {res.stdout}"
+    assert score_match is not None, f"Quality score not found in output: {res.stdout}"
+
+    wc = int(wc_match.group(1))
+    score = float(score_match.group(1))
+
+    assert wc >= ARTICLE_WORD_COUNT_FLOOR, f"Word count {wc} below single source floor {ARTICLE_WORD_COUNT_FLOOR}"
+    assert score >= 90.0, f"Quality score {score} below 90.0"
+
 

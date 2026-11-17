@@ -4,13 +4,14 @@ pool.py — Proxy pool: parsing, geo lookup, health, per-IP locks, cooldowns.
 from __future__ import annotations
 
 import asyncio
+import datetime
 import hashlib
 import logging
 import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 from urllib.parse import urlparse
 
 import httpx
@@ -58,6 +59,7 @@ class Proxy:
 
     # Runtime state
     uses_today: int = 0
+    uses_date: str = field(default_factory=lambda: datetime.date.today().isoformat())
     last_used_ts: float = 0.0
     dead_until_ts: float = 0.0
     active_sessions: int = 0
@@ -108,6 +110,10 @@ class Proxy:
         return p
 
     def is_available(self, max_uses: int, cooldown_secs: float, max_concurrent: int = 1) -> bool:
+        today = datetime.date.today().isoformat()
+        if self.uses_date != today:
+            self.uses_today = 0
+            self.uses_date = today
         now = time.time()
         if now < self.dead_until_ts:
             return False
@@ -122,8 +128,87 @@ class Proxy:
         logger.warning("Proxy %s marked dead for %d min", self.proxy_id, cooldown_min)
 
     def record_use(self) -> None:
+        today = datetime.date.today().isoformat()
+        if self.uses_date != today:
+            self.uses_today = 0
+            self.uses_date = today
         self.uses_today += 1
         self.last_used_ts = time.time()
+
+
+def parse_proxy_line_with_error(line: str) -> tuple[Optional[Proxy], Optional[str]]:
+    """
+    Parse a single proxy line and return (Proxy, None) if valid,
+    or (None, None) if empty/comment,
+    or (None, error_str) if malformed.
+    """
+    raw = line.strip()
+    if not raw or raw.startswith("#"):
+        return None, None
+
+    processed = raw
+    # Strip scheme if present
+    for scheme in ("http://", "https://", "socks5://"):
+        if processed.startswith(scheme):
+            processed = processed[len(scheme):]
+
+    username = password = None
+
+    # Format 1: user:pass@host:port (or user@host:port)
+    if "@" in processed:
+        creds, hostport = processed.rsplit("@", 1)
+        if not hostport:
+            return None, "Empty host/port after '@'"
+        if ":" not in hostport:
+            return None, f"Missing port in host:port after '@': {hostport!r}"
+        host, port_str = hostport.rsplit(":", 1)
+        if not host:
+            return None, "Empty host in proxy line"
+        try:
+            port = int(port_str)
+        except ValueError:
+            return None, f"Invalid port integer: {port_str!r}"
+        if not (1 <= port <= 65535):
+            return None, f"Port out of valid range (1-65535): {port}"
+
+        if ":" in creds:
+            username, password = creds.split(":", 1)
+        else:
+            username = creds
+        return Proxy(host=host, port=port, username=username, password=password), None
+
+    # Formats 2 & 3: colon-separated
+    parts = processed.split(":")
+    if len(parts) == 4:
+        host, port_str, username, password = parts
+        if not host:
+            return None, "Empty host in proxy line"
+        try:
+            port = int(port_str)
+        except ValueError:
+            return None, f"Invalid port integer: {port_str!r}"
+        if not (1 <= port <= 65535):
+            return None, f"Port out of valid range (1-65535): {port}"
+        return Proxy(host=host, port=port, username=username, password=password), None
+
+    elif len(parts) == 2:
+        host, port_str = parts
+        if not host:
+            return None, "Empty host in proxy line"
+        try:
+            port = int(port_str)
+        except ValueError:
+            return None, f"Invalid port integer: {port_str!r}"
+        if not (1 <= port <= 65535):
+            return None, f"Port out of valid range (1-65535): {port}"
+        return Proxy(host=host, port=port, username=None, password=None), None
+
+    elif len(parts) == 1:
+        return None, f"Missing port in proxy line: {raw!r}"
+    elif len(parts) == 3:
+        return None, f"Unrecognized 3-part proxy line (expected host:port or host:port:user:pass): {raw!r}"
+    else:
+        return None, f"Too many colon-separated parts ({len(parts)}): {raw!r}"
 
 
 def _parse_proxy_line(line: str) -> Optional[Proxy]:
@@ -134,50 +219,38 @@ def _parse_proxy_line(line: str) -> Optional[Proxy]:
       - host:port
       - http://user:pass@host:port
     """
-    line = line.strip()
-    if not line or line.startswith("#"):
-        return None
+    p, err = parse_proxy_line_with_error(line)
+    if err:
+        logger.warning("Invalid proxy line: %r (%s)", line, err)
+    return p
 
-    # Strip scheme if present
-    for scheme in ("http://", "https://", "socks5://"):
-        if line.startswith(scheme):
-            line = line[len(scheme):]
 
-    username = password = None
-
-    # Format 1: user:pass@host:port
-    if "@" in line:
-        creds, hostport = line.rsplit("@", 1)
-        if ":" in creds:
-            username, password = creds.split(":", 1)
-        if ":" in hostport:
-            host, port_str = hostport.rsplit(":", 1)
-            try:
-                return Proxy(host=host, port=int(port_str), username=username, password=password)
-            except ValueError:
-                pass
-
-    # Format 2: host:port:user:pass (4 colon-separated parts)
-    parts = line.split(":")
-    if len(parts) == 4:
-        host, port_str, username, password = parts
-        try:
-            return Proxy(host=host, port=int(port_str), username=username, password=password)
-        except ValueError:
-            logger.warning("Invalid port in proxy line: %r", line)
-            return None
-
-    # Format 3: host:port (2 colon-separated parts)
-    elif len(parts) == 2:
-        host, port_str = parts
-        try:
-            return Proxy(host=host, port=int(port_str), username=None, password=None)
-        except ValueError:
-            logger.warning("Invalid port in proxy line: %r", line)
-            return None
-
-    logger.warning("Unrecognized proxy format: %r", line)
-    return None
+def validate_proxy_lines(lines: list[str]) -> tuple[list[Proxy], list[dict[str, Any]]]:
+    """
+    Validate lines from a proxy file or input list.
+    Returns:
+        (valid_proxies, malformed_lines)
+    where each malformed entry is a dict:
+        {"line": line_number, "text": raw_line, "error": error_message}
+    Line numbers are 1-based.
+    Blank lines and comments are ignored and not counted as malformed.
+    """
+    valid: list[Proxy] = []
+    malformed: list[dict[str, Any]] = []
+    for idx, raw_line in enumerate(lines, start=1):
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        p, err = parse_proxy_line_with_error(stripped)
+        if p is not None:
+            valid.append(p)
+        else:
+            malformed.append({
+                "line": idx,
+                "text": stripped,
+                "error": err or "Unrecognized proxy format",
+            })
+    return valid, malformed
 
 
 def _country_code_to_name(code: str) -> str:
@@ -591,9 +664,14 @@ class ProxyPool:
     @classmethod
     async def from_file(cls, path: str, cfg: dict) -> "ProxyPool":
         lines = Path(path).read_text(encoding="utf-8").splitlines()
-        raw = [_parse_proxy_line(ln) for ln in lines]
-        proxies = [p for p in raw if p is not None]
-        logger.info("Loaded %d proxies from %s", len(proxies), path)
+        proxies, malformed = validate_proxy_lines(lines)
+        if malformed:
+            for item in malformed:
+                logger.warning(
+                    "Malformed proxy on line %d in %s: %r (%s)",
+                    item["line"], path, item["text"], item["error"]
+                )
+        logger.info("Loaded %d proxies from %s (%d malformed lines skipped)", len(proxies), path, len(malformed))
 
         # Geo lookup concurrently (max 5 at a time to avoid hammering the API)
         sem = asyncio.Semaphore(5)

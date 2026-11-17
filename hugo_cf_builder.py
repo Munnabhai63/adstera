@@ -163,12 +163,22 @@ def build_single_html() -> str:
 
 
 def build_cf_headers() -> str:
-    return """/*
+    csp = (
+        "default-src 'self' https: data: blob: 'unsafe-inline' 'unsafe-eval'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https: blob:; "
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+        "font-src 'self' https://fonts.gstatic.com data:; "
+        "img-src 'self' https: data: blob:; "
+        "frame-src 'self' https: about:; "
+        "connect-src 'self' https: wss:;"
+    )
+    return f"""/*
   X-Frame-Options: SAMEORIGIN
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), camera=()
   Cache-Control: public, max-age=3600
+  Content-Security-Policy: {csp}
 """
 
 

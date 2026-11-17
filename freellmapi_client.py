@@ -32,13 +32,13 @@ logger = logging.getLogger(__name__)
 CLOUDFLARE_EDGE_URL = "https://loanraaj.com"
 LOCAL_DAEMON_URL = "http://127.0.0.1:3001"
 DEFAULT_API_URL = CLOUDFLARE_EDGE_URL
-DEFAULT_MODEL = "Qwen2.5-VL-72B-Instruct"
+DEFAULT_MODEL = "llama-3.3-70b"
 FREELLMAPI_SERVER_DIR = Path(r"F:\UserData\Downloads\ai-power-tools\freellmapi\server")
 
 FAST_INSTRUCT_CHAIN: List[Dict[str, str]] = [
     {
         "provider": "ovh",
-        "model": "Qwen2.5-VL-72B-Instruct",
+        "model": "Qwen/Qwen2.5-VL-72B-Instruct",
         "url": "https://oai.endpoints.kepler.ai.cloud.ovh.net/v1/chat/completions",
     },
     {
@@ -69,7 +69,9 @@ _LAST_WATCHDOG_ATTEMPT = 0.0
 def ensure_local_daemon_running(api_key: str = "") -> bool:
     """Check if localhost:3001 is up; if not, auto-spawn FreeLLMAPI server in background."""
     global _LAST_WATCHDOG_ATTEMPT
-    token = api_key or "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f"
+    token = api_key or os.environ.get("FREELLMAPI_TOKEN") or os.environ.get("FREELLMAPI_KEY")
+    if not token:
+        raise ValueError("FREELLMAPI_TOKEN environment variable is not set")
     headers = {"Authorization": f"Bearer {token}"}
     try:
         with httpx.Client(timeout=2.5) as client:
@@ -115,14 +117,30 @@ def ensure_local_daemon_running(api_key: str = "") -> bool:
 class FreeLLMClient:
     """3-Layer 24x7 Client for Cloudflare Edge Gateway + Local Daemon + Direct Cloud Providers."""
 
-    def __init__(self, config_path: str = "config.yaml"):
+    def __init__(self, config_path: str = "config.yaml", api_key: str = ""):
         self.config_path = Path(config_path)
         self.config = self._load_config()
-        self.api_url, self.api_key = self._resolve_credentials()
+        explicit = api_key.strip() if api_key else ""
+        if explicit:
+            self.api_key = explicit
+            self.api_url = self._resolve_url_only()
+        else:
+            self.api_url, self.api_key = self._resolve_credentials()
         freellm_cfg = self.config.get("freellm", {}) or {}
         self.enabled = bool(freellm_cfg.get("enabled", True))
         self.timeout = float(freellm_cfg.get("timeout", 150.0))
-        self.default_model = str(freellm_cfg.get("model", DEFAULT_MODEL))
+        self.fallback_models: List[str] = list(freellm_cfg.get("fallback_models") or [
+            "llama-3.3-70b",
+            "auto",
+            "kilo-auto",
+            "free-router",
+            "gpt-oss-120b",
+        ])
+        cfg_model = str(freellm_cfg.get("model", "llama-3.3-70b")).strip()
+        if cfg_model in ("claude-sonnet-4-5", "") and self.fallback_models:
+            self.default_model = self.fallback_models[0]
+        else:
+            self.default_model = cfg_model or (self.fallback_models[0] if self.fallback_models else DEFAULT_MODEL)
         self.edge_url = str(freellm_cfg.get("edge_url", CLOUDFLARE_EDGE_URL)).rstrip("/")
         self.local_url = str(freellm_cfg.get("local_url", LOCAL_DAEMON_URL)).rstrip("/")
 
@@ -135,11 +153,28 @@ class FreeLLMClient:
                 logger.warning("Failed to load config for FreeLLMClient: %s", e)
         return {}
 
-    def _resolve_credentials(self) -> tuple[str, str]:
+    def _resolve_url_only(self) -> str:
+        """Resolve API URL from environment or .env without requiring a token."""
         url = os.environ.get("FREELLMAPI_URL", "").strip()
-        key = os.environ.get("FREELLMAPI_KEY", "").strip()
+        if not url:
+            env_file = Path(".env")
+            if env_file.exists():
+                try:
+                    for line in env_file.read_text(encoding="utf-8").splitlines():
+                        line = line.strip()
+                        if line.startswith("FREELLMAPI_URL="):
+                            url = line.split("=", 1)[1].strip().strip('"').strip("'")
+                except Exception:
+                    pass
+        return (url or DEFAULT_API_URL).rstrip("/")
 
-        if not url or not key:
+    def _resolve_credentials(self) -> tuple[str, str]:
+        explicit_empty = ("FREELLMAPI_TOKEN" in os.environ and not os.environ["FREELLMAPI_TOKEN"].strip()) or \
+                         ("FREELLMAPI_KEY" in os.environ and not os.environ["FREELLMAPI_KEY"].strip())
+        url = os.environ.get("FREELLMAPI_URL", "").strip()
+        key = os.environ.get("FREELLMAPI_TOKEN", "").strip() or os.environ.get("FREELLMAPI_KEY", "").strip()
+
+        if not explicit_empty and (not url or not key):
             env_file = Path(".env")
             if env_file.exists():
                 try:
@@ -149,11 +184,14 @@ class FreeLLMClient:
                             url = line.split("=", 1)[1].strip().strip('"').strip("'")
                         elif line.startswith("FREELLMAPI_KEY=") and not key:
                             key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        elif line.startswith("FREELLMAPI_TOKEN=") and not key:
+                            key = line.split("=", 1)[1].strip().strip('"').strip("'")
                 except Exception:
                     pass
 
         url = (url or DEFAULT_API_URL).rstrip("/")
-        key = key or "freellmapi-ceb04983702628b4439a5a1d9e9bf34484f948c29dbe8b4f"
+        if not key:
+            raise ValueError("FREELLMAPI_TOKEN environment variable is not set")
         return url, key
 
     def is_available(self) -> bool:
@@ -190,19 +228,14 @@ class FreeLLMClient:
         timeout: Optional[float] = None,
     ) -> Optional[str]:
         """
-        Send chat completion across the 3-Layer 24x7 Failover Architecture:
-          1. Cloudflare 24x7 Edge Gateway (https://loanraaj.com/v1/chat/completions)
-          2. Direct Fast-Instruct Multi-Provider Cloud Chain (OVH / Kilo)
-          3. Local FreeLLMAPI Daemon (http://127.0.0.1:3001/v1/chat/completions with Watchdog)
+        Send chat completion across multi-model fallback list and 3-Layer Failover:
+          - Automatically retries across fallback models if primary model fails (429/500/timeout).
+          - Logs explicit warning on every fallback switch.
         """
         if not self.enabled:
             return None
 
         req_timeout = float(timeout or self.timeout or 150.0)
-        chosen_model = model or self.default_model
-        if chosen_model in ("claude-sonnet-4-5", "auto", "fusion"):
-            chosen_model = DEFAULT_MODEL
-
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
@@ -212,75 +245,123 @@ class FreeLLMClient:
             "Content-Type": "application/json",
         }
 
-        # Layer 1: Cloudflare 24x7 Serverless Edge Gateway (https://loanraaj.com/v1/chat/completions)
-        if self.edge_url:
-            try:
-                with httpx.Client(timeout=min(req_timeout, 90.0)) as client:
-                    res = client.post(
-                        f"{self.edge_url}/v1/chat/completions",
-                        headers=auth_headers,
-                        json={
-                            "model": chosen_model,
-                            "messages": messages,
-                            "max_tokens": max_tokens,
-                            "temperature": temperature,
-                        },
-                    )
-                    if res.status_code == 200:
-                        text = self._extract_message_text(res.json())
-                        if text:
-                            return text
-            except Exception as exc:
-                logger.debug("[FreeLLMClient] Edge gateway notice: %s", exc)
+        # Build ordered list of models to try from config
+        effective_fallbacks = [fb for fb in self.fallback_models if fb not in ("auto", "fusion", "claude-sonnet-4-5")]
+        primary_fallback = effective_fallbacks[0] if effective_fallbacks else DEFAULT_MODEL
 
-        # Layer 2: Direct Fast-Instruct Cloud Failover Chain (OVH & Kilo)
-        ordered_routes = sorted(
-            FAST_INSTRUCT_CHAIN,
-            key=lambda r: 0 if r["model"] == chosen_model else 1,
-        )
-        for route in ordered_routes:
-            try:
-                with httpx.Client(timeout=req_timeout) as client:
-                    res = client.post(
-                        route["url"],
-                        headers={
-                            "Content-Type": "application/json",
-                            "User-Agent": "Mozilla/5.0 FreeLLMAPI-CloudRouter/2.0",
-                        },
-                        json={
-                            "model": route["model"],
-                            "messages": messages,
-                            "max_tokens": max_tokens,
-                            "temperature": temperature,
-                        },
-                    )
-                    if res.status_code == 200:
-                        text = self._extract_message_text(res.json())
-                        if text:
-                            return text
-            except Exception as exc:
-                logger.debug("[FreeLLMClient] Direct route %s/%s failed: %s", route["provider"], route["model"], exc)
+        models_to_try: List[str] = []
+        primary_candidate = model or self.default_model
+        if primary_candidate in ("auto", "fusion", "claude-sonnet-4-5", ""):
+            primary_candidate = primary_fallback
 
-        # Layer 3: Local FreeLLMAPI Daemon (with Auto-Start Watchdog)
-        if ensure_local_daemon_running(self.api_key):
-            try:
-                with httpx.Client(timeout=req_timeout) as client:
-                    res = client.post(
-                        f"{self.local_url}/v1/chat/completions",
-                        headers=auth_headers,
-                        json={
-                            "model": chosen_model,
-                            "messages": messages,
-                            "max_tokens": max_tokens,
-                            "temperature": temperature,
-                        },
-                    )
-                    if res.status_code == 200:
-                        text = self._extract_message_text(res.json())
-                        if text:
-                            return text
-            except Exception as exc:
-                logger.warning("[FreeLLMClient] Local daemon fallback failed: %s", exc)
+        if primary_candidate:
+            models_to_try.append(primary_candidate)
+        for fb in self.fallback_models:
+            if fb not in models_to_try:
+                models_to_try.append(fb)
+
+        gateways_to_try: List[str] = []
+        if self.api_url and self.api_url != self.edge_url:
+            gw = f"{self.api_url}/chat/completions" if "/v1" in self.api_url else f"{self.api_url}/v1/chat/completions"
+            if gw not in gateways_to_try:
+                gateways_to_try.append(gw)
+        if self.local_url and f"{self.local_url}/v1/chat/completions" not in gateways_to_try:
+            gateways_to_try.append(f"{self.local_url}/v1/chat/completions")
+        if self.edge_url and f"{self.edge_url}/v1/chat/completions" not in gateways_to_try:
+            gateways_to_try.append(f"{self.edge_url}/v1/chat/completions")
+
+        for idx, candidate_model in enumerate(models_to_try):
+            chosen_model = candidate_model
+            if chosen_model in ("claude-sonnet-4-5", "fusion"):
+                chosen_model = primary_fallback
+
+            last_failure_reason = None
+
+            # 1. Configured / Edge Gateways
+            for gw_url in gateways_to_try:
+                try:
+                    with httpx.Client(timeout=min(req_timeout, 90.0)) as client:
+                        res = client.post(
+                            gw_url,
+                            headers=auth_headers,
+                            json={
+                                "model": chosen_model,
+                                "messages": messages,
+                                "max_tokens": max_tokens,
+                                "temperature": temperature,
+                            },
+                        )
+                        if res.status_code == 200:
+                            text = self._extract_message_text(res.json())
+                            if text:
+                                return text
+                        else:
+                            last_failure_reason = f"HTTP {res.status_code}"
+                except Exception as exc:
+                    last_failure_reason = f"{type(exc).__name__}: {exc}"
+                    logger.debug("[FreeLLMClient] Gateway %s notice: %s", gw_url, exc)
+
+            # 2. Direct Fast-Instruct Cloud Failover Chain (OVH & Kilo)
+            ordered_routes = sorted(
+                FAST_INSTRUCT_CHAIN,
+                key=lambda r: 0 if r["model"] == chosen_model else 1,
+            )
+            for route in ordered_routes:
+                try:
+                    with httpx.Client(timeout=min(req_timeout, 20.0)) as client:
+                        res = client.post(
+                            route["url"],
+                            headers={
+                                "Content-Type": "application/json",
+                                "User-Agent": "Mozilla/5.0 FreeLLMAPI-CloudRouter/2.0",
+                            },
+                            json={
+                                "model": route["model"],
+                                "messages": messages,
+                                "max_tokens": max_tokens,
+                                "temperature": temperature,
+                            },
+                        )
+                        if res.status_code == 200:
+                            text = self._extract_message_text(res.json())
+                            if text:
+                                return text
+                        else:
+                            last_failure_reason = f"HTTP {res.status_code}"
+                except Exception as exc:
+                    last_failure_reason = f"{type(exc).__name__}: {exc}"
+                    logger.debug("[FreeLLMClient] Direct route %s/%s failed: %s", route["provider"], route["model"], exc)
+
+            # 3. Local FreeLLMAPI Daemon (with Auto-Start Watchdog)
+            if ensure_local_daemon_running(self.api_key):
+                try:
+                    with httpx.Client(timeout=req_timeout) as client:
+                        res = client.post(
+                            f"{self.local_url}/v1/chat/completions",
+                            headers=auth_headers,
+                            json={
+                                "model": chosen_model,
+                                "messages": messages,
+                                "max_tokens": max_tokens,
+                                "temperature": temperature,
+                            },
+                        )
+                        if res.status_code == 200:
+                            text = self._extract_message_text(res.json())
+                            if text:
+                                return text
+                        else:
+                            last_failure_reason = f"HTTP {res.status_code}"
+                except Exception as exc:
+                    last_failure_reason = f"{type(exc).__name__}: {exc}"
+                    logger.warning("[FreeLLMClient] Local daemon fallback failed: %s", exc)
+
+            # If all layers failed for this model, log fallback switch if another model exists
+            if idx + 1 < len(models_to_try):
+                next_model = models_to_try[idx + 1]
+                logger.warning(
+                    f"[FreeLLMClient] Model '{candidate_model}' failed ({last_failure_reason or 'empty response'}), switching to fallback model '{next_model}'"
+                )
 
         return None
 

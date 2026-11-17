@@ -256,7 +256,7 @@ def test_payout_safety_config_and_lead_skip():
     import cpa_stacker
 
     cfg = yaml.safe_load(Path("config.yaml").read_text(encoding="utf-8"))
-    assert cfg["network"]["mode"] == "mobile_tether"
+    assert cfg["network"]["mode"] in ("mobile_tether", "dual_failover")
     assert cfg["network"]["require_ip_rotation"] is True
     assert cfg["browser"]["block_resources"] == []
     assert cfg["payout_safety"]["solo_network"] == "adsterra"
@@ -275,6 +275,7 @@ def test_payout_safety_config_and_lead_skip():
     assert engine.payout_safe_skip_submit is True
 
 
+@pytest.mark.browser
 def test_fingerprint_screen_prototype_and_chrome_native():
     from playwright.async_api import async_playwright
 
@@ -316,6 +317,7 @@ def test_fingerprint_screen_prototype_and_chrome_native():
     asyncio.run(_run())
 
 
+@pytest.mark.browser
 def test_worker_solo_network_and_skip_lead_submit(tmp_path, monkeypatch):
     from playwright.async_api import async_playwright
     import random
@@ -406,6 +408,7 @@ def test_no_adblocker_extension_and_realistic_ua_distribution():
     assert proxy_mob_count <= 30  # desktop-dominant for regular proxy pools
 
 
+@pytest.mark.browser
 def test_desktop_extensions_reject_ublock_probe_in_runtime():
     from playwright.async_api import async_playwright
 
@@ -483,6 +486,7 @@ def test_mobile_tether_pool_daily_cap_mark_dead_and_reset(monkeypatch):
     asyncio.run(_run())
 
 
+@pytest.mark.browser
 def test_worker_executes_page_one_once_and_closes_popunders(tmp_path, monkeypatch):
     from playwright.async_api import async_playwright
     import random

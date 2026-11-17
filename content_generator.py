@@ -132,7 +132,8 @@ def _build_article_html(
     other_slugs: list[tuple[str, str]],
 ) -> str:
     """Renders a fully responsive, semantic, SEO-optimized HTML article."""
-    canonical_url = f"https://{domain_name}/{article_data['slug']}"
+    clean_slug = article_data["slug"].removesuffix(".html").strip("/")
+    canonical_url = f"https://{domain_name}/{clean_slug}"
 
     # Generate JSON-LD Schema
     schema_ld = {

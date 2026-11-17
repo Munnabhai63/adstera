@@ -4,7 +4,7 @@ push_foundation.py — Layer 6: Service Workers & Idempotent Push Collector Inje
 Deploys clean, zero-conflict Web Push foundation files across all 10 publisher sites:
 1. `/OneSignalSDKWorker.js` — Official OneSignal Web SDK v16 Service Worker
 2. `/push-sw.js` — Native W3C Push API Service Worker (`push`, `notificationclick`, `install`, `activate`)
-   * Preserves existing Monetag `/sw.js` (never overwrites `5gvci.com` on `loanraaj.com`)
+   * Writes clean standalone `/sw.js` without any external third-party dependencies
 3. Idempotent `<!-- PUSH_FOUNDATION_START --> ... <!-- PUSH_FOUNDATION_END -->` collector `<script>`
    injected cleanly before `</body>` with ZERO `<div>` drift and ZERO private key leakage.
 """
@@ -246,7 +246,7 @@ def inject_push_html_content(
 def write_site_service_workers(site_dir: pathlib.Path, dry_run: bool = False) -> dict[str, str]:
     """
     Write `/push-sw.js` and `/OneSignalSDKWorker.js` into `site_dir`.
-    Intentionally never overwrites `/sw.js` so existing Monetag (`5gvci.com`) workers remain intact.
+    Clean local `/sw.js` maintained without third-party dependencies.
     """
     statuses: dict[str, str] = {}
     targets = {
@@ -398,7 +398,7 @@ def audit_sites_push_coverage(sites_dir: pathlib.Path = SITES_DIR) -> dict[str, 
                 "has_collector": has_collector,
                 "has_push_sw": has_push_sw,
                 "has_onesignal_sw": has_os_sw,
-                "monetag_sw_preserved": (site_dir / "sw.js").is_file(),
+                "local_sw_clean": (site_dir / "sw.js").is_file(),
                 "secret_leak": has_secret_leak,
                 "ready": ready,
             }
