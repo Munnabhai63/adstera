@@ -19,11 +19,16 @@ timeout /t 2 /nobreak >nul
 echo 3. Starting FreeLLMAPI AI Router (Port 3001)...
 start "FreeLLMAPI Watchdog" /min py -3.12 freellmapi_daemon.py
 
+timeout /t 2 /nobreak >nul
+
+echo 4. Starting AutoPublish Content Daemon (24x7 Engine)...
+start "AutoPublish Daemon" /min py -3.12 autopublish_daemon.py
+
 echo.
 echo ============================================================
 echo   ALL SERVICES ARE ONLINE!
 echo   - Local Dashboard:     http://localhost:5050
-echo   - Public Admin URL:    https://rechargetak.com/admin
+echo   - Public Admin URL:    https://rechargekar.com/admin
 echo   - Public Domain:       https://loanraaj.com
 echo   - Free LLM API:        http://localhost:3001
 echo ============================================================

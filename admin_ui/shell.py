@@ -72,6 +72,12 @@ def _render_sidebar() -> str:
         <span class="badge text-bg-primary rounded-pill ms-auto" id="sidebarAutopublishBadge">0</span>
       </a>
     </li>
+    <li class="menu-item">
+      <a href="#content" class="menu-link" data-crm-view="content">
+        <i class="menu-icon icon-base ti tabler-file-text"></i>
+        <div>Content</div>
+      </a>
+    </li>
 
     <li class="menu-header small">
       <span class="menu-header-text">Revenue &amp; Traffic</span>

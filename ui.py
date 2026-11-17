@@ -3121,7 +3121,8 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             if self._redirect_if_crm_locked():
                 return
             from admin_ui.shell import render_crm_shell
-            self._send_html(render_crm_shell(), extra_headers=[("Cache-Control", "no-store")])
+            from admin_ui.deploy_content_service import render_crm_shell_with_content
+            self._send_html(render_crm_shell_with_content(render_crm_shell()), extra_headers=[("Cache-Control", "no-store")])
             return
 
         if path in ("/autopublish", "/autopublish/"):
@@ -3129,6 +3130,25 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 return
             from autopublish_dashboard_html import AUTOPUBLISH_DASHBOARD_HTML
             self._send_html(AUTOPUBLISH_DASHBOARD_HTML)
+            return
+
+        if path == "/api/deploy/status":
+            from admin_ui.deploy_content_service import get_deploy_status
+            self._send_json(get_deploy_status())
+            return
+
+        if path == "/api/content/articles":
+            from admin_ui.deploy_content_service import get_articles_list
+            self._send_json(get_articles_list())
+            return
+
+        if path == "/api/content/article":
+            from admin_ui.deploy_content_service import get_article_detail
+            q = parse_qs(parsed.query)
+            dom = q.get("domain", [""])[0]
+            slug = q.get("slug", [""])[0]
+            status_code, data = get_article_detail(dom, slug)
+            self._send_json(data, status=status_code)
             return
 
         _PUBLIC_API = {"/api/auth/login", "/api/auth/logout", "/api/auth/unlock-dev", "/api/autopublish/preview"}
@@ -3262,7 +3282,8 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             if self._redirect_if_crm_locked():
                 return
             from admin_ui.shell import render_crm_shell
-            self._send_html(render_crm_shell(), extra_headers=[("Cache-Control", "no-store")])
+            from admin_ui.deploy_content_service import render_crm_shell_with_content
+            self._send_html(render_crm_shell_with_content(render_crm_shell()), extra_headers=[("Cache-Control", "no-store")])
             return
 
         if path in ("/classic", "/classic/"):
@@ -3805,6 +3826,13 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                 payload = json.loads(body.decode("utf-8")) if body else {}
             except Exception:
                 payload = {}
+
+        if path == "/api/deploy/sites":
+            from admin_ui.deploy_content_service import run_deployment
+            domains_arg = payload.get("domains", "all")
+            status_code, data = run_deployment(domains_arg)
+            self._send_json(data, status=status_code)
+            return
 
         if path == "/api/auth/login":
             from admin_ui import profile_auth

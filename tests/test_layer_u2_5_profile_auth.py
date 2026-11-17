@@ -8,6 +8,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import pytest
+
 from admin_ui import profile_auth
 from admin_ui.shell import render_crm_shell
 from admin_ui.views import render_login_view

@@ -1,6 +1,7 @@
 """Modular workspace view renderers for AdsterraFleet Vuexy CRM."""
 
 from admin_ui.views.autopublish import render_autopublish_view
+from admin_ui.views.content import render_content_view
 from admin_ui.views.growth import render_growth_view
 from admin_ui.views.live_workflow import (
     render_live_workflow_view,
@@ -17,6 +18,7 @@ from admin_ui.views.settings import render_settings_view
 
 __all__ = [
     "render_autopublish_view",
+    "render_content_view",
     "render_growth_view",
     "render_live_workflow_view",
     "render_workflow_dashboard_page",

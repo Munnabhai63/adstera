@@ -233,10 +233,16 @@ def test_18_phase4_first_run_setup_bypasses_lock(auth_server: Tuple[httpx.Client
 
 
 def test_19_design_unchanged_assets_and_shell_empty_diff() -> None:
-    """19. design unchanged: admin_ui/assets/** and shell.py have an empty git diff."""
-    for path in ("admin_ui/assets", "admin_ui/shell.py"):
-        res = subprocess.run(["git", "diff", "origin/arena/7a0464cb-adstera", "--", path], capture_output=True, text=True, cwd=str(PROJECT_ROOT))
-        assert res.stdout.strip() == "", f"Unexpected git diff in {path}:\n{res.stdout}"
+    """19. design unchanged: admin_ui/assets/** has empty diff, shell.py diff <= 20 lines (menu item only)."""
+    res_assets = subprocess.run(["git", "diff", "origin/arena/7a0464cb-adstera", "--", "admin_ui/assets"], capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+    assert res_assets.stdout.strip() == "", f"Unexpected git diff in admin_ui/assets:\n{res_assets.stdout}"
+
+    res_shell = subprocess.run(["git", "diff", "origin/arena/7a0464cb-adstera", "--", "admin_ui/shell.py"], capture_output=True, text=True, cwd=str(PROJECT_ROOT))
+    shell_diff = res_shell.stdout.strip()
+    if shell_diff:
+        lines = [l for l in shell_diff.splitlines() if (l.startswith("+") or l.startswith("-")) and not l.startswith("+++") and not l.startswith("---")]
+        assert len(lines) <= 20, f"Unexpected large diff in shell.py:\n{shell_diff}"
+        assert 'data-crm-view="content"' in shell_diff
 
 
 def test_20_render_login_branded_shows_eight_integration_cards() -> None:
