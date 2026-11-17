@@ -429,7 +429,7 @@ autopublish:
   - '16:00'
   - '20:00'
   - 00:00
-  articles_per_domain_per_day: 1
-  daily_total_target: 10
+  articles_per_domain_per_day: 5
+  daily_total_target: 50
   wave_domain_gap_seconds: 300
   discover_20_before_publish: true

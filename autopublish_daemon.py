@@ -79,12 +79,50 @@ DEFAULT_AUTOPUBLISH_CFG = {
     "sync_winners_to_queue": True,
     "schedule_mode": "5_wave_24h",
     "wave_hours_ist": ["07:00", "11:30", "16:00", "20:00", "00:00"],
-    "articles_per_domain_per_day": 1,
-    "daily_total_target": 10,
+    "articles_per_domain_per_day": 5,
+    "daily_total_target": 50,
     "wave_domain_gap_seconds": 300,
     "discover_20_before_publish": True,
 }
 DEFAULT_CONFIG = DEFAULT_AUTOPUBLISH_CFG
+
+
+def validate_autopublish_config(cfg: dict) -> None:
+    """Startup consistency guard ensuring code and config.yaml agree, and quota/wave math is valid."""
+    if CONFIG_PATH.exists():
+        try:
+            data = yaml.safe_load(CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            ap_file = data.get("autopublish") or {}
+            if isinstance(ap_file, dict):
+                f_per_dom = ap_file.get("articles_per_domain_per_day")
+                c_per_dom = DEFAULT_AUTOPUBLISH_CFG.get("articles_per_domain_per_day")
+                if f_per_dom is not None and c_per_dom is not None:
+                    assert int(f_per_dom) == int(c_per_dom), (
+                        f"Config mismatch: config.yaml has articles_per_domain_per_day={f_per_dom} "
+                        f"but DEFAULT_AUTOPUBLISH_CFG has {c_per_dom}"
+                    )
+                f_target = ap_file.get("daily_total_target")
+                c_target = DEFAULT_AUTOPUBLISH_CFG.get("daily_total_target")
+                if f_target is not None and c_target is not None:
+                    assert int(f_target) == int(c_target), (
+                        f"Config mismatch: config.yaml has daily_total_target={f_target} "
+                        f"but DEFAULT_AUTOPUBLISH_CFG has {c_target}"
+                    )
+        except AssertionError:
+            raise
+        except Exception:
+            pass
+
+    per_domain = int(cfg.get("articles_per_domain_per_day", 5))
+    daily_target = int(cfg.get("daily_total_target", 50))
+    wave_hours = cfg.get("wave_hours_ist") or []
+
+    assert per_domain * 10 == daily_target, (
+        f"Inconsistent quota: per_domain ({per_domain}) x 10 domains == {per_domain * 10} != daily_total_target ({daily_target})"
+    )
+    assert len(wave_hours) == per_domain, (
+        f"Inconsistent waves: len(wave_hours_ist) ({len(wave_hours)}) != articles_per_domain_per_day ({per_domain})"
+    )
 
 
 def _load_autopublish_config() -> dict:
@@ -97,6 +135,7 @@ def _load_autopublish_config() -> dict:
                 cfg.update({k: v for k, v in ap.items() if v is not None})
     except Exception:
         pass
+    validate_autopublish_config(cfg)
     return cfg
 
 
