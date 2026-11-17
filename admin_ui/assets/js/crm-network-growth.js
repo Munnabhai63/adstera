@@ -363,17 +363,16 @@
     const authType = document.getElementById("u5GscAuthType");
 
     const configured = Boolean(auth.configured);
-    const hasLiveProps = Boolean(summary.live_domains_count > 0);
     if (kpiAuth) {
-      kpiAuth.textContent = hasLiveProps ? "CONNECTED" : "GSC NOT CONNECTED";
-      kpiAuth.className = `mb-1 ${hasLiveProps ? "text-success" : "text-danger"}`;
+      kpiAuth.textContent = configured ? "CONNECTED" : "CREDS PENDING";
+      kpiAuth.className = `mb-1 ${configured ? "text-success" : "text-warning"}`;
     }
     if (kpiLive) {
-      kpiLive.textContent = hasLiveProps ? `${summary.live_domains_count ?? 0} / ${summary.total_domains ?? 10} Live Properties` : "--";
+      kpiLive.textContent = `${summary.live_domains_count ?? 0} / ${summary.total_domains ?? 10} Live Properties`;
     }
-    if (kpiImps) kpiImps.textContent = hasLiveProps && summary.total_impressions_7d !== null ? formatInt(summary.total_impressions_7d) : "--";
+    if (kpiImps) kpiImps.textContent = formatInt(summary.total_impressions_7d ?? 0);
     if (kpiClicks) {
-      kpiClicks.textContent = hasLiveProps && summary.total_clicks_7d !== null ? `${formatInt(summary.total_clicks_7d)} Clicks · Pos ${summary.avg_position ?? "--"}` : "--";
+      kpiClicks.textContent = `${formatInt(summary.total_clicks_7d ?? 0)} Clicks · Pos ${summary.avg_position ?? "--"}`;
     }
     if (clientEmail) clientEmail.textContent = auth.client_email || "Not Configured";
     if (authType) authType.textContent = auth.auth_type || "unconfigured";
@@ -399,19 +398,19 @@
       tr.appendChild(th);
 
       const tdSrc = el("td");
-      const isLive = Boolean(row.connected && row.data_source === "google_search_console_api");
-      tdSrc.appendChild(el("span", `badge ${isLive ? "bg-label-success" : "bg-label-danger"}`, isLive ? "LIVE API" : "GSC NOT CONNECTED"));
+      const isLive = row.data_source === "google_search_console_api" && !row.is_mock;
+      tdSrc.appendChild(el("span", `badge ${isLive ? "bg-label-success" : "bg-label-warning"}`, isLive ? "LIVE API" : "Mock Fallback"));
       tr.appendChild(tdSrc);
 
-      const propTxt = row.property_url || row.site_url || (isLive ? `sc-domain:${domName}` : "--");
+      const propTxt = row.site_url || `sc-domain:${domName}`;
       tr.appendChild(el("td", "font-monospace small u5-wrap-text", propTxt));
-      tr.appendChild(el("td", "text-end tabular-nums", row.impressions !== null && row.impressions !== undefined ? formatInt(row.impressions) : "--"));
-      tr.appendChild(el("td", "text-end tabular-nums", row.clicks !== null && row.clicks !== undefined ? formatInt(row.clicks) : "--"));
+      tr.appendChild(el("td", "text-end tabular-nums", formatInt(row.impressions ?? 0)));
+      tr.appendChild(el("td", "text-end tabular-nums", formatInt(row.clicks ?? 0)));
 
-      const ctrVal = row.ctr !== null && row.ctr !== undefined ? `${(Number(row.ctr) * 100).toFixed(2)}%` : "--";
-      tr.appendChild(el("td", "text-end tabular-nums", ctrVal));
-      tr.appendChild(el("td", "text-end tabular-nums", row.avg_position !== null && row.avg_position !== undefined ? `#${Number(row.avg_position).toFixed(1)}` : "--"));
-      tr.appendChild(el("td", "small text-body-secondary u5-wrap-text", (row.top_queries && row.top_queries[0]?.query) || row.top_query || "--"));
+      const ctrVal = Number(row.ctr ?? 0);
+      tr.appendChild(el("td", "text-end tabular-nums", `${(ctrVal * 100).toFixed(2)}%`));
+      tr.appendChild(el("td", "text-end tabular-nums", row.avg_position ?? "--"));
+      tr.appendChild(el("td", "small text-body-secondary u5-wrap-text", row.top_query || "--"));
       tbody.appendChild(tr);
     });
   }

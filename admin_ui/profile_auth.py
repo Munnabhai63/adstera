@@ -383,14 +383,16 @@ def unlock_without_password(state_dir: Path | None = None) -> tuple[bool, str]:
 
 def is_crm_locked(cookie_header: str | None = None, state_dir: Path | None = None) -> bool:
     """Return True if /crm must present the Vuexy Sign-In / Lock screen."""
-    if state_dir is None and os.environ.get("PHASE4_FIRST_RUN_SETUP") == "1":
+    if os.environ.get("PHASE4_FIRST_RUN_SETUP") == "1":
         return False
     raw = _load_raw_profile(state_dir)
-    auth = raw["auth"]
+    auth = raw.get("auth", {})
     has_pw = bool(auth.get("password_hash") and auth.get("password_salt"))
+    if not has_pw and auth.get("locked_now", True):
+        return True
     if auth.get("locked_now"):
         return True
-    if has_pw and auth.get("require_login"):
+    if has_pw and auth.get("require_login", True):
         return validate_session_cookie(cookie_header, state_dir) is None
     return False
 

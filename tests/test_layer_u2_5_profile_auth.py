@@ -133,6 +133,7 @@ def test_crm_shell_and_login_markup() -> None:
     assert 'id="u25DevUnlockBtn"' not in login_pw
 
 
+@pytest.mark.live
 def test_live_u25_http_routes_and_lock_roundtrip() -> None:
     with urllib.request.urlopen("http://127.0.0.1:5050/api/profile", timeout=5) as resp:
         assert resp.status == 200

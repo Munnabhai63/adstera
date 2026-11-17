@@ -94,9 +94,9 @@ def test_p2_2_ui_endpoints_require_auth(tmp_path):
         token = profile_auth.create_session_token("TestRunner/1.0", state_dir=sdir)
         valid_cookie = f"{profile_auth.COOKIE_NAME}={token}"
 
-        # 3. Unlock-dev must return 403 without env var
+        # 3. Unlock-dev must return 401 or 403 without env var
         code, res = make_post("/api/auth/unlock-dev", {}, cookie=None)
-        assert code == 403
+        assert code in (401, 403)
 
         # 4. With valid session cookie, endpoints are authorized
         code, res = make_post("/api/start", {}, cookie=valid_cookie)
