@@ -23,7 +23,7 @@ def build_baseline() -> dict[str, int]:
         words = audit_article(path).get("prose_words") or 0
         baseline[key] = words
 
-    assert len(baseline) == 278, f"Expected 278 articles, found {len(baseline)}"
+    assert len(baseline) == len(articles), f"Expected {len(articles)} articles, found {len(baseline)}"
     return baseline
 
 

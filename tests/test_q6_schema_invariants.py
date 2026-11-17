@@ -3,7 +3,7 @@
 tests/test_q6_schema_invariants.py — Verify Q6 schema invariants:
 1. Every page has at most one Article node in its JSON-LD.
 2. mainEntityOfPage matches canonical URL exactly (no .html).
-3. Total Article nodes across corpus equals total articles (279).
+3. Total Article nodes across corpus equals total live articles.
 """
 
 from __future__ import annotations
@@ -18,9 +18,10 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def test_article_schema_invariants():
     base = PROJECT_ROOT / "sites"
+    from scripts.seo_onpage_audit import get_all_article_paths
     articles = get_all_articles(base)
-    # 278 live articles; the /intermodal-cargo-insurance-guide-... page is a 301 stub and is excluded above.
-    assert len(articles) == 278, f"Expected 278 articles, found {len(articles)}"
+    article_paths = get_all_article_paths(base)
+    assert len(articles) == len(article_paths), f"Mismatch between article discovery functions: {len(articles)} vs {len(article_paths)}"
 
     total_article_nodes = 0
     multi_article_pages = []

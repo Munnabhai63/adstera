@@ -75,7 +75,7 @@ for path in articles:
 total_rejected = len(rejected_paras)
 
 print("========================================================================")
-print(" SHINGLE GUARD AUDIT: FULL 279-ARTICLE CURRENT CORPUS")
+print(" SHINGLE GUARD AUDIT: FULL CURRENT CORPUS")
 print("========================================================================")
 print(f"Total articles audited:             {len(articles)}")
 print(f"Total paragraphs scanned:           {total_paragraphs}")

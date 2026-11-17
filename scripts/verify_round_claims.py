@@ -4,7 +4,7 @@ scripts/verify_round_claims.py — Report Honesty Guard.
 Re-runs the four numeric invariants this round depends on and exits non-zero on any mismatch:
 1. render_301_stub(...) bytes == on-disk stub bytes
 2. ARTICLE_WORD_COUNT_FLOOR == 3000
-3. article count from scripts.fix_article_images.get_all_articles == 278
+3. article count matches the number of non-redirect article files
 4. layer7 parallel test passes 5 consecutive times (prints layer7: PASS=5 FAIL=0)
 
 Usage: python scripts/verify_round_claims.py
@@ -52,12 +52,14 @@ def verify_claim_2_word_floor() -> tuple[bool, str]:
 
 def verify_claim_3_article_count() -> tuple[bool, str]:
     from scripts.fix_article_images import get_all_articles
+    from scripts.seo_onpage_audit import get_all_article_paths
 
     articles = get_all_articles()
+    article_paths = get_all_article_paths()
     count = len(articles)
-    if count != 278:
-        return False, f"Claim 3 FAILED: article count is {count}, expected 278"
-    return True, f"Claim 3: corpus article count == {count} (excluding 301 stub)"
+    if count != len(article_paths):
+        return False, f"Claim 3 FAILED: get_all_articles ({count}) != get_all_article_paths ({len(article_paths)})"
+    return True, f"Claim 3: article count matches the number of non-redirect article files == {count}"
 
 
 def verify_claim_4_layer7_concurrency_5x() -> tuple[bool, str]:

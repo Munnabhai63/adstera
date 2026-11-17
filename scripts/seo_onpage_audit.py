@@ -2,7 +2,7 @@
 """
 scripts/seo_onpage_audit.py — On-Page SEO Audit & Remediation Tool
 
-Audits all 279 real articles across the 10 publisher domains for on-page SEO compliance:
+Audits all real articles across the 10 publisher domains for on-page SEO compliance:
   1. Title length: 45–60 characters (inclusive)
   2. Clean title endings: No trailing colons, commas, dashes, or dangling words
      ("for", "in", "with", "the", "a", "an", "on", "to", "and", "or", "of", "from", "at", "by")
@@ -57,7 +57,7 @@ STATIC_SLUGS = {
 
 
 def get_all_article_paths(sites_dir: Path | None = None) -> list[Path]:
-    """Discover all 279 real article HTML files across the 10 domains."""
+    """Discover all real article HTML files across the 10 domains."""
     root = sites_dir or (PROJECT_ROOT / "sites")
     articles: list[Path] = []
     for p in root.rglob("*.html"):
@@ -362,7 +362,7 @@ def audit_article(path: Path | str) -> dict[str, Any]:
 
 
 def run_full_onpage_audit(sites_dir: Path | None = None) -> dict[str, Any]:
-    """Audit all 279 articles and collect summary metrics."""
+    """Audit all real articles and collect summary metrics."""
     articles = get_all_article_paths(sites_dir)
     total = len(articles)
 
@@ -621,7 +621,7 @@ def main() -> int:
 
     if args.fix:
         print_audit_table(before, label="ON-PAGE AUDIT: BEFORE REWRITE")
-        print("\nRewriting titles and meta descriptions across all 279 articles...")
+        print("\nRewriting titles and meta descriptions across all real articles...")
         fixed = rewrite_titles_and_descriptions()
         print(f"Updated {fixed} articles successfully.\n")
         after = run_full_onpage_audit()

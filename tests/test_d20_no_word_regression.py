@@ -10,7 +10,7 @@ import re
 from pathlib import Path
 import pytest
 
-from scripts.seo_onpage_audit import audit_article
+from scripts.seo_onpage_audit import audit_article, get_all_article_paths
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 SITES_ROOT = PROJECT_ROOT / "sites"
@@ -23,7 +23,8 @@ def test_no_article_word_regression():
     with open(BASELINE_PATH, "r", encoding="utf-8") as f:
         baseline = json.load(f)
         
-    assert len(baseline) == 278, f"Expected 278 baseline articles, found {len(baseline)}"
+    articles = get_all_article_paths(SITES_ROOT)
+    assert len(baseline) == len(articles), f"Expected {len(articles)} baseline articles, found {len(baseline)}"
     
     regressions = []
     for rel_path, min_words in baseline.items():

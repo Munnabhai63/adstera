@@ -101,7 +101,7 @@ def main():
     count_100 = sum(1 for s in scores if s == 100.0)
 
     print("\n" + "=" * 80)
-    print(" CLAUDE-SEO AUDIT: FULL 279-ARTICLE CORPUS SCORE DISTRIBUTION")
+    print(" CLAUDE-SEO AUDIT: FULL CORPUS SCORE DISTRIBUTION")
     print("=" * 80)
     print(f" Total articles audited:    {len(scores)}")
     print(f" Mean Claude-SEO Score:     {mean_s:.2f} / 100")
