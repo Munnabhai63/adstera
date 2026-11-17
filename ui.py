@@ -3058,6 +3058,9 @@ class UIRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        from admin_ui.auth_guard import guard_request
+        if not guard_request(self):
+            return
 
         # Domain Virtual Host router
         host_header = (self.headers.get("Host") or "").split(":")[0].lower()
@@ -3701,6 +3704,9 @@ class UIRequestHandler(BaseHTTPRequestHandler):
             hub.unsubscribe(q)
 
     def do_POST(self) -> None:
+        from admin_ui.auth_guard import guard_request
+        if not guard_request(self):
+            return
         parsed = urlparse(self.path)
         path = parsed.path
 
@@ -3720,7 +3726,7 @@ class UIRequestHandler(BaseHTTPRequestHandler):
         if path == "/api/auth/login":
             from admin_ui import profile_auth
             mode = str(payload.get("mode") or "login").strip().lower()
-            ident = str(payload.get("identifier") or "")
+            ident = str(payload.get("identifier") or payload.get("email") or "")
             pw = str(payload.get("password") or "")
             remember = str(payload.get("remember", True)).lower() not in ("0", "false", "no", "")
             prof = profile_auth.load_profile()
@@ -3734,6 +3740,8 @@ class UIRequestHandler(BaseHTTPRequestHandler):
                         self._send_json({"ok": False, "error": msg}, status=400)
                     return
             elif not profile_auth.verify_credentials(ident, pw):
+                from admin_ui.auth_guard import note_failed_login
+                note_failed_login((self.headers.get("X-Forwarded-For") or self.client_address[0]).split(",")[0].strip())
                 if is_form_post:
                     self._send_redirect("/crm/login?error=invalid")
                 else:

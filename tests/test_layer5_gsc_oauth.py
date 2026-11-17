@@ -424,7 +424,13 @@ def test_all_10_sites_have_google_verification_files_and_meta() -> None:
         assert "google31976c4df01121b2" in idx_text, f"Missing google-site-verification meta in {sdir / 'index.html'}"
 
 
-def test_live_ui_gsc_endpoints() -> None:
+def test_live_ui_gsc_endpoints(tmp_path: Path) -> None:
+    cache_file = tmp_path / "state" / "gsc_metrics.json"
+    cache_file.parent.mkdir(parents=True, exist_ok=True)
+    cache_file.write_text(
+        json.dumps({d: {"domain": d, "impressions": 100, "clicks": 10, "is_mock": True} for d in DEFAULT_DOMAINS}),
+        encoding="utf-8"
+    )
     with urllib.request.urlopen("http://127.0.0.1:5050/", timeout=8) as resp:
         assert resp.status == 200
         crm_body = resp.read().decode("utf-8", errors="replace")

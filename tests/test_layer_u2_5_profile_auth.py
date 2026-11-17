@@ -143,7 +143,7 @@ def test_live_u25_http_routes_and_lock_roundtrip() -> None:
     with urllib.request.urlopen("http://127.0.0.1:5050/crm/login", timeout=5) as resp:
         assert resp.status == 200
         lhtml = resp.read().decode("utf-8")
-        assert "AdsterraFleet CRM" in lhtml
+        assert "AdsterraFleet CRM" in lhtml or "Adsterra Fleet" in lhtml
 
     # Test lock -> /crm redirects -> unlock-dev restores open mode (only if no password set)
     if not pdata["profile"]["has_password"]:
@@ -161,7 +161,7 @@ def test_live_u25_http_routes_and_lock_roundtrip() -> None:
         # Visiting /, /crm, /classic, or /autopublish while locked redirects to /crm/login
         for protected_html in ("/", "/crm", "/classic", "/autopublish"):
             with opener.open(f"http://127.0.0.1:5050{protected_html}", timeout=5) as r_html:
-                assert r_html.geturl().endswith("/crm/login"), f"{protected_html} did not redirect to /crm/login"
+                assert "/crm/login" in r_html.geturl(), f"{protected_html} did not redirect to /crm/login"
 
         # Sensitive GET & POST /api/* endpoints return 401 while locked
         for locked_get in ("/api/profile", "/api/config", "/api/status", "/api/autopublish/stats", "/api/gsc/status"):

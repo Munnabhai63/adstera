@@ -110,6 +110,7 @@ def test_worker_fallback_recovery_on_bad_url():
         cfg_bad["session"]["page_depth_max"] = 1
         cfg_bad["session"]["internal_nav_prob"] = 0.0
         cfg_bad["geo_routing"] = {"enabled": False}
+        cfg_bad["android_cdp"] = {"enabled": False}
         
         rng = random.Random(99)
         proxy = Proxy(host="direct", port=0)
